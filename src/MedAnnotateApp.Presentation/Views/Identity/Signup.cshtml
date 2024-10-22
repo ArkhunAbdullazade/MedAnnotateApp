@@ -1,0 +1,131 @@
+@model MedAnnotateApp.Presentation.Dtos.SignupDto
+
+@{
+    ViewBag.Title = "Registration";
+
+    var specialities = ViewBag.Specialities as IEnumerable<string> ?? Enumerable.Empty<string>();
+}
+
+<style>
+    .centered {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 76.8vh;
+    }
+
+    input:focus,
+    select:focus {
+        border-color: #d78188 !important;
+        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px #d78188 !important;
+        outline: 0 none !important;
+    }
+</style>
+
+<section class="centered">
+    <div class="px-4 py-5 px-md-5 text-center text-lg-start"
+        style="width: 1200px;height: 600px;background-color: hsl(0, 0%, 96%)">
+        <div class="container">
+            <div class="row gx-lg-5">
+                <div class="col-lg-4 mb-4 mb-lg-5">
+                    <h1 class="my-5 display-2 fw-bold ls-tight" style="color: #a9000e;">
+                        Welcome
+                    </h1>
+                    <p style="color:rgb(122, 122, 122)">
+                        Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                        Eveniet, itaque accusantium odio, soluta, corrupti aliquam
+                        quibusdam tempora at cupiditate quis eum maiores libero
+                        veritatis? Dicta facilis sint aliquid ipsum atque?
+                        Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                        Eveniet, itaque accusantium odio, soluta, corrupti aliquam
+                        quibusdam tempora at cupiditate quis eum maiores libero
+                        veritatis? Dicta facilis sint aliquid ipsum atque?
+                    </p>
+                </div>
+
+                <div class="col-lg-5 mb-5 mb-lg-0">
+                    <div class="card" style="width: 700px;">
+                        <div class="card-body py-5 px-md-4">
+                            <form method="post" asp-action="Signup" asp-controller="Identity">
+                                <div class="text-danger" asp-validation-summary="All"></div>
+
+                                <div class="row">
+                                    <div class="col-md-4 mb-1">
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="email" asp-for="Email" class="form-control" />
+                                            <span asp-validation-for="Email" class="form-label text-dark">Institutional Email</span>
+                                        </div>
+
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="text" asp-for="UserName" class="form-control" />
+                                            <span asp-validation-for="UserName" class="form-label text-dark">User Name</span>
+                                        </div>
+
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="text" asp-for="FullName" class="form-control" />
+                                            <span asp-validation-for="FullName" class="form-label text-dark">Full Name</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-1">
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="password" asp-for="Password" class="form-control" />
+                                            <span asp-validation-for="Password" class="form-label text-dark">Password</span>
+                                        </div>
+
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="password" asp-for="ConfirmPassword" class="form-control" />
+                                            <span asp-validation-for="ConfirmPassword" class="form-label text-dark">Confirm Your Password</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-1">
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="text" asp-for="University" class="form-control" />
+                                            <span asp-validation-for="University" class="form-label text-dark">University</span>
+                                        </div>
+
+                                        <div class="form-outline mb-2">
+                                            <select asp-for="Position" class="form-control">
+                                                <option disabled selected value="">Select Position</option>
+                                                <option value="medical student">Medical Student</option>
+                                                <option value="clinician">Clinician</option>
+                                            </select>
+                                            <span asp-validation-for="Position" class="text-dark">Position</span>
+                                        </div>
+
+                                        <div class="form-outline mb-2">
+                                            <select asp-for="Speciality" class="form-control">
+                                                <option disabled selected value="">Select Speciality</option>
+                                                @foreach (var speciality in specialities)
+                                                {
+                                                    <option value="@speciality">@speciality</option>
+                                                }
+                                            </select>
+                                            <span asp-validation-for="Speciality" class="text-dark">Speciality</span>
+                                        </div>
+
+                                        <div data-mdb-input-init class="form-outline mb-2">
+                                            <input type="number" asp-for="ClinicalExperience"  min="0" class="form-control" />
+                                            <span asp-validation-for="ClinicalExperience" class="form-label text-dark">Year Of Clinical Experience</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Submit button -->
+                                <button type="submit" data-mdb-button-init data-mdb-ripple-init
+                                    class="btn btn-block mb-4" style="color: white; background-color: #a9000e;">
+                                    Sign Up
+                                </button>
+
+                                <p>Alredy have an account? <a asp-controller="Identity" asp-action="Login" style="color: #a9000e;">Sign In</a></p>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial">
+}

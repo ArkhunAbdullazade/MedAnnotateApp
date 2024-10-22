@@ -1,0 +1,39 @@
+@model MedAnnotateApp.Presentation.Dtos.LoginDto
+
+@{
+    ViewBag.Title = $"Login";
+}
+
+<style>
+    .centered {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 600px;
+    }
+
+    input:focus {
+        border-color: #d78188 !important;
+        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px #d78188 !important;
+        outline: 0 none !important;
+    }
+</style>
+
+<section class="centered">
+    <div class="px-3 py-5 px-md-5 text-lg-start"
+        style="width: 800px;height: 500px;background-color: hsl(0, 0%, 96%)">
+        <div class="container text-center">
+            <h1 class="my-5 display-5 fw-bold ls-tight " style="color: #a9000e;">
+                Email Confirmation Has Been Sent.
+            </h1>
+            <h2 class="my-5 display-6 fw-bold ls-tight " style="color: #a9000e;">
+                Please Check Your Email.
+            </h2>
+            <p>return to <a asp-controller="Identity" asp-action="Signup" style="color: #a9000e;">Registration</a> or <a asp-controller="Identity" asp-action="Login" style="color: #a9000e;">Sign In</a></p>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial">
+}
