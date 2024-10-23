@@ -7,6 +7,8 @@ using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Infrastructure.Settings;
+using MedAnnotateApp.Core.Repositories;
+using MedAnnotateApp.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +23,7 @@ builder.Services.AddDbContext<MedDataDbContext>(options =>
 });
 
 builder.Services.AddIdentity<User, IdentityRole>(options => {
-    options.SignIn.RequireConfirmedAccount = true;
+    options.SignIn.RequireConfirmedAccount = false;
     options.Password.RequireNonAlphanumeric = true;
     options.Password.RequiredLength = 8;
 })
@@ -34,6 +36,7 @@ builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpS
 
 builder.Services.AddTransient<IEmailService, EmailService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
+builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 
 var app = builder.Build();
 

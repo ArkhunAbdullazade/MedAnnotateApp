@@ -25,6 +25,8 @@ public class IdentityService : IIdentityService
     {
         var result = await this.userManager.CreateAsync(user, password!);
 
+        if(!result.Succeeded) return (false, result.Errors.Select(e => e.Description).ToArray());
+
         // if (result.Succeeded)
         // {
             // var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
@@ -40,7 +42,11 @@ public class IdentityService : IIdentityService
 
     public async Task<(bool Succeeded, IEnumerable<string>? Errors)> LoginAsync(string? email, string? password)
     {
-        var result = await signInManager.PasswordSignInAsync(email, password, false, false);
+        var user = await userManager.FindByEmailAsync(email!);
+
+        if (user == null) return (false, ["Invalid login attempt."]); 
+
+        var result = await signInManager.PasswordSignInAsync(user, password, false, false);
 
         return result.Succeeded ? (true, null) : (false, ["Invalid login attempt."]);
     }

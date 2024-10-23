@@ -57,6 +57,27 @@ namespace MedAnnotateApp.Presentation.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "MedDatas",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false),
+                    ImageUrl = table.Column<string>(type: "text", nullable: true),
+                    ImageDescription = table.Column<string>(type: "text", nullable: true),
+                    Sex = table.Column<string>(type: "text", nullable: true),
+                    Age = table.Column<string>(type: "text", nullable: true),
+                    SkinTone = table.Column<string>(type: "text", nullable: true),
+                    BodyRegion = table.Column<string>(type: "text", nullable: true),
+                    Diagnosis = table.Column<string>(type: "text", nullable: true),
+                    TreatmentName = table.Column<string>(type: "text", nullable: true),
+                    Speciality = table.Column<string>(type: "text", nullable: true),
+                    Modality = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MedDatas", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
@@ -162,6 +183,26 @@ namespace MedAnnotateApp.Presentation.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "MedDataKeywords",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    MedDataId = table.Column<int>(type: "integer", nullable: false),
+                    Keyword = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MedDataKeywords", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_MedDataKeywords_MedDatas_MedDataId",
+                        column: x => x.MedDataId,
+                        principalTable: "MedDatas",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 table: "AspNetRoleClaims",
@@ -198,6 +239,11 @@ namespace MedAnnotateApp.Presentation.Migrations
                 table: "AspNetUsers",
                 column: "NormalizedUserName",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MedDataKeywords_MedDataId",
+                table: "MedDataKeywords",
+                column: "MedDataId");
         }
 
         /// <inheritdoc />
@@ -219,10 +265,16 @@ namespace MedAnnotateApp.Presentation.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "MedDataKeywords");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "MedDatas");
         }
     }
 }

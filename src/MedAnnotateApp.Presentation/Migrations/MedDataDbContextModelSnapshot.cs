@@ -22,6 +22,67 @@ namespace MedAnnotateApp.Presentation.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.MedData", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Age")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BodyRegion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Diagnosis")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImageDescription")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Modality")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Sex")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinTone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Speciality")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TreatmentName")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MedDatas");
+                });
+
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.MedDataKeyword", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Keyword")
+                        .HasColumnType("text");
+
+                    b.Property<int>("MedDataId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MedDataId");
+
+                    b.ToTable("MedDataKeywords");
+                });
+
             modelBuilder.Entity("MedAnnotateApp.Core.Models.User", b =>
                 {
                     b.Property<string>("Id")
@@ -233,6 +294,17 @@ namespace MedAnnotateApp.Presentation.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.MedDataKeyword", b =>
+                {
+                    b.HasOne("MedAnnotateApp.Core.Models.MedData", "MedData")
+                        .WithMany("MedDataKeywords")
+                        .HasForeignKey("MedDataId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MedData");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -282,6 +354,11 @@ namespace MedAnnotateApp.Presentation.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.MedData", b =>
+                {
+                    b.Navigation("MedDataKeywords");
                 });
 #pragma warning restore 612, 618
         }

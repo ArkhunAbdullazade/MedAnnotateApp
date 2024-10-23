@@ -1,5 +1,6 @@
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Services;
+using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Presentation.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -39,7 +40,7 @@ public class IdentityController : Controller
             "radiotherapy", "neonatology", "emergency medicine",
             "traditional medicine", "physiology", "hepatology", "podiatry"
         };
-
+        
         return base.View();
     }
 

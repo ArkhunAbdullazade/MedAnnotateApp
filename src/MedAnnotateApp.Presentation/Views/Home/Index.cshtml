@@ -1,8 +1,137 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model MedData
+
+@{
+    var medDataKeywords = ViewBag.MedDataKeywords as IEnumerable<string?> ?? Enumerable.Empty<string?>();
+
+    string HighlightKeywords(string text, IEnumerable<string> keywords)
+    {
+        foreach (var kw in keywords)
+        {
+            if (!string.IsNullOrEmpty(kw))
+            {
+                var replacement = $"<a href='#' class='highlight' onclick='handlePhraseClick(\"{kw}\")'>{kw}</a>";
+                text = text.Replace(kw, replacement);
+            }
+        }
+
+        return text;
+    }
+
+    var transformedImageDescription = HighlightKeywords(Model.ImageDescription!, medDataKeywords!);
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<style>
+    .container {
+        flex: 1;
+        width: 1200px;
+        display: flex;
+        flex-direction: column;ё
+        align-items: center;
+    }
+
+    .header-text {
+        width: 100%;
+        background-color: #fff;
+        padding: 10px;
+        border: 1px solid #a9000e;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .highlight {
+        color: #a9000e;
+        font-weight: bold;
+    }
+
+    .main-content {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex: 1;
+        gap: 20px;
+        width: 100%;
+    }
+
+    .image-container {
+        flex: 1;
+        border: 1px solid #a9000e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .image-container img {
+        max-width: 900px;
+        max-height: 550px;
+        object-fit: fill;
+    }
+
+    .metadata {
+        width: 250px;
+        height: 100%;
+        background-color: #fff;
+        padding: 10px;
+        border: 1px solid #a9000e;
+        border-radius: 4px;
+        overflow-y: auto;
+    }
+
+    .buttons-section {
+        display: flex;
+        justify-content: flex-start;
+        gap: 10px;
+        width: 100%;
+        padding: 10px;
+    }
+
+    .button {
+        padding: 10px 15px;
+        border: none;
+        color: white; 
+        background-color: #a9000e;
+        cursor: pointer;
+    }
+
+    .button:hover {
+        background-color: #8f000c;
+    }
+</style>
+
+<div class="container">
+    <div class="header-text">
+        <p style="color:grey;">@Html.Raw(transformedImageDescription) </p>
+    </div>
+
+    <div class="main-content">
+        <div class="image-container">
+            <img src="@Model.ImageUrl" alt="Image to Annotate">
+        </div>
+
+        <div class="metadata">
+            <h3 style="color: #a9000e; font-weight: bold;">@Model.Speciality</h3>
+            <p><strong>u-unkown, na-not applicable</strong></p>
+            <p><strong>Sex: </strong>@Model.Sex</p>
+            <p><strong>Age: </strong>@Model.Age</p>
+            <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
+            <p><strong>Body Region: </strong>@Model.BodyRegion</p>
+            <p><strong>Diagnosis: </strong>@Model.Diagnosis</p>
+            <p><strong>Treatment Name: </strong>@(string.IsNullOrWhiteSpace(Model.TreatmentName) ? "None" : Model.TreatmentName)</p>
+            <p><strong>Modality: </strong>@Model.Modality</p>
+        </div>
+    </div>
+
+    <div class="buttons-section">
+        <button type="button"
+            class="button btn btn-block mb-4">
+            Not Present
+        </button>
+        <button type="button"
+            class="button btn btn-block mb-4">
+            Skip
+        </button>
+        <button type="button"
+            class="button btn btn-block mb-4">
+            Next Word
+        </button>
+    </div>
 </div>
