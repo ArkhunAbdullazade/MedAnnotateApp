@@ -1,0 +1,135 @@
+.container {
+    flex: 1;
+    width: 1200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.header-text {
+    width: 100%;
+    background-color: #fff;
+    padding: 5px;
+    border: 1px solid #a9000e;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    display: block;
+    overflow-y: auto;
+    max-height: 90px;
+}
+
+.current_keyword {
+    color: #a9000e;
+    font-weight: bold;
+}
+
+.current_keyword:hover {
+    color: #8f000c;
+}
+
+.annotated_keyword {
+    color: #009d2f;
+    font-weight: bold;
+}
+
+.annotated_keyword:hover {
+    color: #008127;
+}
+
+.not_annotated_keyword {
+    color: rgb(224, 173, 18);
+}
+
+.not_annotated_keyword:hover {
+    color: rgb(201, 155, 16);
+}
+
+.main-content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    gap: 20px;
+    width: 100%;
+}
+
+#image-container {
+    user-select: none; /* Prevent text selection */
+    -webkit-user-select: none; /* For Safari */
+    -ms-user-select: none; /* For IE/Edge */
+    cursor: crosshair; /* Change the cursor to indicate a drawing tool */
+}
+
+/* #image-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    border: 1px solid #a9000e;
+    width: 900px;
+    height: 427px;
+    position: relative;
+    width: 80%;
+} */
+
+#image {
+    /* max-width: 900px;
+    max-height: 427px;
+    object-fit: contain; */
+    /* width: 100%;  */
+    /* height: auto;  */
+    /* display: none; */
+    /* max-width: 900px;
+    max-height: 427px;
+    object-fit: contain; */
+}
+
+#crop-canvas {
+    /* max-width: 900px;
+    max-height: 427px; */
+    /* position: block;
+    height: auto; */
+    /* top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%; */
+    /* cursor: crosshair;
+    z-index: 10; */
+    /* background-color: purple; */
+    /* border: 1px solid #000; */
+}
+
+.metadata {
+    width: 250px;
+    max-height: 430px;
+    height: 100%;
+    background-color: #fff;
+    padding: 10px;
+    border: 1px solid #a9000e;
+    border-radius: 4px;
+    overflow-y: auto;
+}
+
+.buttons-section {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 10px;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;   
+}
+
+.button {
+    padding: 10px 15px;
+    border: none;
+    color: white; 
+    background-color: #a9000e;
+    cursor: pointer;
+    width: auto;
+}
+
+.button:hover {
+    background-color: #8f000c;
+}

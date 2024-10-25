@@ -9,7 +9,17 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 620px;
+        height: 580px;
+    }
+
+    .centered-form {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .button:hover {
+        background-color: #8f000c;
     }
 
     input:focus {
@@ -20,50 +30,54 @@
 </style>
 
 <section class="centered">
-    <div class="px-4 py-5 px-md-5 text-lg-start"
-        style="width: 1100px;height: 500px;background-color: hsl(0, 0%, 96%)">
-        <div class="container">
-            <div class="row gx-lg-5 align-items-center">
-                <div class="col-lg-6 mb-5 mb-lg-0">
-                    <h1 class="my-5 display-3 fw-bold ls-tight text-center" style="color: #a9000e;">
-                        Welcome
-                    </h1>
-                    <p style="color:rgb(122, 122, 122)">
-                        Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                        Eveniet, itaque accusantium odio, soluta, corrupti aliquam
-                        quibusdam tempora at cupiditate quis eum maiores libero
-                        veritatis? Dicta facilis sint aliquid ipsum atque?
-                        Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                        Eveniet, itaque accusantium odio, soluta, corrupti aliquam
-                        quibusdam tempora at cupiditate quis eum maiores libero
-                        veritatis? Dicta facilis sint aliquid ipsum atque?
-                    </p>
-                </div>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-9">
+                <div class="card shadow-lg p-5" style="background-color: #f8f9fa;">
+                    <div class="row">
+                        <div class="col-md-6 d-flex align-items-center " style="height: 400px;">
+                            <div>
+                                <h1 class="display-3 fw-bold ls-tight text-center" style="color: #a9000e;">
+                                    Welcome
+                                </h1>
+                                <p class="mt-4" style="color:rgb(122, 122, 122)">
+                                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                                    Eveniet, itaque accusantium odio, soluta, corrupti aliquam
+                                    quibusdam tempora at cupiditate quis eum maiores libero
+                                    veritatis? Dicta facilis sint aliquid ipsum atque?
+                                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                                    Eveniet, itaque accusantium odio, soluta, corrupti aliquam
+                                    quibusdam tempora at cupiditate quis eum maiores libero
+                                    veritatis? Dicta facilis sint aliquid ipsum atque?
+                                </p>
+                            </div>
+                        </div>
 
-                <div class="col-lg-6 mb-5 mb-lg-0">
-                    <div class="card">
-                        <div class="card-body py-5 px-md-5">
-                            <form method="post" asp-action="Login" asp-controller="Identity">
-                                <div class="text-danger" asp-validation-summary="All"></div>
+                        <div class="col-md-6">
+                            <div class="card shadow-sm p-4" style="background-color: #ffffff;height: 400px;">
+                                <div class="card-body centered-form">
+                                    <form method="post" asp-action="Login" asp-controller="Identity" style="width: 100%;">
+                                        <div class="text-danger" asp-validation-summary="All"></div>
 
-                                <div data-mdb-input-init class="form-outline mb-4">
-                                    <input type="email" asp-for="Email" class="form-control" />
-                                    <span asp-validation-for="Email" class="form-label text-dark">Institutional Email</span>
+                                        <div data-mdb-input-init class="form-outline mb-4">
+                                            <input type="email" asp-for="Email" class="form-control" />
+                                            <span asp-validation-for="Email" class="form-label text-dark">Institutional Email</span>
+                                        </div>
+
+                                        <div data-mdb-input-init class="form-outline mb-4">
+                                            <input type="password" asp-for="Password" class="form-control" />
+                                            <span asp-validation-for="Password" class="form-label text-dark">Password</span>
+                                        </div>
+
+                                        <button type="submit" data-mdb-button-init data-mdb-ripple-init
+                                            class="btn btn-block mb-4" style="color: white; background-color: #a9000e;">
+                                            Sign In
+                                        </button>
+
+                                        <p>Not a member? <a asp-controller="Identity" asp-action="Signup" style="color: #a9000e;">Sign Up</a></p>
+                                    </form>
                                 </div>
-
-                                <div data-mdb-input-init class="form-outline mb-4">
-                                    <input type="password" asp-for="Password" class="form-control" />
-                                    <span asp-validation-for="Password" class="form-label text-dark">Password</span>
-                                </div>
-
-                                <!-- Submit button -->
-                                <button type="submit" data-mdb-button-init data-mdb-ripple-init
-                                    class="btn btn-block mb-4" style="color: white; background-color: #a9000e;">
-                                    Sign In
-                                </button>
-
-                                <p>Not a member? <a asp-controller="Identity" asp-action="Signup" style="color: #a9000e;">Sign Up</a></p>
-                            </form>
+                            </div>
                         </div>
                     </div>
                 </div>

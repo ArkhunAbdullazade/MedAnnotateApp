@@ -17,7 +17,7 @@ public class MedDataRepository : IMedDataRepository
     {
         return await context.MedDatas
             .Where(md => md.Speciality!.ToLower() == speciality)
-            .ElementAtOrDefaultAsync(n);
+            .ElementAtOrDefaultAsync(n-1);
     }
 
     public async Task<IEnumerable<MedData>> GetAllMedDataBySpecialityAsync(string speciality, int page = 1)

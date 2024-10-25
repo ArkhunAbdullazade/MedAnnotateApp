@@ -26,7 +26,7 @@ public class HomeController : Controller
 
         var medData = await medDataRepository.GetNthMedDataBySpecialityAsync(user?.Speciality!, n);
 
-        ViewBag.MedDataKeywords = await medDataRepository.GetKeywordsByMedDataIdAsync(medData!.Id);
+        ViewBag.MedDataKeywords = (await medDataRepository.GetKeywordsByMedDataIdAsync(medData!.Id)).ToList();
         
         return View(medData);
     }

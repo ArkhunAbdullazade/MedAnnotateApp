@@ -54,9 +54,9 @@ public class IdentityController : Controller
 
         var newUser = new User()
         {
-            UserName = signupDto.UserName,
-            FullName = signupDto.FullName,
             Email = signupDto.Email,
+            FullName = signupDto.FullName,
+            UserName = signupDto.Email,
             University = signupDto.University,
             Position = signupDto.Position,
             Speciality = signupDto.Speciality,
