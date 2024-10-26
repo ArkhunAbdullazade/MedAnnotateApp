@@ -9,6 +9,7 @@ public class MedDataDbContext : IdentityDbContext<User, IdentityRole, string>
 {
     public DbSet<MedData> MedDatas { get; set; }
     public DbSet<MedDataKeyword> MedDataKeywords { get; set; }
+    public DbSet<AnnotatedMedData> AnnotatedMedDatas { get; set; }
 
     public MedDataDbContext(DbContextOptions<MedDataDbContext> options) : base(options) {}
 

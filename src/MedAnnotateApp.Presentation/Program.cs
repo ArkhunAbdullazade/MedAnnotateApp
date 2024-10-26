@@ -37,6 +37,8 @@ builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpS
 builder.Services.AddTransient<IEmailService, EmailService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
+builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
+builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
 
 var app = builder.Build();
 

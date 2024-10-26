@@ -11,7 +11,7 @@
             var highlightStyle = i == 0 ? "current_keyword" : "not_annotated_keyword";
             if (!string.IsNullOrEmpty(kw))
             {
-                var replacement = $"<span id='keyword-{i}' class='{highlightStyle}'>{kw}</span>";
+                var replacement = $"<span id='keyword-{i}' class='{highlightStyle} keyword'>{kw}</span>";
                 text = text.Replace(kw, replacement);
             }
         }
@@ -23,7 +23,6 @@
 }
 
 <link rel="stylesheet" href="~/css/indexPage.css" asp-append-version="true" />
-<link rel="stylesheet" href="~/lib/cropperjs/cropper.min.css" asp-append-version="true" />
 
 <div class="container">
     <div class="header-text">
@@ -31,14 +30,13 @@
     </div>
 
     <div class="main-content">
-        <div id="image-container" style="position: relative; height: 430px; border: 2px solid #a9000e;">
+        <div id="image-container" style="position: relative; height: 430px; border: 2px solid #a9000e; border-radius: 3px;">
             <img id="image" src="@Model.ImageUrl" style="height: 430px; width: 100%; height: 100%; object-fit: contain; display: block;" alt="Image to Annotate">
             <canvas id="canvas" style="position: absolute; top: 0; left: 0;"></canvas>
         </div>
 
         <div class="metadata">
             <h5 style="color: #a9000e; font-weight: bold;">@Model.Speciality</h5>
-            <p><strong>u-unkown, na-not applicable</strong></p>
             <p><strong>Sex: </strong>@Model.Sex</p>
             <p><strong>Age: </strong>@Model.Age</p>
             <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
@@ -50,21 +48,22 @@
     </div>
 
     <div class="buttons-section">
-        <button type="button"
+        <button id="not-present-button" type="button"
             class="button btn btn-block mb-4">
             Not Present
         </button>
-        <button type="button"
+        <button id="skip-button" type="button"
             class="button btn btn-block mb-4">
-            Skip
+            I Don't Know
         </button>
         <button id="next-button" type="button"
-            class="button btn btn-block mb-4">
-            Next Word
+            class="button btn btn-block mb-4" disabled>
+            Next Keyword
         </button>
     </div>
 </div>
 
-<script src="~/lib/cropperjs/cropper.js" defer></script>
+<script type="text/javascript" defer>
+    window.annotatedMedData = @Html.Raw(Json.Serialize(Model));
+</script>
 <script src="~/js/indexPage.js" asp-append-version="true" defer></script> 
-@* <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script> *@

@@ -65,7 +65,7 @@ public class IdentityController : Controller
 
         var confirmationUrl = Url.Action(nameof(ConfirmEmail), "Identity", null, Request.Scheme);
 
-        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password, confirmationUrl!);
+        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, confirmationUrl!);
         
         // if (succeeded) return RedirectToAction("EmailConfirmation");
         if (succeeded) return base.RedirectToAction("Login");
@@ -97,7 +97,7 @@ public class IdentityController : Controller
         //     return View(loginDto);
         // }
 
-        var (succeeded, errors) = await this.identityService.LoginAsync(loginDto.Email, loginDto.Password);
+        var (succeeded, errors) = await this.identityService.LoginAsync(loginDto.Email!, loginDto.Password!);
 
         if (succeeded)  return base.RedirectToAction(controllerName: "Home", actionName: "Index");
 

@@ -22,6 +22,79 @@ namespace MedAnnotateApp.Presentation.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.AnnotatedMedData", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Age")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BodyRegion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BoxCoordinates")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ClinicalExperience")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Diagnosis")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExtractedKeyword")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FullName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImageDescription")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<int>("MedDataId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Modality")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Position")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PressedButton")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Sex")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinTone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Speciality")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Timestamps")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TreatmentName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("University")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AnnotatedMedDatas");
+                });
+
             modelBuilder.Entity("MedAnnotateApp.Core.Models.MedData", b =>
                 {
                     b.Property<int>("Id")

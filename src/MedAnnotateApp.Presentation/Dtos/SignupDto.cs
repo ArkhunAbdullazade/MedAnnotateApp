@@ -7,16 +7,16 @@ public class SignupDto
     public string? Email { get; set; }
     [Required(ErrorMessage = "Password cannot be empty"), DataType(DataType.Password)]
     public string? Password { get; set; }
-    [DataType(DataType.Password), Compare("Password")]
+    [Required(ErrorMessage = "Confirmation of the Password cannot be empty"), DataType(DataType.Password), Compare("Password")]
     public string? ConfirmPassword { get; set; }
-    [Required]
+    [Required(ErrorMessage = "Full Name cannot be empty")]
     public string? FullName { get; set; }
-    [Required]
+    [Required(ErrorMessage = "University cannot be empty")]
     public string? University { get; set; } 
-    [Required]   
+    [Required(ErrorMessage = "Position cannot be empty")]
     public string? Position { get; set; }
-    [Required]
+    [Required(ErrorMessage = "Speciality cannot be empty")]
     public string? Speciality { get; set; }
-    [Required]
+    [Required(ErrorMessage = "Clinical Experience cannot be empty")]
     public int ClinicalExperience { get; set; }
 }

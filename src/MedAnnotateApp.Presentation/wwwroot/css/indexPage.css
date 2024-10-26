@@ -36,11 +36,13 @@
     color: #008127;
 }
 
-.not_annotated_keyword {
+.not_annotated_keyword,
+.skipped_keyword {
     color: rgb(224, 173, 18);
 }
 
-.not_annotated_keyword:hover {
+.not_annotated_keyword:hover,
+.skipped_keyword:hover {
     color: rgb(201, 155, 16);
 }
 
@@ -58,45 +60,6 @@
     -webkit-user-select: none; /* For Safari */
     -ms-user-select: none; /* For IE/Edge */
     cursor: crosshair; /* Change the cursor to indicate a drawing tool */
-}
-
-/* #image-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    border: 1px solid #a9000e;
-    width: 900px;
-    height: 427px;
-    position: relative;
-    width: 80%;
-} */
-
-#image {
-    /* max-width: 900px;
-    max-height: 427px;
-    object-fit: contain; */
-    /* width: 100%;  */
-    /* height: auto;  */
-    /* display: none; */
-    /* max-width: 900px;
-    max-height: 427px;
-    object-fit: contain; */
-}
-
-#crop-canvas {
-    /* max-width: 900px;
-    max-height: 427px; */
-    /* position: block;
-    height: auto; */
-    /* top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%; */
-    /* cursor: crosshair;
-    z-index: 10; */
-    /* background-color: purple; */
-    /* border: 1px solid #000; */
 }
 
 .metadata {

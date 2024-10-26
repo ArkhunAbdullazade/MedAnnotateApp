@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authorization;
 using MedAnnotateApp.Core.Repositories;
 using Microsoft.AspNetCore.Identity;
 using MedAnnotateApp.Core.Models;
+using MedAnnotateApp.Infrastructure.Data;
+using MedAnnotateApp.Core.Services;
 
 namespace MedAnnotateApp.Presentation.Controllers;
 
@@ -13,11 +15,15 @@ public class HomeController : Controller
 {
     private readonly IMedDataRepository medDataRepository;
     private readonly UserManager<User> userManager;
+    private readonly MedDataDbContext context;
+    private readonly IExcelLoaderService excelLoaderService;
 
-    public HomeController(IMedDataRepository medDataRepository, UserManager<User> userManager)
+    public HomeController(IMedDataRepository medDataRepository, UserManager<User> userManager, MedDataDbContext context, IExcelLoaderService excelLoaderService)
     {
         this.medDataRepository = medDataRepository;
         this.userManager = userManager;
+        this.context = context;
+        this.excelLoaderService = excelLoaderService;
     }
 
     public async Task<IActionResult> Index(int n = 1)
@@ -27,7 +33,7 @@ public class HomeController : Controller
         var medData = await medDataRepository.GetNthMedDataBySpecialityAsync(user?.Speciality!, n);
 
         ViewBag.MedDataKeywords = (await medDataRepository.GetKeywordsByMedDataIdAsync(medData!.Id)).ToList();
-        
+
         return View(medData);
     }
 
