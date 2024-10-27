@@ -48,9 +48,8 @@
     }
 
     .text-danger {
-        max-height: 120px; /* Set a fixed height for the error container */
-        overflow-y: auto; /* Enable vertical scrolling */
-        margin-bottom: 13px;
+        max-height: 100px; /* Set a fixed height for the error container */
+        overflow-y: auto   ; /* Enable vertical scrolling */
     }
 </style>
 
@@ -60,7 +59,7 @@
             <div class="col-md-11">
                 <div class="card shadow-lg p-4" style="background-color: #f8f9fa;">
                     <div class="row">
-                        <div class="col-md-6 d-flex align-items-center " style="height: 500px;">
+                        <div class="col-md-6 d-flex align-items-center " style="height: 550px;">
                             <div>
                                 <h1 class="display-3 fw-bold ls-tight text-center" style="color: #a9000e;">
                                     Welcome
@@ -79,13 +78,13 @@
                         </div>
 
                         <div class="col-md-6">
-                            <div class="card shadow-sm p-4 form-container" style="background-color: #ffffff; height: 500px;">
+                            <div class="card shadow-sm p-4 form-container" style="background-color: #ffffff; height: 550px;">
                                 <div class="card-body centered-form">
                                     <form method="post" asp-action="Signup" asp-controller="Identity">
                                         <div class="text-danger" asp-validation-summary="All"></div>
 
                                         <div class="row">
-                                            <div class="col-md-6 mb-3">
+                                            <div class="col-md-6 mb-4">
                                                 <div data-mdb-input-init class="form-outline mb-2">
                                                     <input type="email" asp-for="Email" class="form-control" />
                                                     <span asp-validation-for="Email" class="form-label text-dark">Institutional Email</span>

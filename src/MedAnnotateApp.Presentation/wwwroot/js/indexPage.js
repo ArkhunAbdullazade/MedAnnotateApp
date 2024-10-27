@@ -349,22 +349,6 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             const urlParams = new URLSearchParams(window.location.search)
 
-            // fetch(Home/Index/n=${parseInt(urlParams.get('n'))+1 || 2}, {
-            //     method: 'Get',
-            //     headers: {
-            //         'Content-Type': 'application/json'
-            //     }
-            // })
-            // .then(response => response.json())
-            // .then(result => {
-            //     if (result.success) {
-            //         localStorage.removeItem('keywordStates');
-            //     } else {
-            //         console.error("Failed to process data.");
-            //     }
-            // })
-            // .catch(error => console.error('Error:', error));
-
             window.location.href = `${window.location.pathname}?n=${parseInt(urlParams.get('n'))+1 || 2}`;
             localStorage.removeItem('keywordStates');
         }

@@ -7,7 +7,7 @@ public class SignupDto
     public string? Email { get; set; }
     [Required(ErrorMessage = "Password cannot be empty"), DataType(DataType.Password)]
     public string? Password { get; set; }
-    [Required(ErrorMessage = "Confirmation of the Password cannot be empty"), DataType(DataType.Password), Compare("Password")]
+    [Required(ErrorMessage = "Confirmation of the Password cannot be empty"), DataType(DataType.Password), Compare("Password", ErrorMessage = "Passwords do not match.")]
     public string? ConfirmPassword { get; set; }
     [Required(ErrorMessage = "Full Name cannot be empty")]
     public string? FullName { get; set; }
