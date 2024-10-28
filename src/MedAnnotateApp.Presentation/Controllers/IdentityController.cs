@@ -1,4 +1,5 @@
 using MedAnnotateApp.Core.Models;
+using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Presentation.Dtos;
@@ -11,11 +12,13 @@ namespace MedAnnotateApp.Presentation.Controllers;
 [AllowAnonymous]
 public class IdentityController : Controller
 {
+    private readonly IMedDataRepository medDataRepository;
     private readonly IIdentityService identityService;
     private readonly UserManager<User> userManager;
 
-    public IdentityController(IIdentityService identityService, UserManager<User> userManager)
+    public IdentityController(IMedDataRepository medDataRepository, IIdentityService identityService, UserManager<User> userManager)
     {
+        this.medDataRepository = medDataRepository;
         this.identityService = identityService;
         this.userManager = userManager;
     }
@@ -23,6 +26,11 @@ public class IdentityController : Controller
     [HttpGet]
     public IActionResult Signup() 
     {
+        if (User.Identity!.IsAuthenticated)
+        {
+            return RedirectToAction("Index", "Home");
+        }
+
         ViewBag.Specialities = new[] {
             "pulmonology", "oncology", "dermatology", "pathology",
             "general surgery",  "oral and maxillofacial surgery",
@@ -79,7 +87,14 @@ public class IdentityController : Controller
     }
 
     [HttpGet]
-    public IActionResult Login() => base.View();
+    public IActionResult Login() {
+        if (User.Identity!.IsAuthenticated)
+        {
+            return RedirectToAction("Index", "Home");
+        }
+
+        return base.View();
+    }
 
     [HttpPost]
     public async Task<IActionResult> Login([FromForm] LoginDto loginDto)
@@ -130,10 +145,14 @@ public class IdentityController : Controller
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout(int MedDataId)
     {
         await this.identityService.SignoutAsync();
 
-        return RedirectToAction("Login");
+        await medDataRepository.UpdateIsAnnotated(MedDataId);
+        
+        // await counterRepository.UpdateCurrentCounterByUserIdAsync(user?.Id!, user?.Speciality!);
+
+        return Json(new { success = true });
     }
 }

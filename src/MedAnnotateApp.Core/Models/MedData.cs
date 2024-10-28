@@ -12,6 +12,8 @@ public class MedData
     public string? TreatmentName { get; set; }
     public string? Speciality { get; set; }
     public string? Modality { get; set; }
+    public bool IsAnnotated { get; set; }
+    public string? LockedByUserId  { get; set; }
 
     public ICollection<MedDataKeyword>? MedDataKeywords { get; set; }
 }

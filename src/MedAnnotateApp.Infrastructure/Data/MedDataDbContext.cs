@@ -10,6 +10,8 @@ public class MedDataDbContext : IdentityDbContext<User, IdentityRole, string>
     public DbSet<MedData> MedDatas { get; set; }
     public DbSet<MedDataKeyword> MedDataKeywords { get; set; }
     public DbSet<AnnotatedMedData> AnnotatedMedDatas { get; set; }
+    // public DbSet<MaxCounter> MaxCounters { get; set; }
+    // public DbSet<CurrentCounter> CurrentCounters { get; set; }
 
     public MedDataDbContext(DbContextOptions<MedDataDbContext> options) : base(options) {}
 
@@ -18,12 +20,16 @@ public class MedDataDbContext : IdentityDbContext<User, IdentityRole, string>
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<MedData>()
-        .Property(m => m.Id)
-        .ValueGeneratedNever();
+            .Property(m => m.Id)
+            .ValueGeneratedNever();
         
         modelBuilder.Entity<MedDataKeyword>()
             .HasOne(md => md.MedData)
             .WithMany(m => m.MedDataKeywords)
             .HasForeignKey(md => md.MedDataId);
+
+        modelBuilder.Entity<MedData>()
+            .Property(u => u.IsAnnotated)
+            .HasDefaultValue(false);
     }
 }

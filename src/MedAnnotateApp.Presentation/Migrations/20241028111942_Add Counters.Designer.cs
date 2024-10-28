@@ -3,6 +3,7 @@ using System;
 using MedAnnotateApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MedAnnotateApp.Presentation.Migrations
 {
     [DbContext(typeof(MedDataDbContext))]
-    partial class MedDataDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241028111942_Add Counters")]
+    partial class AddCounters
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -95,6 +98,47 @@ namespace MedAnnotateApp.Presentation.Migrations
                     b.ToTable("AnnotatedMedDatas");
                 });
 
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.CurrentCounter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CurrentValue")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Specialty")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CurrentCounters");
+                });
+
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.MaxCounter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("MaxValue")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Specialty")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MaxCounters");
+                });
+
             modelBuilder.Entity("MedAnnotateApp.Core.Models.MedData", b =>
                 {
                     b.Property<int>("Id")
@@ -119,9 +163,6 @@ namespace MedAnnotateApp.Presentation.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
-
-                    b.Property<string>("LockedByUserId")
-                        .HasColumnType("text");
 
                     b.Property<string>("Modality")
                         .HasColumnType("text");

@@ -19,49 +19,71 @@
         return text;
     }
 
-    var transformedImageDescription = HighlightKeywords(Model.ImageDescription!, medDataKeywords!);
+    string? transformedImageDescription = default;
+
+    if (Model != null) transformedImageDescription = HighlightKeywords(Model.ImageDescription!, medDataKeywords!);
+
 }
 
 <link rel="stylesheet" href="~/css/indexPage.css" asp-append-version="true" />
 
-<div class="container">
-    <div class="header-text">
-        <p style="color:grey;">@Html.Raw(transformedImageDescription)</p>
-    </div>
 
-    <div class="main-content">
-        <div id="image-container" style="position: relative; height: 430px; border: 2px solid #a9000e; border-radius: 3px;">
-            <img id="image" src="@Model.ImageUrl" style="height: 430px; width: 100%; height: 100%; object-fit: contain; display: block;" alt="Image to Annotate">
-            <canvas id="canvas" style="position: absolute; top: 0; left: 0;"></canvas>
+@if (Model != null) {
+    <div class="container">
+        <div class="header-text">
+            <p style="color:grey;">@Html.Raw(transformedImageDescription)</p>
         </div>
 
-        <div class="metadata">
-            <h5 style="color: #a9000e; font-weight: bold;">@Model.Speciality</h5>
-            <p><strong>Sex: </strong>@Model.Sex</p>
-            <p><strong>Age: </strong>@Model.Age</p>
-            <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
-            <p><strong>Body Region: </strong>@Model.BodyRegion</p>
-            <p><strong>Diagnosis: </strong>@Model.Diagnosis</p>
-            <p><strong>Treatment Name: </strong>@(string.IsNullOrWhiteSpace(Model.TreatmentName) ? "None" : Model.TreatmentName)</p>
-            <p><strong>Modality: </strong>@Model.Modality</p>
+        <div class="main-content">
+            <div id="image-container" style="position: relative; height: 430px; border: 2px solid #a9000e; border-radius: 3px;">
+                <img id="image" src="@Model.ImageUrl" style="height: 430px; width: 100%; height: 100%; object-fit: contain; display: block;" alt="Image to Annotate">
+                <canvas id="canvas" style="position: absolute; top: 0; left: 0;"></canvas>
+            </div>
+
+            <div class="metadata">
+                <h5 style="color: #a9000e; font-weight: bold;">@Model.Speciality</h5>
+                <p><strong>Sex: </strong>@Model.Sex</p>
+                <p><strong>Age: </strong>@Model.Age</p>
+                <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
+                <p><strong>Body Region: </strong>@Model.BodyRegion</p>
+                <p><strong>Diagnosis: </strong>@Model.Diagnosis</p>
+                <p><strong>Treatment Name: </strong>@(string.IsNullOrWhiteSpace(Model.TreatmentName) ? "None" : Model.TreatmentName)</p>
+                <p><strong>Modality: </strong>@Model.Modality</p>
+            </div>
+        </div>
+
+        <div class="buttons-section">
+            <button id="not-present-button" type="button"
+                class="button btn btn-block mb-4">
+                Not Present
+            </button>
+            <button id="skip-button" type="button"
+                class="button btn btn-block mb-4">
+                I Don't Know
+            </button>
+            <button id="next-button" type="button"
+                class="button btn btn-block mb-4" disabled>
+                Next Keyword
+            </button>
+            <button id="end-button" type="button"
+                class="button btn btn-block mb-4" disabled>
+                End The Session
+            </button>
         </div>
     </div>
-
-    <div class="buttons-section">
-        <button id="not-present-button" type="button"
-            class="button btn btn-block mb-4">
-            Not Present
-        </button>
-        <button id="skip-button" type="button"
-            class="button btn btn-block mb-4">
-            I Don't Know
-        </button>
-        <button id="next-button" type="button"
-            class="button btn btn-block mb-4" disabled>
-            Next Keyword
+}
+else {
+    <div class="centered-container">
+        <h3 class="mb-4" style="color: #a9000e;">
+            No more data is available for annotation in this specialty.
+        </h3>
+        <button id="end-button" type="button"
+            class="button btn btn-block">
+            End The Session
         </button>
     </div>
-</div>
+    
+}
 
 <script type="text/javascript" defer>
     window.annotatedMedData = @Html.Raw(Json.Serialize(Model));

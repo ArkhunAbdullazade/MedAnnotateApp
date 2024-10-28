@@ -14,23 +14,27 @@ namespace MedAnnotateApp.Presentation.Controllers;
 public class HomeController : Controller
 {
     private readonly IMedDataRepository medDataRepository;
+    // private readonly ICounterRepository counterRepository;
     private readonly UserManager<User> userManager;
     private readonly MedDataDbContext context;
-    private readonly IExcelLoaderService excelLoaderService;
 
-    public HomeController(IMedDataRepository medDataRepository, UserManager<User> userManager, MedDataDbContext context, IExcelLoaderService excelLoaderService)
+    public HomeController(IMedDataRepository medDataRepository, UserManager<User> userManager, MedDataDbContext context)
     {
         this.medDataRepository = medDataRepository;
+        // this.counterRepository = counterRepository;
         this.userManager = userManager;
         this.context = context;
-        this.excelLoaderService = excelLoaderService;
     }
 
-    public async Task<IActionResult> Index(int n = 1)
+    public async Task<IActionResult> Index()
     {
         var user = await userManager.GetUserAsync(User);
 
-        var medData = await medDataRepository.GetNthMedDataBySpecialityAsync(user?.Speciality!, n);
+        // var currentCounter = await counterRepository.GetCurrentCounterAsync(user?.Id!, user?.Speciality!);
+
+        var medData = await medDataRepository.GetNthMedDataBySpecialityAndPositionAsync(user?.Speciality!, user?.Position!, user?.Id!);
+
+        // await counterRepository.UpdateMaxCounterBySpecialityAsync(user?.Id!, user?.Speciality!);
 
         ViewBag.MedDataKeywords = (await medDataRepository.GetKeywordsByMedDataIdAsync(medData!.Id)).ToList();
 

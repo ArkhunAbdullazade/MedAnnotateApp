@@ -30,6 +30,12 @@ builder.Services.AddIdentity<User, IdentityRole>(options => {
     .AddEntityFrameworkStores<MedDataDbContext>()
     .AddDefaultTokenProviders();
 
+builder.Services.ConfigureApplicationCookie(options =>
+    {
+        options.LoginPath = "/Identity/Login"; // Set your custom login path
+        options.SlidingExpiration = true;
+    });
+
 builder.Services.AddAuthorization();
 
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
@@ -38,6 +44,7 @@ builder.Services.AddTransient<IEmailService, EmailService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
+// builder.Services.AddScoped<ICounterRepository, CounterRepository>();
 builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
 
 var app = builder.Build();

@@ -2,6 +2,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const nextButton = document.getElementById('next-button');
     const skipButton = document.getElementById('skip-button');
     const notPresentButton = document.getElementById('not-present-button');
+    const endButton = document.getElementById('end-button');
+    
+    endButton.addEventListener('click', function () {
+        fetch(`/Identity/Logout?medDataId=${window.annotatedMedData.id}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                localStorage.removeItem('keywordStates');
+                window.location.href = '/Identity/Login';
+            } else {
+                console.error("Failed to process data.");
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    });
+
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const image = document.getElementById('image');
@@ -44,6 +65,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (keywordStates[keywords.length-1] === 2 ||  keywordStates[keywords.length-1] === 4) {
             nextButton.textContent = "Next Image";
             nextButton.removeAttribute('disabled');
+            endButton.removeAttribute('disabled');
             skipButton.setAttribute('disabled', 'true');
             notPresentButton.setAttribute('disabled', 'true');
             isDrawingDisabled = true;
@@ -270,6 +292,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function changeNextWordToImage() {
         nextButton.textContent = "Next Image";
         nextButton.removeAttribute('disabled');
+        endButton.removeAttribute('disabled');
         skipButton.setAttribute('disabled', 'true');
         notPresentButton.setAttribute('disabled', 'true');
         isDrawingDisabled = true;
@@ -347,12 +370,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 .catch(error => console.error('Error:', error));
             }
         } else {
-            const urlParams = new URLSearchParams(window.location.search)
-
-            window.location.href = `${window.location.pathname}?n=${parseInt(urlParams.get('n'))+1 || 2}`;
-            localStorage.removeItem('keywordStates');
+            fetch(`/MedData/NextImage?medDataId=${window.annotatedMedData.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    localStorage.removeItem('keywordStates');
+                    location.reload();
+                } else {
+                    console.error("Failed to process data.");
+                }
+            })
+            .catch(error => console.error('Error:', error));
         }
     });
+
+    
 
     function skipOrNotPresentHandler(event) {
         const currentKeyword = document.querySelector('.current_keyword');

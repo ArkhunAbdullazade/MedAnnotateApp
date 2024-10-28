@@ -12,10 +12,8 @@ public class ExcelLoaderService : IExcelLoaderService
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         using (var package = new ExcelPackage(new FileInfo(filePath)))
         {
-            System.Console.WriteLine(1);
             var worksheet = package.Workbook.Worksheets[0];
             int rowCount = worksheet.Dimension.Rows;
-            System.Console.WriteLine(2);
 
             for (int row = 3; row <= rowCount; row++)
             {
@@ -32,6 +30,7 @@ public class ExcelLoaderService : IExcelLoaderService
                     TreatmentName = worksheet.Cells[row, 11].Value?.ToString(),
                     Speciality = worksheet.Cells[row, 12].Value?.ToString(),
                     Modality = worksheet.Cells[row, 13].Value?.ToString(),
+                    IsAnnotated = false,
                 };
 
                 medDataList.Add(medData);

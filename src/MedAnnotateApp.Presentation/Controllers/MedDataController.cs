@@ -13,11 +13,13 @@ namespace MedAnnotateApp.Presentation.Controllers;
 public class MedDataController : Controller
 {
     private readonly IAnnotatedMedDataRepository annotatedMedDataRepository;
+    private readonly IMedDataRepository medDataRepository;
     private readonly UserManager<User> userManager;
 
-    public MedDataController(IAnnotatedMedDataRepository annotatedMedDataRepository, UserManager<User> userManager)
+    public MedDataController(IAnnotatedMedDataRepository annotatedMedDataRepository, IMedDataRepository medDataRepository, UserManager<User> userManager)
     {
         this.annotatedMedDataRepository = annotatedMedDataRepository;
+        this.medDataRepository = medDataRepository;
         this.userManager = userManager;
     }
 
@@ -54,9 +56,19 @@ public class MedDataController : Controller
             ClinicalExperience = user!.ClinicalExperience,
         };
 
-        System.Console.WriteLine("12312312312312312312312123123123");
-
         var succeeded = await annotatedMedDataRepository.CreateAsync(newAnnotatedMedData);
+
+        return Json(new { success = succeeded });
+    }
+
+    [HttpPut]
+    public async Task<IActionResult> NextImage(int MedDataId)
+    {
+        // var user = await userManager.GetUserAsync(User);
+
+        var succeeded = await medDataRepository.UpdateIsAnnotated(MedDataId);
+        
+        // await counterRepository.UpdateCurrentCounterByUserIdAsync(user?.Id!, user?.Speciality!);
 
         return Json(new { success = succeeded });
     }

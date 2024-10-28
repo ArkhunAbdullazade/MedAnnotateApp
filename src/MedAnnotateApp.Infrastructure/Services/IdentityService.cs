@@ -64,6 +64,6 @@ public class IdentityService : IIdentityService
 
     public async Task SignoutAsync()
     {
-        throw new NotImplementedException();
+        await this.signInManager.SignOutAsync();
     }
 }

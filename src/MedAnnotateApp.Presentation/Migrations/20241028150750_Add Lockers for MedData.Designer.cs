@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MedAnnotateApp.Presentation.Migrations
 {
     [DbContext(typeof(MedDataDbContext))]
-    [Migration("20241026184124_Init")]
-    partial class Init
+    [Migration("20241028150750_Add Lockers for MedData")]
+    partial class AddLockersforMedData
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -116,6 +116,14 @@ namespace MedAnnotateApp.Presentation.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsAnnotated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("LockedByUserId")
                         .HasColumnType("text");
 
                     b.Property<string>("Modality")

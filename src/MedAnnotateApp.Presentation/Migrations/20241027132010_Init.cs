@@ -102,7 +102,8 @@ namespace MedAnnotateApp.Presentation.Migrations
                     Diagnosis = table.Column<string>(type: "text", nullable: true),
                     TreatmentName = table.Column<string>(type: "text", nullable: true),
                     Speciality = table.Column<string>(type: "text", nullable: true),
-                    Modality = table.Column<string>(type: "text", nullable: true)
+                    Modality = table.Column<string>(type: "text", nullable: true),
+                    IsAnnotated = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
                 {

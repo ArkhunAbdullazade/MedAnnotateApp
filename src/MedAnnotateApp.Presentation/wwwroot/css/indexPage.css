@@ -96,3 +96,13 @@
 .button:hover {
     background-color: #8f000c;
 }
+
+.centered-container {
+    display: flex;
+    justify-content: center; /* Centers horizontally */
+    align-items: center; /* Centers vertically */
+    height: 78vh; /* Full viewport height (optional) */
+    text-align: center; /* Centers text inside elements */
+    flex-direction: column; /* Stack items vertically */
+    padding: 20px; /* Optional: Add padding for spacing */
+}
