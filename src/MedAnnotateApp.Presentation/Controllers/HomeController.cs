@@ -14,14 +14,12 @@ namespace MedAnnotateApp.Presentation.Controllers;
 public class HomeController : Controller
 {
     private readonly IMedDataRepository medDataRepository;
-    // private readonly ICounterRepository counterRepository;
     private readonly UserManager<User> userManager;
     private readonly MedDataDbContext context;
 
     public HomeController(IMedDataRepository medDataRepository, UserManager<User> userManager, MedDataDbContext context)
     {
         this.medDataRepository = medDataRepository;
-        // this.counterRepository = counterRepository;
         this.userManager = userManager;
         this.context = context;
     }
@@ -30,13 +28,10 @@ public class HomeController : Controller
     {
         var user = await userManager.GetUserAsync(User);
 
-        // var currentCounter = await counterRepository.GetCurrentCounterAsync(user?.Id!, user?.Speciality!);
-
         var medData = await medDataRepository.GetNthMedDataBySpecialityAndPositionAsync(user?.Speciality!, user?.Position!, user?.Id!);
 
-        // await counterRepository.UpdateMaxCounterBySpecialityAsync(user?.Id!, user?.Speciality!);
-
-        ViewBag.MedDataKeywords = (await medDataRepository.GetKeywordsByMedDataIdAsync(medData!.Id)).ToList();
+        if (medData != null) ViewBag.MedDataKeywords = (await medDataRepository.GetKeywordsByMedDataIdAsync(medData.Id)).ToList();
+        else ViewBag.MedDataKeywords = null;
 
         return View(medData);
     }

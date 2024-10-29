@@ -32,7 +32,7 @@ builder.Services.AddIdentity<User, IdentityRole>(options => {
 
 builder.Services.ConfigureApplicationCookie(options =>
     {
-        options.LoginPath = "/Identity/Login"; // Set your custom login path
+        options.LoginPath = "/Identity/Login";
         options.SlidingExpiration = true;
     });
 
@@ -44,7 +44,6 @@ builder.Services.AddTransient<IEmailService, EmailService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
-// builder.Services.AddScoped<ICounterRepository, CounterRepository>();
 builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
 
 var app = builder.Build();

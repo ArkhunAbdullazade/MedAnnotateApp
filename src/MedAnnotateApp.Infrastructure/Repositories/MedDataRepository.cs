@@ -17,21 +17,34 @@ public class MedDataRepository : IMedDataRepository
     {
         MedData? medData;
 
-        var mds = context.MedDatas.Where(md => !md.IsAnnotated && md.LockedByUserId == userId);
+        var md = await context.MedDatas.FirstOrDefaultAsync(md => !md.IsAnnotated && md.LockedByUserId == userId);
 
-        if((await mds.CountAsync()) > 0) return await mds.FirstOrDefaultAsync();
+        if(md is not null) return md;
 
-        if (position.ToLower() == "clinician") {
-            medData = await context.MedDatas
-                .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-                .OrderBy(md => md.Id)
-                .FirstOrDefaultAsync();
+        var counts = await context.MedDatas
+            .GroupBy(md => md.IsAnnotated)
+            .Select(g => new { IsAnnotated = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        if (!(counts.FirstOrDefault(c => c.IsAnnotated)?.Count == counts.FirstOrDefault(c => !c.IsAnnotated)?.Count)) {
+            if (position.ToLower() == "clinician") {
+                medData = await context.MedDatas
+                    .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
+                    .OrderBy(md => md.Id)
+                    .FirstOrDefaultAsync();
+            }
+            else {
+                medData = await context.MedDatas
+                    .Where(md => md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
+                    .OrderBy(m => m.Id)
+                    .FirstOrDefaultAsync();
+            }
         }
         else {
             medData = await context.MedDatas
-                .Where(md => md.IsAnnotated && md.LockedByUserId == null && (md.Speciality!.ToLower() == speciality))
-                .OrderBy(m => m.Id)
-                .FirstOrDefaultAsync();
+                    .Where(md => !md.IsThirdStageAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
+                    .OrderBy(md => md.Id)
+                    .FirstOrDefaultAsync();
         }
 
         if (medData != null) {
@@ -57,21 +70,21 @@ public class MedDataRepository : IMedDataRepository
 
         if (medData == null) return false;
 
-        medData!.IsAnnotated = true;
+        var counts = await context.MedDatas
+            .GroupBy(md => md.IsAnnotated)
+            .Select(g => new { IsAnnotated = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        var isThirdStage = counts.FirstOrDefault(c => c.IsAnnotated)?.Count == counts.FirstOrDefault(c => !c.IsAnnotated)?.Count;
+
+        if (isThirdStage) medData!.IsThirdStageAnnotated = true;
+        else medData!.IsAnnotated = true;
+
         medData.LockedByUserId = null;
 
         context.MedDatas.Update(medData); 
         await context.SaveChangesAsync(); 
 
         return true;
-    }
-
-    public async Task<IEnumerable<MedData>> GetAllMedDataBySpecialityAsync(string speciality, int page = 1)
-    {
-        return await context.MedDatas
-            .Where(md => md.Speciality!.ToLower() == speciality)
-            .Skip((page-1)*20)
-            .Take(20)
-            .ToListAsync();
     }
 }

@@ -5,7 +5,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const endButton = document.getElementById('end-button');
     
     endButton.addEventListener('click', function () {
-        fetch(`/Identity/Logout?medDataId=${window.annotatedMedData.id}`, {
+        let path = `/Identity/Logout`;
+        if (window.annotatedMedData) path += `?medDataId=${window.annotatedMedData.id}`;
+        console.log(window.annotatedMedData === null);
+        
+        fetch(path, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
@@ -380,6 +384,8 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(result => {
                 if (result.success) {
                     localStorage.removeItem('keywordStates');
+                    resetRectangle();
+                    resetTimestamps();
                     location.reload();
                 } else {
                     console.error("Failed to process data.");

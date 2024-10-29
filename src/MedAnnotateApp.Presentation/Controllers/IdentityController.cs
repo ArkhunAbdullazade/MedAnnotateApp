@@ -145,14 +145,12 @@ public class IdentityController : Controller
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> Logout(int MedDataId)
+    public async Task<IActionResult> Logout(int? MedDataId = null)
     {
         await this.identityService.SignoutAsync();
 
-        await medDataRepository.UpdateIsAnnotated(MedDataId);
+        if (MedDataId != null) await medDataRepository.UpdateIsAnnotated(MedDataId.Value);
         
-        // await counterRepository.UpdateCurrentCounterByUserIdAsync(user?.Id!, user?.Speciality!);
-
         return Json(new { success = true });
     }
 }
