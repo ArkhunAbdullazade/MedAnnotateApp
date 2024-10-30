@@ -458,6 +458,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     resetRectangle();
                     resetTimestamps();
                     location.reload();
+                    location.reload();
                 } else {
                     console.error("Failed to process data.");
                 }
