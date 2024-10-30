@@ -34,6 +34,75 @@ document.addEventListener('DOMContentLoaded', function () {
     const keywords = document.querySelectorAll('.keyword');
     
     let isDrawingDisabled = false;
+
+    let isMagnifierActive = false; // New flag for magnifier state
+    
+    function magnify(imgID, zoom) {
+        let img, glass, bw;
+        img = document.getElementById(imgID);
+    
+        // Create the magnifier glass
+        glass = document.createElement("DIV");
+        glass.setAttribute("class", "img-magnifier-glass");
+        img.parentElement.insertBefore(glass, img);
+    
+        // Set up the magnifier glass background
+        glass.style.backgroundImage = "url('" + img.src + "')";
+        glass.style.backgroundRepeat = "no-repeat";
+        glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
+        
+        bw = 3;  // Border width
+        const w = glass.offsetWidth / 2;
+        const h = glass.offsetHeight / 2;
+    
+        // Toggle magnifier on right-click and follow mouse
+        container.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            isMagnifierActive = !isMagnifierActive;
+            if (isMagnifierActive) {
+                glass.style.display = "block";
+                moveMagnifier(event); // Position at click point
+            } else {
+                glass.style.display = "none";
+            }
+        });
+    
+        // Move magnifier glass as the mouse moves
+        container.addEventListener("mousemove", (e) => {
+            if (isMagnifierActive) moveMagnifier(e);
+        });
+    
+        function moveMagnifier(e) {
+            const pos = getCursorPos(e, img);
+            let x = pos.x;
+            let y = pos.y;
+    
+            // Position the magnifier glass centered at the cursor with a manual offset of 50px up and left
+            glass.style.left = `${x + img.getBoundingClientRect().left - container.getBoundingClientRect().left - w - 60}px`;
+            glass.style.top = `${y + img.getBoundingClientRect().top - container.getBoundingClientRect().top - h - 60}px`;
+    
+            // Set the background position to zoom in on the exact spot
+            glass.style.backgroundPosition = `-${(x * zoom - w + bw - 60)}px -${(y * zoom - h + bw - 60)}px`;
+        }
+    
+        // Get cursor position relative to the image
+        function getCursorPos(e) {
+            var a, x = 0, y = 0;
+            e = e || window.event;
+            // Get the x and y positions of the image
+            a = img.getBoundingClientRect();
+            // Calculate the cursor's x and y coordinates, relative to the image
+            x = e.pageX - a.left;
+            y = e.pageY - a.top;
+            // Consider any page scrolling
+            x = x - window.pageXOffset;
+            y = y - window.pageYOffset;
+            return { x: x, y: y };
+        }
+    }
+
+    // Initialize magnifier with image ID and zoom level (2.5x zoom in this case)
+    magnify("image", 2.5);
     
     // 1 - not annotated; 2 - annotated; 3 - current; 4 - skipped
     let keywordStatesJson = localStorage.getItem("keywordStates");
@@ -118,27 +187,29 @@ document.addEventListener('DOMContentLoaded', function () {
     
     // Mouse down event
     canvas.addEventListener('mousedown', (e) => {
-        if (isFirstDraw) {
-            startToDrawEnd = Date.now();
-            drawToNextStart = Date.now(); // Draw-to-Next timestamp starts
-            isFirstDraw = false;
-        }
-
-        if (isDrawingDisabled) return;
-
-        const { offsetX, offsetY } = e;
-        if (isCorner(offsetX, offsetY)) {
-            isResizing = true;
-            resizeDirection = getResizeDirection(offsetX, offsetY);
-        } else if (isInsideRect(offsetX, offsetY)) {
-            isDragging = true;
-            dragOffsetX = offsetX - rect.x;
-            dragOffsetY = offsetY - rect.y;
-        } else {
-            isDrawing = true;
-            startX = offsetX;
-            startY = offsetY;
-            rect = { x: startX, y: startY, width: 0, height: 0 };
+        if (e.button === 0 && isMagnifierActive === false) {
+            if (isFirstDraw) {
+                startToDrawEnd = Date.now();
+                drawToNextStart = Date.now(); // Draw-to-Next timestamp starts
+                isFirstDraw = false;
+            }
+    
+            if (isDrawingDisabled) return;
+    
+            const { offsetX, offsetY } = e;
+            if (isCorner(offsetX, offsetY)) {
+                isResizing = true;
+                resizeDirection = getResizeDirection(offsetX, offsetY);
+            } else if (isInsideRect(offsetX, offsetY)) {
+                isDragging = true;
+                dragOffsetX = offsetX - rect.x;
+                dragOffsetY = offsetY - rect.y;
+            } else {
+                isDrawing = true;
+                startX = offsetX;
+                startY = offsetY;
+                rect = { x: startX, y: startY, width: 0, height: 0 };
+            }
         }
     });
 
