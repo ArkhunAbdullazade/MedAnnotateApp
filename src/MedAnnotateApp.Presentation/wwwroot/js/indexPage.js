@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(response => response.json())
         .then(result => {
             if (result.success) {
-                localStorage.removeItem('keywordStates');
+                // localStorage.removeItem('keywordStates');
                 window.location.href = '/Identity/Login';
             } else {
                 console.error("Failed to process data.");
@@ -35,74 +35,143 @@ document.addEventListener('DOMContentLoaded', function () {
     
     let isDrawingDisabled = false;
 
-    let isMagnifierActive = false; // New flag for magnifier state
-    
+    let isMagnifierActive = false;
+    let isDraggingMagnifier = false;
+    let isResizingMagnifier = false;
+    let initialDiameter = 150; // Initial magnifier diameter
+    let magnifierDiameter = initialDiameter;
+    let initialMouseX, initialMouseY, initialMagnifierLeft, initialMagnifierTop;
+
     function magnify(imgID, zoom) {
-        let img, glass, bw;
+        let img, glass, resizeHandle, bw;
         img = document.getElementById(imgID);
-    
+
         // Create the magnifier glass
         glass = document.createElement("DIV");
         glass.setAttribute("class", "img-magnifier-glass");
         img.parentElement.insertBefore(glass, img);
-    
+
+        // Create the rectangular resize handle in the bottom-right corner
+        resizeHandle = document.createElement("DIV");
+        resizeHandle.setAttribute("class", "resize-handle");
+        glass.appendChild(resizeHandle);
+
         // Set up the magnifier glass background
-        glass.style.backgroundImage = "url('" + img.src + "')";
+        glass.style.backgroundImage = `url('${img.src}')`;
         glass.style.backgroundRepeat = "no-repeat";
-        glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
-        
-        bw = 3;  // Border width
-        const w = glass.offsetWidth / 2;
-        const h = glass.offsetHeight / 2;
-    
-        // Toggle magnifier on right-click and follow mouse
-        container.addEventListener("contextmenu", (event) => {
+        glass.style.backgroundSize = `${img.width * zoom}px ${img.height * zoom}px`;
+
+        // Set initial styles for magnifier
+        bw = 3; // Border width
+        glass.style.width = `${magnifierDiameter}px`;
+        glass.style.height = `${magnifierDiameter}px`;
+        glass.style.cursor = "grab";
+
+        // Style the rectangular resize handle
+        resizeHandle.style.width = "20px";
+        resizeHandle.style.height = "20px";
+        resizeHandle.style.position = "absolute";
+        resizeHandle.style.right = "0";
+        resizeHandle.style.bottom = "0";
+        resizeHandle.style.cursor = "nwse-resize";
+        resizeHandle.style.backgroundColor = "invisible"; // Handle color to indicate resizing
+
+        // Toggle magnifier on right-click
+        img.parentElement.addEventListener("contextmenu", (event) => {
             event.preventDefault();
             isMagnifierActive = !isMagnifierActive;
             if (isMagnifierActive) {
                 glass.style.display = "block";
-                moveMagnifier(event); // Position at click point
+                setMagnifierPosition(event); // Initial position at right-click
             } else {
                 glass.style.display = "none";
             }
         });
-    
-        // Move magnifier glass as the mouse moves
-        container.addEventListener("mousemove", (e) => {
-            if (isMagnifierActive) moveMagnifier(e);
+
+        // Enable dragging or resizing on mousedown within the magnifier
+        glass.addEventListener("mousedown", (e) => {
+            if (e.target === resizeHandle) {
+                isResizingMagnifier = true; // Start resizing if the handle is clicked
+                initialMouseX = e.clientX;
+                initialMouseY = e.clientY;
+            } else {
+                isDraggingMagnifier = true; // Start dragging if glass itself is clicked
+                initialMouseX = e.clientX;
+                initialMouseY = e.clientY;
+                initialMagnifierLeft = glass.offsetLeft;
+                initialMagnifierTop = glass.offsetTop;
+                glass.style.cursor = "grabbing";
+            }
+            e.preventDefault();
         });
-    
-        function moveMagnifier(e) {
+
+        // Update magnifier position and background on mousemove only while dragging or resizing
+        document.addEventListener("mousemove", (e) => {
+            if (isMagnifierActive && isDraggingMagnifier) {
+                // Move the magnifier
+                const dx = e.clientX - initialMouseX;
+                const dy = e.clientY - initialMouseY;
+                glass.style.left = `${initialMagnifierLeft + dx}px`;
+                glass.style.top = `${initialMagnifierTop + dy}px`;
+
+                // Update the background position to maintain zoomed area alignment
+                const imgRect = img.getBoundingClientRect();
+                const glassRect = glass.getBoundingClientRect();
+                const w = glass.offsetWidth / 2;
+                const h = glass.offsetHeight / 2;
+                const x = glassRect.left + w - imgRect.left;
+                const y = glassRect.top + h - imgRect.top;
+                glass.style.backgroundPosition = `-${(x * zoom - w + bw)}px -${(y * zoom - h + bw)}px`;
+            } else if (isMagnifierActive && isResizingMagnifier) {
+                // Resize the magnifier smoothly with less sensitivity
+                const dx = e.clientX - initialMouseX;
+                const dy = e.clientY - initialMouseY;
+                const delta = Math.min(Math.max(110, magnifierDiameter + (dx + dy) * 0.04), 300); // Smoother, slower resizing
+                magnifierDiameter = delta;
+
+                // Apply new diameter
+                glass.style.width = `${magnifierDiameter}px`;
+                glass.style.height = `${magnifierDiameter}px`;
+
+                // Update background size to maintain zoom level
+                glass.style.backgroundSize = `${img.width * zoom}px ${img.height * zoom}px`;
+            }
+        });
+
+        // Stop dragging or resizing on mouseup
+        document.addEventListener("mouseup", () => {
+            isDraggingMagnifier = false;
+            isResizingMagnifier = false;
+            glass.style.cursor = "grab";
+        });
+
+        // Set the initial position of the magnifier based on right-click location
+        function setMagnifierPosition(e) {
             const pos = getCursorPos(e, img);
-            let x = pos.x;
-            let y = pos.y;
-    
-            // Position the magnifier glass centered at the cursor with a manual offset of 50px up and left
-            glass.style.left = `${x + img.getBoundingClientRect().left - container.getBoundingClientRect().left - w - 60}px`;
-            glass.style.top = `${y + img.getBoundingClientRect().top - container.getBoundingClientRect().top - h - 60}px`;
-    
+            const x = pos.x;
+            const y = pos.y;
+            const w = glass.offsetWidth / 2;
+            const h = glass.offsetHeight / 2;
+
+            // Center the magnifier at the cursor with an offset
+            glass.style.left = `${x + img.getBoundingClientRect().left - img.parentElement.getBoundingClientRect().left - w}px`;
+            glass.style.top = `${y + img.getBoundingClientRect().top - img.parentElement.getBoundingClientRect().top - h}px`;
+
             // Set the background position to zoom in on the exact spot
-            glass.style.backgroundPosition = `-${(x * zoom - w + bw - 60)}px -${(y * zoom - h + bw - 60)}px`;
+            glass.style.backgroundPosition = `-${(x * zoom - w + bw)}px -${(y * zoom - h + bw)}px`;
         }
-    
+
         // Get cursor position relative to the image
         function getCursorPos(e) {
-            var a, x = 0, y = 0;
-            e = e || window.event;
-            // Get the x and y positions of the image
-            a = img.getBoundingClientRect();
-            // Calculate the cursor's x and y coordinates, relative to the image
-            x = e.pageX - a.left;
-            y = e.pageY - a.top;
-            // Consider any page scrolling
-            x = x - window.pageXOffset;
-            y = y - window.pageYOffset;
-            return { x: x, y: y };
+            const a = img.getBoundingClientRect();
+            const x = e.pageX - a.left - window.pageXOffset;
+            const y = e.pageY - a.top - window.pageYOffset;
+            return { x, y };
         }
     }
 
-    // Initialize magnifier with image ID and zoom level (2.5x zoom in this case)
-    magnify("image", 2.5);
+    // Initialize magnifier with image ID and zoom level
+    magnify("image", 3);
     
     // 1 - not annotated; 2 - annotated; 3 - current; 4 - skipped
     let keywordStatesJson = localStorage.getItem("keywordStates");
@@ -138,7 +207,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (keywordStates[keywords.length-1] === 2 ||  keywordStates[keywords.length-1] === 4) {
             nextButton.textContent = "Next Image";
             nextButton.removeAttribute('disabled');
-            endButton.removeAttribute('disabled');
             skipButton.setAttribute('disabled', 'true');
             notPresentButton.setAttribute('disabled', 'true');
             isDrawingDisabled = true;
@@ -367,7 +435,6 @@ document.addEventListener('DOMContentLoaded', function () {
     function changeNextWordToImage() {
         nextButton.textContent = "Next Image";
         nextButton.removeAttribute('disabled');
-        endButton.removeAttribute('disabled');
         skipButton.setAttribute('disabled', 'true');
         notPresentButton.setAttribute('disabled', 'true');
         isDrawingDisabled = true;
@@ -379,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     nextButton.addEventListener('click', function () {
-        if (nextButton.textContent.trim() === "Next Keyword" ) {
+        if (nextButton.textContent.trim() === "Save and Next" ) {
 
             const currentKeyword = document.querySelector('.current_keyword');
             
@@ -401,7 +468,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     Modality: medData.modality,
                     BoxCoordinates: `[(${corners.topLeft.x},${corners.topLeft.y}),(${corners.bottomLeft.x},${corners.bottomLeft.y}),(${corners.bottomRight.x},${corners.bottomRight.y}),(${corners.topRight.x},${corners.topRight.y})]`,
                     ExtractedKeyword: currentKeyword.textContent,
-                    PressedButton: "Next Keyword",
+                    PressedButton: "Save and Next",
                     Timestamps: `(${(startToDrawEnd - startToDrawStart) / 1000},${(Date.now() - drawToNextStart) / 1000})`
                 };                          
 
@@ -486,7 +553,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 TreatmentName: medData.treatmentName,
                 Speciality: medData.speciality,
                 Modality: medData.modality,
-                PressedButton: event.target.id === 'skip-button' ? "I Don't Know" : "Not Present",
+                PressedButton: event.target.id === 'skip-button' ? "Location Uncertain" : "Not Visible",
                 ExtractedKeyword: currentKeyword.textContent,
             };            
 
@@ -534,6 +601,5 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     skipButton.addEventListener('click', skipOrNotPresentHandler);
-
     notPresentButton.addEventListener('click', skipOrNotPresentHandler);
 });

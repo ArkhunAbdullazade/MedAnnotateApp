@@ -1,13 +1,20 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* Ensures padding and border are included in the element's total width and height */
+}
+
 .container {
-    flex: 1;
-    width: 1200px;
     display: flex;
+    flex: 1;
+    width: 100vh;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
 }
 
 .header-text {
-    width: 100%;
+    width: 1400px;
     background-color: #fff;
     padding: 5px;
     border: 1px solid #a9000e;
@@ -52,7 +59,7 @@
     align-items: center;
     flex: 1;
     gap: 20px;
-    width: 100%;
+    width: 1500px;
 }
 
 #image-container {
@@ -61,7 +68,7 @@
     -ms-user-select: none; /* For IE/Edge */
     cursor: crosshair; /* Change the cursor to indicate a drawing tool */
     position: relative;
-    height: 430px;
+    height: 490px;
     border: 2px solid #a9000e;
     border-radius: 3px;
     overflow: hidden;
@@ -75,9 +82,9 @@
 }
 
 .metadata {
-    width: 250px;
-    max-height: 430px;
+    width: 260px;
     height: 100%;
+    max-height: 490px;
     background-color: #fff;
     padding: 10px;
     border: 1px solid #a9000e;
@@ -113,7 +120,7 @@
     display: flex;
     justify-content: center; /* Centers horizontally */
     align-items: center; /* Centers vertically */
-    height: 78vh; /* Full viewport height (optional) */
+    height: 80vh; /* Full viewport height (optional) */
     text-align: center; /* Centers text inside elements */
     flex-direction: column; /* Stack items vertically */
     padding: 20px; /* Optional: Add padding for spacing */
@@ -125,8 +132,10 @@
     border-radius: 50%;
     cursor: none;
     /* Diameter of the magnifier glass */
-    width: 120px;
-    height: 120px;
+    width: 150px;
+    height: 150px;
+    min-width: 50px;
+    min-height: 50px;
     background-repeat: no-repeat;
     /* Shadow effect */
     box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.5);
@@ -134,4 +143,47 @@
     display: none; /* Hidden initially */
 }
 
-* {box-sizing: border-box;}
+.logout-section {
+    width: 1580px;
+    display: flex;
+    justify-content: flex-end; /* Aligns the content to the right */
+    align-items: end;   
+    margin-top: auto;
+    height: 46px;
+}
+
+#end-button {
+    background: none; /* Remove the background */
+    border: none; /* Remove the border */
+    color: #a9000e; /* Set link color (Bootstrap primary link color) */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    font-size: 17px;
+    padding: 2px;
+}
+
+#end-button:hover {
+    color: #8f000c;
+}
+
+/* .tooltip {
+    position: absolute;
+    background-color: #333;
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 1000;
+    width: 200px;
+    white-space: normal;
+    transition: opacity 0.3s; 
+    opacity: 0; 
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); 
+}
+
+.tooltip::after {
+    content: '';
+    position: absolute;
+    margin-left: -5px; 
+    border-width: 5px; 
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+} */

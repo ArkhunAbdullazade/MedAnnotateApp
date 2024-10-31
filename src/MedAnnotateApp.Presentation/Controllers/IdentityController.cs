@@ -149,7 +149,7 @@ public class IdentityController : Controller
     {
         await this.identityService.SignoutAsync();
 
-        if (MedDataId != null) await medDataRepository.UpdateIsAnnotated(MedDataId.Value);
+        // if (MedDataId != null) await medDataRepository.UpdateIsAnnotated(MedDataId.Value);
         
         return Json(new { success = true });
     }

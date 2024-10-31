@@ -41,33 +41,40 @@
             </div>
 
             <div class="metadata">
-                <h5 style="color: #a9000e; font-weight: bold;">@Model.Speciality</h5>
-                <p><strong>Sex: </strong>@Model.Sex</p>
-                <p><strong>Age: </strong>@Model.Age</p>
-                <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
-                <p><strong>Body Region: </strong>@Model.BodyRegion</p>
-                <p><strong>Diagnosis: </strong>@Model.Diagnosis</p>
-                <p><strong>Treatment Name: </strong>@(string.IsNullOrWhiteSpace(Model.TreatmentName) ? "None" : Model.TreatmentName)</p>
-                <p><strong>Modality: </strong>@Model.Modality</p>
+                <h5 style="color: #a9000e; font-weight: bold;">@Model.Diagnosis</h5>
+                <p><a href="@($"https://www.ncbi.nlm.nih.gov/pmc/articles/{Model.Pmcid}")" style="color: #a9000e;">PMC Article</a></p>
+                @if (Model.Speciality != "u" && Model.Speciality != "na") {
+                    <p><strong>Speciality: </strong>@Model.Speciality</p>
+                }
+                @if (Model.Sex != "u" && Model.Sex != "na") {
+                    <p><strong>Sex: </strong>@Model.Sex</p>
+                }
+                @if (Model.Age != "u" && Model.Age != "na") {
+                    <p><strong>Age: </strong>@Model.Age</p>
+                }
+                @if (Model.SkinTone != "u" && Model.SkinTone != "na") {
+                    <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
+                }
+                @if (Model.BodyRegion != "u" && Model.BodyRegion != "na") {
+                    <p><strong>Body Region: </strong>@Model.BodyRegion</p>
+                }
             </div>
         </div>
 
         <div class="buttons-section">
-            <button id="not-present-button" type="button"
-                class="button btn btn-block mb-4">
-                Not Present
+            <button title="Click Not Visible if you are certain that it is not possible to visually annotate the current medical term in this particular image." 
+                id="not-present-button" type="button"
+                class="button btn btn-block">
+                Not Visible
             </button>
-            <button id="skip-button" type="button"
-                class="button btn btn-block mb-4">
-                I Don't Know
+            <button title="Click Location Uncertain if you are unsure whether the current medical term is present in the image at all, or of its exact location."
+                id="skip-button" type="button"
+                class="button btn btn-block">
+                Location Uncertain
             </button>
             <button id="next-button" type="button"
-                class="button btn btn-block mb-4" disabled>
-                Next Keyword
-            </button>
-            <button id="end-button" type="button"
-                class="button btn btn-block mb-4" disabled>
-                End The Session
+                class="button btn btn-block" disabled>
+                Save and Next
             </button>
         </div>
     </div>
@@ -77,13 +84,13 @@ else {
         <h3 class="mb-4" style="color: #a9000e;">
             No more data is available for annotation in this specialty.
         </h3>
-        <button id="end-button" type="button"
-            class="button btn btn-block">
-            End The Session
-        </button>
     </div>
-    
 }
+<div class="logout-section">
+    <button id="end-button" type="button">
+        Log Out
+    </button>
+</div>
 
 <script type="text/javascript" defer>
     window.annotatedMedData = @Html.Raw(Json.Serialize(Model));

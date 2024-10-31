@@ -2,6 +2,7 @@ namespace MedAnnotateApp.Core.Models;
 public class MedData
 {
     public int Id { get; set; }
+    public string? Pmcid { get; set; }
     public string? ImageUrl { get; set; }
     public string? ImageDescription { get; set; }
     public string? Sex { get; set; }
