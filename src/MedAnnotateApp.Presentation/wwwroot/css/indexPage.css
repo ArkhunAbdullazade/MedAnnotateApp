@@ -19,10 +19,10 @@
     padding: 5px;
     border: 1px solid #a9000e;
     border-radius: 4px;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     display: block;
-    overflow-y: auto;
-    max-height: 90px;
+    /* overflow-y: auto; */
+    max-height: 105px;
 }
 
 .current_keyword {
@@ -68,10 +68,13 @@
     -ms-user-select: none; /* For IE/Edge */
     cursor: crosshair; /* Change the cursor to indicate a drawing tool */
     position: relative;
-    height: 490px;
+    height: 470px;
     border: 2px solid #a9000e;
     border-radius: 3px;
     overflow: hidden;
+    display: inline-block;
+    aspect-ratio: auto;
+    margin: 0 auto;
 }
 
 #image {
@@ -81,10 +84,17 @@
     display: block;
 }
 
+.annotation-section {
+    display: flex;
+    justify-content: center; /* Centers horizontally */
+    align-items: center; /* Centers vertically */
+    flex-direction: column;
+}
+
 .metadata {
     width: 260px;
     height: 100%;
-    max-height: 490px;
+    max-height: 470px;
     background-color: #fff;
     padding: 10px;
     border: 1px solid #a9000e;
@@ -95,12 +105,11 @@
 .buttons-section {
     display: flex;
     justify-content: flex-start;
-    gap: 10px;
+    gap: 5px;
     width: 100%;
     padding: 10px;
     justify-content: center;
     align-items: center;
-    gap: 10px;   
 }
 
 .button {
@@ -132,8 +141,8 @@
     border-radius: 50%;
     cursor: none;
     /* Diameter of the magnifier glass */
-    width: 150px;
-    height: 150px;
+    width: 200px;
+    height: 200px;
     min-width: 50px;
     min-height: 50px;
     background-repeat: no-repeat;

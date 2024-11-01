@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let isMagnifierActive = false;
     let isDraggingMagnifier = false;
     let isResizingMagnifier = false;
-    let initialDiameter = 150; // Initial magnifier diameter
+    let initialDiameter = 200; // Initial magnifier diameter
     let magnifierDiameter = initialDiameter;
     let initialMouseX, initialMouseY, initialMagnifierLeft, initialMagnifierTop;
 
@@ -109,10 +109,27 @@ document.addEventListener('DOMContentLoaded', function () {
         document.addEventListener("mousemove", (e) => {
             if (isMagnifierActive && isDraggingMagnifier) {
                 // Move the magnifier
+
                 const dx = e.clientX - initialMouseX;
                 const dy = e.clientY - initialMouseY;
-                glass.style.left = `${initialMagnifierLeft + dx}px`;
-                glass.style.top = `${initialMagnifierTop + dy}px`;
+
+                let newLeft = initialMagnifierLeft + dx;
+                let newTop = initialMagnifierTop + dy;
+                
+                // Canvas boundaries
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                // Adjusted constraints for the magnifier within the canvas
+                const maxLeft = canvasRect.width - glass.offsetWidth + 50;
+                const maxTop = canvasRect.height - glass.offsetHeight + 50;
+                
+                // Constrain the new position within the canvas
+                newLeft = Math.max(-70, Math.min(newLeft, maxLeft));
+                newTop = Math.max(-70, Math.min(newTop, maxTop));
+
+                // Apply the constrained position within the canvas
+                glass.style.left = `${newLeft}px`;
+                glass.style.top = `${newTop}px`;
 
                 // Update the background position to maintain zoomed area alignment
                 const imgRect = img.getBoundingClientRect();
@@ -126,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Resize the magnifier smoothly with less sensitivity
                 const dx = e.clientX - initialMouseX;
                 const dy = e.clientY - initialMouseY;
-                const delta = Math.min(Math.max(110, magnifierDiameter + (dx + dy) * 0.04), 300); // Smoother, slower resizing
+                const delta = Math.min(Math.max(130, magnifierDiameter + (dx + dy) * 0.04), 300); // Smoother, slower resizing
                 magnifierDiameter = delta;
 
                 // Apply new diameter

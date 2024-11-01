@@ -35,9 +35,27 @@
         </div>
 
         <div class="main-content">
-            <div id="image-container" >
-                <img id="image" src="@Model.ImageUrl"  alt="Image to Annotate">
-                <canvas id="canvas" style="position: absolute; top: 0; left: 0;"></canvas>
+            <div class="annotation-section">
+                <div id="image-container" >
+                    <img id="image" src="@Model.ImageUrl"  alt="Image to Annotate">
+                    <canvas id="canvas" style="position: absolute; top: 0; left: 0;"></canvas>
+                </div>
+                <div class="buttons-section">
+                    <button title="Click Not Visible if you are certain that it is not possible to visually annotate the current medical term in this particular image." 
+                        id="not-present-button" type="button"
+                        class="button btn btn-block">
+                        Not Visible
+                    </button>
+                    <button title="Click Location Uncertain if you are unsure whether the current medical term is present in the image at all, or of its exact location."
+                        id="skip-button" type="button"
+                        class="button btn btn-block">
+                        Location Uncertain
+                    </button>
+                    <button id="next-button" type="button"
+                        class="button btn btn-block" disabled>
+                        Save and Next
+                    </button>
+                </div>
             </div>
 
             <div class="metadata">
@@ -59,23 +77,6 @@
                     <p><strong>Body Region: </strong>@Model.BodyRegion</p>
                 }
             </div>
-        </div>
-
-        <div class="buttons-section">
-            <button title="Click Not Visible if you are certain that it is not possible to visually annotate the current medical term in this particular image." 
-                id="not-present-button" type="button"
-                class="button btn btn-block">
-                Not Visible
-            </button>
-            <button title="Click Location Uncertain if you are unsure whether the current medical term is present in the image at all, or of its exact location."
-                id="skip-button" type="button"
-                class="button btn btn-block">
-                Location Uncertain
-            </button>
-            <button id="next-button" type="button"
-                class="button btn btn-block" disabled>
-                Save and Next
-            </button>
         </div>
     </div>
 }
