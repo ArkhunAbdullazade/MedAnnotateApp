@@ -1,0 +1,25 @@
+# Ignore build directories
+bin/
+obj/
+out/
+
+# Ignore user-specific files
+*.user
+*.vs
+.vscode/
+
+# Ignore temporary files and logs
+*.log
+*.tmp
+
+# Ignore Git-related files
+.git/
+.gitignore
+
+# Ignore Docker-related files
+Dockerfile
+docker-compose.yml
+
+# Ignore OS-generated files
+.DS_Store
+Thumbs.db

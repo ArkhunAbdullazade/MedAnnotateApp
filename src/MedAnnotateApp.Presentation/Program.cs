@@ -12,6 +12,8 @@ using MedAnnotateApp.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// builder.Configuration.AddEnvironmentVariables();
+
 builder.Services.AddControllersWithViews();
 
 builder.Services.AddDbContext<MedDataDbContext>(options =>
@@ -46,6 +48,20 @@ builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<MedDataDbContext>();
+        context.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"An error occurred during migration: {ex.Message}");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
