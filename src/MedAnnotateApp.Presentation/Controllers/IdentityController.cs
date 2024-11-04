@@ -2,6 +2,8 @@ using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Data;
+using MedAnnotateApp.Infrastructure.Services;
+using MedAnnotateApp.Presentation.ActionFilters;
 using MedAnnotateApp.Presentation.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -9,18 +11,20 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MedAnnotateApp.Presentation.Controllers;
 
-[AllowAnonymous]
+[ServiceFilter(typeof(AuthorizationAccessFilter))]
 public class IdentityController : Controller
 {
     private readonly IMedDataRepository medDataRepository;
     private readonly IIdentityService identityService;
     private readonly UserManager<User> userManager;
+    private readonly IConfiguration configuration;
 
-    public IdentityController(IMedDataRepository medDataRepository, IIdentityService identityService, UserManager<User> userManager)
+    public IdentityController(IMedDataRepository medDataRepository, IIdentityService identityService, UserManager<User> userManager, IConfiguration configuration)
     {
         this.medDataRepository = medDataRepository;
         this.identityService = identityService;
         this.userManager = userManager;
+        this.configuration = configuration;
     }
 
     [HttpGet]
@@ -87,6 +91,39 @@ public class IdentityController : Controller
     }
 
     [HttpGet]
+    [AllowAnonymous]
+    public IActionResult AuthorizationAccess() {
+        if (User.Identity!.IsAuthenticated)
+        {
+            return RedirectToAction("Index", "Home");
+        }
+
+        return base.View();
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    public IActionResult AuthorizationAccess([FromForm] AuthorizationAccessDto authorizationAccessDto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View();
+        }
+
+        var hashedPassword = configuration["AuthorizationAccessPasswordHash"];
+
+        if (AuthorizationAccessPasswordService.VerifyPassword(authorizationAccessDto.Password!, hashedPassword!))
+        {
+            HttpContext.Session.SetString("Authorized", "true");
+            return base.RedirectToAction("Login");
+        }
+
+        ModelState.AddModelError("", "Incorrect password.");
+
+        return View();
+    }
+
+    [HttpGet]
     public IActionResult Login() {
         if (User.Identity!.IsAuthenticated)
         {
@@ -148,6 +185,7 @@ public class IdentityController : Controller
     public async Task<IActionResult> Logout(int? MedDataId = null)
     {
         await this.identityService.SignoutAsync();
+        HttpContext.Session.Clear();
 
         // if (MedDataId != null) await medDataRepository.UpdateIsAnnotated(MedDataId.Value);
         

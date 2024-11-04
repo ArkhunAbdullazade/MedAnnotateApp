@@ -9,12 +9,16 @@ using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Infrastructure.Settings;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Infrastructure.Repositories;
+using MedAnnotateApp.Presentation.ActionFilters;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // builder.Configuration.AddEnvironmentVariables();
-
 builder.Services.AddControllersWithViews();
+// builder.Services.AddControllersWithViews(options =>
+//     {
+//         options.Filters.Add(new AuthorizationAccessFilter());
+//     });
 
 builder.Services.AddDbContext<MedDataDbContext>(options =>
 {
@@ -34,7 +38,7 @@ builder.Services.AddIdentity<User, IdentityRole>(options => {
 
 builder.Services.ConfigureApplicationCookie(options =>
     {
-        options.LoginPath = "/Identity/Login";
+        options.LoginPath = "/Identity/AuthorizationAccess";
         options.SlidingExpiration = true;
     });
 
@@ -42,10 +46,13 @@ builder.Services.AddAuthorization();
 
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
 
+builder.Services.AddScoped<AuthorizationAccessFilter>(); 
 builder.Services.AddTransient<IEmailService, EmailService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
+
+builder.Services.AddSession();
 
 var app = builder.Build();
 
@@ -79,8 +86,10 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
+app.UseSession();
+
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Identity}/{action=Login}/{id?}");
+    pattern: "{controller=Identity}/{action=AuthorizationAccess}/{id?}");
 
 app.Run();
