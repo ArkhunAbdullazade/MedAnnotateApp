@@ -10,15 +10,11 @@ using MedAnnotateApp.Infrastructure.Settings;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Infrastructure.Repositories;
 using MedAnnotateApp.Presentation.ActionFilters;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// builder.Configuration.AddEnvironmentVariables();
 builder.Services.AddControllersWithViews();
-// builder.Services.AddControllersWithViews(options =>
-//     {
-//         options.Filters.Add(new AuthorizationAccessFilter());
-//     });
 
 builder.Services.AddDbContext<MedDataDbContext>(options =>
 {
@@ -51,8 +47,12 @@ builder.Services.AddTransient<IEmailService, EmailService>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
+builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
 
 builder.Services.AddSession();
+builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(@"/app/keys"))
+            .SetApplicationName("MedAnnotateApplication");
 
 var app = builder.Build();
 
@@ -63,6 +63,44 @@ using (var scope = app.Services.CreateScope())
     {
         var context = services.GetRequiredService<MedDataDbContext>();
         context.Database.Migrate();
+
+        var excelLoader = services.GetRequiredService<IExcelLoaderService>();
+
+        System.Console.WriteLine(File.Exists("/app/mockPMCMIDdata7.xlsx"));
+        System.Console.WriteLine(File.Exists("./mockPMCMIDdata7.xlsx"));
+        
+        
+        foreach (string file in Directory.GetFiles(Directory.GetCurrentDirectory()))
+        {
+            Console.WriteLine(Path.GetFileName(file));
+        }
+
+        var medDataList = excelLoader.LoadMedDataFromExcel("./mockPMCMIDdata7.xlsx");
+        var medKeywordList = excelLoader.LoadMedKeywordsFromExcel("./mockPMCMIDdata7.xlsx");
+        System.Console.WriteLine(medDataList.Count());
+        System.Console.WriteLine(medKeywordList.Count());
+        if (!context.MedDatas.Any()) {
+
+            foreach (var medData in medDataList)
+            {
+                await context.MedDatas.AddAsync(medData);
+            }
+
+            await context.SaveChangesAsync();
+
+            foreach (var (medDataId, keyword) in medKeywordList)
+            {
+                var medDataKeyword = new MedDataKeyword
+                {
+                    MedDataId = medDataId,
+                    Keyword = keyword
+                };
+
+                await context.MedDataKeywords.AddAsync(medDataKeyword);
+            }
+
+            await context.SaveChangesAsync();
+        }
     }
     catch (Exception ex)
     {

@@ -10,6 +10,7 @@ RUN dotnet restore
 
 COPY src/ ./src/
 RUN dotnet publish src/MedAnnotateApp.Presentation -c Release -o out
+COPY src/MedAnnotateApp.Presentation/mockPMCMIDdata7.xlsx /app/out/ 
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app

@@ -13,6 +13,8 @@ services:
       - 8080:8080
     expose:
       - 8080
+    volumes:
+      - ./keys:/app/keys
     # environment:
       # - ASPNETCORE_ENVIRONMENT=Production
       # - DB_HOST=postgres
