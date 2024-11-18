@@ -180,14 +180,16 @@ public class IdentityController : Controller
         return base.RedirectToAction("Login");
     }
 
-    [HttpGet]
+    [HttpPost]
     [Authorize]
-    public async Task<IActionResult> Logout(int? MedDataId = null)
+    public async Task<IActionResult> Logout([FromBody] LogoutDto logoutDto)
     {
         await this.identityService.SignoutAsync();
         HttpContext.Session.Clear();
 
-        // if (MedDataId != null) await medDataRepository.UpdateIsAnnotated(MedDataId.Value);
+        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationStarted == false) await medDataRepository.UpdateLock(logoutDto.MedDataId.Value);
+
+        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationFinished == true) await medDataRepository.UpdateIsAnnotated(logoutDto.MedDataId.Value);
         
         return Json(new { success = true });
     }

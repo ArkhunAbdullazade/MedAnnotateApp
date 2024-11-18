@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\build\MedAnnotateApp.Presentation.props" />
+</Project>

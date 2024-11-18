@@ -1,0 +1,13 @@
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\bin\Debug\net8.0\MedAnnotateApp.Core.deps.json
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\bin\Debug\net8.0\MedAnnotateApp.Core.dll
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\bin\Debug\net8.0\MedAnnotateApp.Core.pdb
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.csproj.AssemblyReference.cache
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.AssemblyInfoInputs.cache
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.AssemblyInfo.cs
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.csproj.CoreCompileInputs.cache
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.sourcelink.json
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.dll
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\refint\MedAnnotateApp.Core.dll
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\MedAnnotateApp.Core.pdb
+C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Core\obj\Debug\net8.0\ref\MedAnnotateApp.Core.dll

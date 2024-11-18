@@ -64,12 +64,8 @@ public class MedDataController : Controller
     [HttpPut]
     public async Task<IActionResult> NextImage(int MedDataId)
     {
-        // var user = await userManager.GetUserAsync(User);
-
         var succeeded = await medDataRepository.UpdateIsAnnotated(MedDataId);
         
-        // await counterRepository.UpdateCurrentCounterByUserIdAsync(user?.Id!, user?.Speciality!);
-
         return Json(new { success = succeeded });
     }
 }

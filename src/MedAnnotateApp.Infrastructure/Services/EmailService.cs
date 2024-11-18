@@ -17,7 +17,6 @@ public class EmailService : IEmailService
 
     public async Task SendEmailAsync(string email, string subject, string message)
     {
-        System.Console.WriteLine(email);
         using (var smtpClient = new SmtpClient(smtpSettings.Server, smtpSettings.Port))
         {
             smtpClient.UseDefaultCredentials = false;

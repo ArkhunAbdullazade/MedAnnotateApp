@@ -21,12 +21,10 @@ public class MedDataRepository : IMedDataRepository
 
         if(md is not null) return md;
 
-        var counts = await context.MedDatas
-            .GroupBy(md => md.IsAnnotated)
-            .Select(g => new { IsAnnotated = g.Key, Count = g.Count() })
-            .ToListAsync();
+        var totalMedDataCount = context.MedDatas.Count();
+        var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
 
-        if (!(counts.FirstOrDefault(c => c.IsAnnotated)?.Count == counts.FirstOrDefault(c => !c.IsAnnotated)?.Count)) {
+        if (annotatedMedDataCount != totalMedDataCount) {
             if (position.ToLower() == "clinician") {
                 medData = await context.MedDatas
                     .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
@@ -70,16 +68,26 @@ public class MedDataRepository : IMedDataRepository
 
         if (medData == null) return false;
 
-        var counts = await context.MedDatas
-            .GroupBy(md => md.IsAnnotated)
-            .Select(g => new { IsAnnotated = g.Key, Count = g.Count() })
-            .ToListAsync();
+        var totalMedDataCount = context.MedDatas.Count();
+        var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
 
-        var isThirdStage = counts.FirstOrDefault(c => c.IsAnnotated)?.Count == counts.FirstOrDefault(c => !c.IsAnnotated)?.Count;
-
-        if (isThirdStage) medData!.IsThirdStageAnnotated = true;
+        if (totalMedDataCount == annotatedMedDataCount) medData!.IsThirdStageAnnotated = true;
         else medData!.IsAnnotated = true;
 
+        medData.LockedByUserId = null;
+
+        context.MedDatas.Update(medData); 
+        await context.SaveChangesAsync(); 
+
+        return true;
+    }
+
+    public async Task<bool> UpdateLock(int medDataId)
+    {
+        var medData = await context.MedDatas.FindAsync(medDataId);
+
+        if (medData == null) return false;
+        
         medData.LockedByUserId = null;
 
         context.MedDatas.Update(medData); 

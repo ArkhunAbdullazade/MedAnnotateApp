@@ -6,7 +6,7 @@ public class AuthorizationAccessFilter : ActionFilterAttribute
 {
     public override void OnActionExecuting(ActionExecutingContext context)
     {
-        if (context.ActionDescriptor.RouteValues["action"] != "AuthorizationAccess" && !context.HttpContext.Session.TryGetValue("Authorized", out _))
+        if (context.ActionDescriptor.RouteValues["action"] != "AuthorizationAccess" && context.ActionDescriptor.RouteValues["action"] != "Logout" && !context.HttpContext.Session.TryGetValue("Authorized", out _))
         {
             context.Result = new RedirectToActionResult("AuthorizationAccess", "Identity", null);
         }

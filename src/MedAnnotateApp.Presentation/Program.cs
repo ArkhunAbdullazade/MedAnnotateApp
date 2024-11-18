@@ -66,19 +66,9 @@ using (var scope = app.Services.CreateScope())
 
         var excelLoader = services.GetRequiredService<IExcelLoaderService>();
 
-        System.Console.WriteLine(File.Exists("/app/mockPMCMIDdata7.xlsx"));
-        System.Console.WriteLine(File.Exists("./mockPMCMIDdata7.xlsx"));
-        
-        
-        foreach (string file in Directory.GetFiles(Directory.GetCurrentDirectory()))
-        {
-            Console.WriteLine(Path.GetFileName(file));
-        }
-
         var medDataList = excelLoader.LoadMedDataFromExcel("./mockPMCMIDdata7.xlsx");
         var medKeywordList = excelLoader.LoadMedKeywordsFromExcel("./mockPMCMIDdata7.xlsx");
-        System.Console.WriteLine(medDataList.Count());
-        System.Console.WriteLine(medKeywordList.Count());
+        
         if (!context.MedDatas.Any()) {
 
             foreach (var medData in medDataList)

@@ -9,13 +9,9 @@ public class ExcelLoaderService : IExcelLoaderService
     {
         var medDataList = new List<MedData>();
 
-        System.Console.WriteLine(123123123);
-
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         using (var package = new ExcelPackage(new FileInfo(filePath)))
         {
-            System.Console.WriteLine("check");
-            System.Console.WriteLine(package.Workbook.Worksheets[0] is null);
             var worksheet = package.Workbook.Worksheets[0];
             int rowCount = worksheet.Dimension.Rows;
 

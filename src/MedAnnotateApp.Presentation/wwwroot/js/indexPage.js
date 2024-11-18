@@ -3,22 +3,33 @@ document.addEventListener('DOMContentLoaded', function () {
     const skipButton = document.getElementById('skip-button');
     const notPresentButton = document.getElementById('not-present-button');
     const endButton = document.getElementById('end-button');
+
+    let isAnnotationStarted = false;
+    let isAnnotationFinished = false;
     
     endButton.addEventListener('click', function () {
-        let path = `/Identity/Logout`;
-        if (window.annotatedMedData) path += `?medDataId=${window.annotatedMedData.id}`;
-        console.log(window.annotatedMedData === null);
+        const requestData = {
+            isAnnotationFinished: isAnnotationFinished,
+            isAnnotationStarted: isAnnotationStarted,
+            medDataId: window.annotatedMedData ? window.annotatedMedData.id : null
+        };
         
-        fetch(path, {
-            method: 'GET',
+        fetch(`/Identity/Logout`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify(requestData)
         })
         .then(response => response.json())
         .then(result => {
             if (result.success) {
-                // localStorage.removeItem('keywordStates');
+                console.log(isAnnotationFinished);
+                console.log("bruh");
+                
+                if (isAnnotationFinished) {
+                    localStorage.removeItem('keywordStates');
+                }
                 window.location.href = '/Identity/Login';
             } else {
                 console.error("Failed to process data.");
@@ -499,6 +510,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
+                        isAnnotationStarted = true;
+                        console.log("annotation started");
+                        
                         let currentIndex = Number(currentKeyword.id.split('-')[1]);
 
                         currentKeyword.classList.remove('current_keyword');
@@ -514,6 +528,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                             localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
                         } else {
+                            isAnnotationFinished = true;
+                            console.log("annotation finished");
+                            
                             resetRectangle();
                             changeNextWordToImage();
                             localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
@@ -584,7 +601,8 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(response => response.json())
             .then(result => {
                 if (result.success) {
-
+                    isAnnotationStarted = true;
+                        
                     let currentIndex = Number(currentKeyword.id.split('-')[1]);
 
                     currentKeyword.classList.remove('current_keyword');
@@ -600,6 +618,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         
                         localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
                     } else {
+                        isAnnotationFinished = true;
                         resetRectangle();
                         changeNextWordToImage();
                         localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
