@@ -8,4 +8,5 @@ public class User : IdentityUser
     public string? Position { get; set; }
     public string? Speciality { get; set; }
     public int ClinicalExperience { get; set; }
+    public string? OrcidId { get; set; }
 }

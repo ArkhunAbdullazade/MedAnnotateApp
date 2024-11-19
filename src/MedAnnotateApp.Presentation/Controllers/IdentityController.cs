@@ -73,6 +73,7 @@ public class IdentityController : Controller
             Position = signupDto.Position,
             Speciality = signupDto.Speciality,
             ClinicalExperience = signupDto.ClinicalExperience,
+            OrcidId = signupDto.OrcidId,
         };
 
         var confirmationUrl = Url.Action(nameof(ConfirmEmail), "Identity", null, Request.Scheme);

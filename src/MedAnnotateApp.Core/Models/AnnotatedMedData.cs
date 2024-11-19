@@ -28,4 +28,5 @@ public class AnnotatedMedData
     public string? University { get; set; }    
     public string? Position { get; set; }
     public int ClinicalExperience { get; set; }
+    public string? OrcidId { get; set; }
 }

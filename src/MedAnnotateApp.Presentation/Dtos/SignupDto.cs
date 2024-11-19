@@ -19,4 +19,5 @@ public class SignupDto
     public string? Speciality { get; set; }
     [Required(ErrorMessage = "Clinical Experience cannot be empty")]
     public int ClinicalExperience { get; set; }
+    public string? OrcidId { get; set; }
 }

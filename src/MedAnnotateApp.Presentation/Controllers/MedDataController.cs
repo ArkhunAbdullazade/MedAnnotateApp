@@ -54,6 +54,7 @@ public class MedDataController : Controller
             University = user?.University,
             Position = user?.Position,
             ClinicalExperience = user!.ClinicalExperience,
+            OrcidId = user?.OrcidId,
         };
 
         var succeeded = await annotatedMedDataRepository.CreateAsync(newAnnotatedMedData);
