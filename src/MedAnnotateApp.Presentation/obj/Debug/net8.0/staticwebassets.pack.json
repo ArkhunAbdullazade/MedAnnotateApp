@@ -37,6 +37,10 @@
       "PackagePath": "staticwebassets\\js\\indexPage.js"
     },
     {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\signupPage.js",
+      "PackagePath": "staticwebassets\\js\\signupPage.js"
+    },
+    {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\site.js",
       "PackagePath": "staticwebassets\\js\\site.js"
     },

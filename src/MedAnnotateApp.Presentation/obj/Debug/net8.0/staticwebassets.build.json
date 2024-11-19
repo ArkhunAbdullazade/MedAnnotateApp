@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "nedSWbDSte5dl7cKcBeZBDf5gmRgb0tsliDVtATro8I=",
+  "Hash": "UivztOXd0I7Hm4Es4a1nUY58BEZOA1VSns7oBMKVzR8=",
   "Source": "MedAnnotateApp.Presentation",
   "BasePath": "_content/MedAnnotateApp.Presentation",
   "Mode": "Default",
@@ -205,6 +205,25 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\js\\indexPage.js"
+    },
+    {
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\signupPage.js",
+      "SourceId": "MedAnnotateApp.Presentation",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
+      "BasePath": "_content/MedAnnotateApp.Presentation",
+      "RelativePath": "js/signupPage.js",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\js\\signupPage.js"
     },
     {
       "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\site.js",

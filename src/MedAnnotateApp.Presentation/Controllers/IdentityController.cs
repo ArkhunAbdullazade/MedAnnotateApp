@@ -1,7 +1,6 @@
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
-using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Presentation.ActionFilters;
 using MedAnnotateApp.Presentation.Dtos;
@@ -28,16 +27,32 @@ public class IdentityController : Controller
     }
 
     [HttpGet]
-    public IActionResult Signup() 
+    public IActionResult Signup()
     {
         if (User.Identity!.IsAuthenticated)
         {
             return RedirectToAction("Index", "Home");
         }
 
-        ViewBag.Specialities = new[] {
+        // Populate ModelState with errors from TempData
+        if (TempData["Errors"] is List<string> errors)
+        {
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError("", error);
+            }
+        }
+
+        // Restore form data if available
+        if (TempData["FormData"] is SignupDto formData)
+        {
+            return View(formData);
+        }
+
+        ViewBag.Specialities = new[]
+        {
             "pulmonology", "oncology", "dermatology", "pathology",
-            "general surgery",  "oral and maxillofacial surgery",
+            "general surgery", "oral and maxillofacial surgery",
             "pediatrics", "ophthalmology", "cardiology", "neurosurgery",
             "cardiac surgery", "neurology", "infectious diseases", "radiology",
             "orthopedics", "obstetrics and gynecology", "urology",
@@ -52,8 +67,8 @@ public class IdentityController : Controller
             "radiotherapy", "neonatology", "emergency medicine",
             "traditional medicine", "physiology", "hepatology", "podiatry"
         };
-        
-        return base.View();
+
+        return View();
     }
 
     [HttpPost]
@@ -61,10 +76,12 @@ public class IdentityController : Controller
     {
         if (!ModelState.IsValid)
         {
-            return View(signupDto);
+            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
+            TempData["FormData"] = signupDto;
+            return RedirectToAction("Signup");
         }
 
-        var newUser = new User()
+        var newUser = new User
         {
             Email = signupDto.Email,
             FullName = signupDto.FullName,
@@ -76,30 +93,41 @@ public class IdentityController : Controller
             OrcidId = signupDto.OrcidId,
         };
 
-        var confirmationUrl = Url.Action(nameof(ConfirmEmail), "Identity", null, Request.Scheme);
+        // var confirmationUrl = Url.Action(nameof(ConfirmEmail), "Identity", null, Request.Scheme);
+        // var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, confirmationUrl!);
 
-        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, confirmationUrl!);
-        
-        // if (succeeded) return RedirectToAction("EmailConfirmation");
-        if (succeeded) return base.RedirectToAction("Login");
-        
-        foreach (var error in errors ?? Enumerable.Empty<string>())
+        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, null);
+
+        if (succeeded)
         {
-            ModelState.AddModelError("", error);
+            return RedirectToAction("Login");
         }
-        
-        return View(signupDto);
+
+        TempData["Errors"] = errors?.ToList() ?? new List<string>();
+        TempData["FormData"] = signupDto;
+
+        return RedirectToAction("Signup");
     }
 
     [HttpGet]
     [AllowAnonymous]
-    public IActionResult AuthorizationAccess() {
+    public IActionResult AuthorizationAccess()
+    {
         if (User.Identity!.IsAuthenticated)
         {
             return RedirectToAction("Index", "Home");
         }
 
-        return base.View();
+        // Populate ModelState with errors from TempData
+        if (TempData["Errors"] is List<string> errors)
+        {
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError("", error);
+            }
+        }
+
+        return View();
     }
 
     [HttpPost]
@@ -108,7 +136,8 @@ public class IdentityController : Controller
     {
         if (!ModelState.IsValid)
         {
-            return View();
+            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
+            return RedirectToAction("AuthorizationAccess");
         }
 
         var hashedPassword = configuration["AuthorizationAccessPasswordHash"];
@@ -116,22 +145,37 @@ public class IdentityController : Controller
         if (AuthorizationAccessPasswordService.VerifyPassword(authorizationAccessDto.Password!, hashedPassword!))
         {
             HttpContext.Session.SetString("Authorized", "true");
-            return base.RedirectToAction("Login");
+            return RedirectToAction("Login");
         }
 
-        ModelState.AddModelError("", "Incorrect password.");
-
-        return View();
+        TempData["Errors"] = new List<string> { "Incorrect password." };
+        return RedirectToAction("AuthorizationAccess");
     }
 
     [HttpGet]
-    public IActionResult Login() {
+    public IActionResult Login()
+    {
         if (User.Identity!.IsAuthenticated)
         {
             return RedirectToAction("Index", "Home");
         }
 
-        return base.View();
+        // Populate ModelState with errors from TempData
+        if (TempData["Errors"] is List<string> errors)
+        {
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError("", error);
+            }
+        }
+
+        // Restore form data if available
+        if (TempData["FormData"] is LoginDto formData)
+        {
+            return View(formData);
+        }
+
+        return View();
     }
 
     [HttpPost]
@@ -139,46 +183,22 @@ public class IdentityController : Controller
     {
         if (!ModelState.IsValid)
         {
-            return View(loginDto);
+            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
+            TempData["FormData"] = loginDto;
+            return RedirectToAction("Login");
         }
-
-        // var user = await userManager.FindByEmailAsync(loginDto.Email!);
-
-        // if (user is not null && !user.EmailConfirmed)
-        // {
-        //     ModelState.AddModelError("", "You need to confirm your email to log in.");
-        //     return View(loginDto);
-        // }
 
         var (succeeded, errors) = await this.identityService.LoginAsync(loginDto.Email!, loginDto.Password!);
 
-        if (succeeded)  return base.RedirectToAction(controllerName: "Home", actionName: "Index");
-
-        foreach (var error in errors ?? Enumerable.Empty<string>())
+        if (succeeded)
         {
-            ModelState.AddModelError("", error);
+            return RedirectToAction("Index", "Home");
         }
 
-        return View(loginDto);
-    }
+        TempData["Errors"] = errors?.ToList() ?? new List<string>();
+        TempData["FormData"] = loginDto;
 
-    [HttpGet]
-    public IActionResult EmailConfirmation() => base.View();
-
-    [HttpGet]
-    public async Task<IActionResult> ConfirmEmail(string userId, string token)
-    {
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
-            return BadRequest();
-        
-        var result = await identityService.ConfirmEmailAsync(userId, token);
-
-        if (!result)
-        {
-            return RedirectToAction("Signup");
-        }
-
-        return base.RedirectToAction("Login");
+        return RedirectToAction("Login");
     }
 
     [HttpPost]
@@ -188,10 +208,16 @@ public class IdentityController : Controller
         await this.identityService.SignoutAsync();
         HttpContext.Session.Clear();
 
-        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationStarted == false) await medDataRepository.UpdateLock(logoutDto.MedDataId.Value);
+        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationStarted == false)
+        {
+            await medDataRepository.UpdateLock(logoutDto.MedDataId.Value);
+        }
 
-        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationFinished == true) await medDataRepository.UpdateIsAnnotated(logoutDto.MedDataId.Value);
-        
+        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationFinished == true)
+        {
+            await medDataRepository.UpdateIsAnnotated(logoutDto.MedDataId.Value);
+        }
+
         return Json(new { success = true });
     }
 }
