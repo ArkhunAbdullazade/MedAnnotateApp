@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MedAnnotateApp.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfefdc286355891071d68675d37875a3402c92c3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+95c8d61f3540f3d15f213e80a1683333f1f6c69a")]
 [assembly: System.Reflection.AssemblyProductAttribute("MedAnnotateApp.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MedAnnotateApp.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

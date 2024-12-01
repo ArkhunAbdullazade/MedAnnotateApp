@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
@@ -29,26 +30,6 @@ public class IdentityController : Controller
     [HttpGet]
     public IActionResult Signup()
     {
-        if (User.Identity!.IsAuthenticated)
-        {
-            return RedirectToAction("Index", "Home");
-        }
-
-        // Populate ModelState with errors from TempData
-        if (TempData["Errors"] is List<string> errors)
-        {
-            foreach (var error in errors)
-            {
-                ModelState.AddModelError("", error);
-            }
-        }
-
-        // Restore form data if available
-        if (TempData["FormData"] is SignupDto formData)
-        {
-            return View(formData);
-        }
-
         ViewBag.Specialities = new[]
         {
             "pulmonology", "oncology", "dermatology", "pathology",
@@ -68,17 +49,37 @@ public class IdentityController : Controller
             "traditional medicine", "physiology", "hepatology", "podiatry"
         };
 
+        if (User.Identity!.IsAuthenticated)
+        {
+            return RedirectToAction("Index", "Home");
+        }
+
+        // Populate ModelState with errors from TempData
+        if (TempData["Errors"] is List<string> errors)
+        {
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError("", error);
+            }
+        }
+
+        if (TempData["FormData"] is string formDataJson)
+        {
+            var formData = JsonSerializer.Deserialize<SignupDto>(formDataJson);
+            return View(formData);
+        }
+
         return View();
     }
 
     [HttpPost]
-    public async Task<IActionResult> Signup([FromForm] SignupDto signupDto)
+    public async Task<IActionResult> PostSignup([FromForm] SignupDto signupDto)
     {
         if (!ModelState.IsValid)
         {
             TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            TempData["FormData"] = signupDto;
-            return RedirectToAction("Signup");
+            TempData["FormData"] = JsonSerializer.Serialize(signupDto);
+            return RedirectToAction(nameof(Signup));
         }
 
         var newUser = new User
@@ -93,20 +94,18 @@ public class IdentityController : Controller
             OrcidId = signupDto.OrcidId,
         };
 
-        // var confirmationUrl = Url.Action(nameof(ConfirmEmail), "Identity", null, Request.Scheme);
-        // var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, confirmationUrl!);
-
         var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, null);
 
         if (succeeded)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction(nameof(Login));
         }
 
-        TempData["Errors"] = errors?.ToList() ?? new List<string>();
-        TempData["FormData"] = signupDto;
+        // Add errors to TempData and redirect to GET Signup
+        TempData["Errors"] = TempData["Errors"] = new List<string> { "This Email is Already in Use" };
+        TempData["FormData"] = JsonSerializer.Serialize(signupDto);
 
-        return RedirectToAction("Signup");
+        return RedirectToAction(nameof(Signup));
     }
 
     [HttpGet]
@@ -127,29 +126,35 @@ public class IdentityController : Controller
             }
         }
 
+        if (TempData["FormData"] is string formDataJson)
+        {
+            var formData = JsonSerializer.Deserialize<AuthorizationAccessDto>(formDataJson);
+            return View(formData);
+        }
+
         return View();
     }
 
     [HttpPost]
     [AllowAnonymous]
-    public IActionResult AuthorizationAccess([FromForm] AuthorizationAccessDto authorizationAccessDto)
+    [ValidateAntiForgeryToken]
+    public IActionResult PostAuthorizationAccess([FromForm] AuthorizationAccessDto authorizationAccessDto)
     {
         if (!ModelState.IsValid)
         {
             TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            return RedirectToAction("AuthorizationAccess");
+            return RedirectToAction(nameof(AuthorizationAccess));
         }
 
         var hashedPassword = configuration["AuthorizationAccessPasswordHash"];
-
         if (AuthorizationAccessPasswordService.VerifyPassword(authorizationAccessDto.Password!, hashedPassword!))
         {
             HttpContext.Session.SetString("Authorized", "true");
-            return RedirectToAction("Login");
+            return RedirectToAction(nameof(Login));
         }
 
         TempData["Errors"] = new List<string> { "Incorrect password." };
-        return RedirectToAction("AuthorizationAccess");
+        return RedirectToAction(nameof(AuthorizationAccess));
     }
 
     [HttpGet]
@@ -160,7 +165,6 @@ public class IdentityController : Controller
             return RedirectToAction("Index", "Home");
         }
 
-        // Populate ModelState with errors from TempData
         if (TempData["Errors"] is List<string> errors)
         {
             foreach (var error in errors)
@@ -169,9 +173,9 @@ public class IdentityController : Controller
             }
         }
 
-        // Restore form data if available
-        if (TempData["FormData"] is LoginDto formData)
+        if (TempData["FormData"] is string formDataJson)
         {
+            var formData = JsonSerializer.Deserialize<LoginDto>(formDataJson);
             return View(formData);
         }
 
@@ -179,13 +183,13 @@ public class IdentityController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> Login([FromForm] LoginDto loginDto)
+    public async Task<IActionResult> PostLogin([FromForm] LoginDto loginDto)
     {
         if (!ModelState.IsValid)
         {
             TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            TempData["FormData"] = loginDto;
-            return RedirectToAction("Login");
+            TempData["FormData"] = JsonSerializer.Serialize(loginDto);
+            return RedirectToAction(nameof(Login));
         }
 
         var (succeeded, errors) = await this.identityService.LoginAsync(loginDto.Email!, loginDto.Password!);
@@ -195,10 +199,10 @@ public class IdentityController : Controller
             return RedirectToAction("Index", "Home");
         }
 
-        TempData["Errors"] = errors?.ToList() ?? new List<string>();
-        TempData["FormData"] = loginDto;
+        TempData["Errors"] = new List<string> { "Incorrect Email or Password." };
+        TempData["FormData"] = JsonSerializer.Serialize(loginDto);
 
-        return RedirectToAction("Login");
+        return RedirectToAction(nameof(Login));
     }
 
     [HttpPost]

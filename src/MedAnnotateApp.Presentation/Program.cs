@@ -1,5 +1,4 @@
 using System.Reflection;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using MedAnnotateApp.Infrastructure.Data;
@@ -14,7 +13,22 @@ using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllersWithViews();
+// Add Redis for Session and TempData management
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetValue<string>("RedisConnection") ?? "redis:6379";
+});
+
+// Configure session state with Redis
+builder.Services.AddSession(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.IdleTimeout = TimeSpan.FromMinutes(30); // Customize the timeout as needed
+});
+
+// Add TempData provider with Session
+builder.Services.AddControllersWithViews().AddSessionStateTempDataProvider();
 
 builder.Services.AddDbContext<MedDataDbContext>(options =>
 {
@@ -40,6 +54,11 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddAuthorization();
 
+// Add persistent data protection keys
+builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(@"/app/keys"))
+            .SetApplicationName("MedAnnotateApplication");
+
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
 
 builder.Services.AddScoped<AuthorizationAccessFilter>(); 
@@ -49,13 +68,9 @@ builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
 builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
 
-builder.Services.AddSession();
-builder.Services.AddDataProtection()
-            .PersistKeysToFileSystem(new DirectoryInfo(@"/app/keys"))
-            .SetApplicationName("MedAnnotateApplication");
-
 var app = builder.Build();
 
+// Database migration and seeding
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -69,8 +84,8 @@ using (var scope = app.Services.CreateScope())
         var medDataList = excelLoader.LoadMedDataFromExcel("./mockPMCMIDdata7.xlsx");
         var medKeywordList = excelLoader.LoadMedKeywordsFromExcel("./mockPMCMIDdata7.xlsx");
         
-        if (!context.MedDatas.Any()) {
-
+        if (!context.MedDatas.Any())
+        {
             foreach (var medData in medDataList)
             {
                 await context.MedDatas.AddAsync(medData);
@@ -105,15 +120,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseStaticFiles();
-
 app.UseRouting();
-
 app.UseAuthentication();
-
 app.UseAuthorization();
-
 app.UseSession();
 
 app.MapControllerRoute(

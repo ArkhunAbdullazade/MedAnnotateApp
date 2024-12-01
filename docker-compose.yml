@@ -5,6 +5,7 @@ services:
     container_name: webapiapp
     depends_on:
       - postgres
+      - redis
     build:
       context: .
       dockerfile: Dockerfile
@@ -15,13 +16,9 @@ services:
       - 8080
     volumes:
       - ./keys:/app/keys
-    # environment:
-      # - ASPNETCORE_ENVIRONMENT=Production
-      # - DB_HOST=postgres
-      # - DB_PORT=5432
-      # - DB_USER=postgres
-      # - DB_PASSWORD=admin42!
-      # - DB_NAME=meddatadb
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - REDIS_CONNECTION=redis:6379 # Redis connection string
 
   postgres:
     image: postgres
@@ -36,6 +33,14 @@ services:
       - db_data:/var/lib/postgresql/data
     expose:
       - 5432
+
+  redis:
+    image: redis:alpine
+    container_name: redisdb
+    ports:
+      - "6379:6379"
+    expose:
+      - 6379
 
 volumes:
   db_data:
