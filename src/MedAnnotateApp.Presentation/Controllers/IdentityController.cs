@@ -94,7 +94,7 @@ public class IdentityController : Controller
             OrcidId = signupDto.OrcidId,
         };
 
-        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, null);
+        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, null!);
 
         if (succeeded)
         {
@@ -212,16 +212,11 @@ public class IdentityController : Controller
         await this.identityService.SignoutAsync();
         HttpContext.Session.Clear();
 
-        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationStarted == false)
+        if (logoutDto.MedDataId != null)
         {
             await medDataRepository.UpdateLock(logoutDto.MedDataId.Value);
         }
-
-        if (logoutDto.MedDataId != null && logoutDto.IsAnnotationFinished == true)
-        {
-            await medDataRepository.UpdateIsAnnotated(logoutDto.MedDataId.Value);
-        }
-
+    
         return Json(new { success = true });
     }
 }

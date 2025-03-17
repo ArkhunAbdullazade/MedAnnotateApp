@@ -1,8 +1,10 @@
-namespace MedAnnotateApp.Presentation.Dtos;
-public class AnnotatedMedDataDto
+namespace MedAnnotateApp.Core.Models;
+public class AnnotatedByStudentsMedData
 {
-    // MetaData
     public int Id { get; set; }
+    
+    // MetaData
+    public int MedDataId { get; set; }
     public string? ImageUrl { get; set; }
     public string? ImageDescription { get; set; }
     public string? Sex { get; set; }
@@ -15,16 +17,16 @@ public class AnnotatedMedDataDto
     public string? Modality { get; set; }
 
     // AnnotationData
-    public string? BoxCoordinates { get; set; }
+    public string? BoxesCoordinates { get; set; }
     public string? ExtractedKeyword { get; set; }
     public string? PressedButton { get; set; }
     public string? Timestamps { get; set; }
-    public string? Comment { get; set; }
 
-}
-
-public class AnnotatedMedDatasDto
-{
-    public int MedDataId { get; set; }
-    public List<AnnotatedMedDataDto>? Items { get; set; }
+    // UserData
+    public string? Email { get; set; }
+    public string? FullName { get; set; }
+    public string? University { get; set; }    
+    public string? Position { get; set; }
+    public int ClinicalExperience { get; set; }
+    public string? OrcidId { get; set; }
 }

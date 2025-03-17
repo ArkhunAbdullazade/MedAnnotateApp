@@ -15,37 +15,40 @@ public class MedDataRepository : IMedDataRepository
 
     public async Task<MedData?> GetNthMedDataBySpecialityAndPositionAsync(string speciality, string position, string userId)
     {
-        MedData? medData;
+        MedData? medData = null;
 
         var md = await context.MedDatas.FirstOrDefaultAsync(md => !md.IsAnnotated && md.LockedByUserId == userId);
 
-        if(md is not null) return md;
+        if (md is not null) return md;
 
         var totalMedDataCount = context.MedDatas.Count();
         var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
 
-        if (annotatedMedDataCount != totalMedDataCount) {
-            if (position.ToLower() == "clinician") {
-                medData = await context.MedDatas
-                    .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-                    .OrderBy(md => md.Id)
-                    .FirstOrDefaultAsync();
-            }
-            else {
-                medData = await context.MedDatas
-                    .Where(md => md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-                    .OrderBy(m => m.Id)
-                    .FirstOrDefaultAsync();
-            }
-        }
-        else {
+        if (annotatedMedDataCount != totalMedDataCount && position.ToLower() == "clinician")
+        {
+            // if () {
             medData = await context.MedDatas
-                    .Where(md => !md.IsThirdStageAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-                    .OrderBy(md => md.Id)
-                    .FirstOrDefaultAsync();
+                .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
+                .OrderBy(md => md.Id)
+                .FirstOrDefaultAsync();
+            // }
+            // else {
+            //     medData = await context.MedDatas
+            //         .Where(md => md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
+            //         .OrderBy(m => m.Id)
+            //         .FirstOrDefaultAsync();
+            // }
         }
+        // else
+        // {
+        //     medData = await context.MedDatas
+        //             .Where(md => !md.IsThirdStageAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
+        //             .OrderBy(md => md.Id)
+        //             .FirstOrDefaultAsync();
+        // }
 
-        if (medData != null) {
+        if (medData != null)
+        {
             medData.LockedByUserId = userId;
             await context.SaveChangesAsync();
         }
@@ -68,16 +71,18 @@ public class MedDataRepository : IMedDataRepository
 
         if (medData == null) return false;
 
-        var totalMedDataCount = context.MedDatas.Count();
-        var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
+        // var totalMedDataCount = context.MedDatas.Count();
+        // var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
 
-        if (totalMedDataCount == annotatedMedDataCount) medData!.IsThirdStageAnnotated = true;
-        else medData!.IsAnnotated = true;
+        // if (totalMedDataCount == annotatedMedDataCount) medData!.IsThirdStageAnnotated = true;
+        // else medData!.IsAnnotated = true;
+
+        medData!.IsAnnotated = true;
 
         medData.LockedByUserId = null;
 
-        context.MedDatas.Update(medData); 
-        await context.SaveChangesAsync(); 
+        context.MedDatas.Update(medData);
+        await context.SaveChangesAsync();
 
         return true;
     }
@@ -87,11 +92,11 @@ public class MedDataRepository : IMedDataRepository
         var medData = await context.MedDatas.FindAsync(medDataId);
 
         if (medData == null) return false;
-        
+
         medData.LockedByUserId = null;
 
-        context.MedDatas.Update(medData); 
-        await context.SaveChangesAsync(); 
+        context.MedDatas.Update(medData);
+        await context.SaveChangesAsync();
 
         return true;
     }

@@ -14,10 +14,10 @@ using Microsoft.AspNetCore.DataProtection;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add Redis for Session and TempData management
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = builder.Configuration.GetValue<string>("RedisConnection") ?? "redis:6379";
-});
+// builder.Services.AddStackExchangeRedisCache(options =>
+// {
+//     options.Configuration = builder.Configuration.GetValue<string>("RedisConnection") ?? "redis:6379";
+// });
 
 // Configure session state with Redis
 builder.Services.AddSession(options =>
@@ -55,9 +55,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddAuthorization();
 
 // Add persistent data protection keys
-builder.Services.AddDataProtection()
-            .PersistKeysToFileSystem(new DirectoryInfo(@"/app/keys"))
-            .SetApplicationName("MedAnnotateApplication");
+// builder.Services.AddDataProtection()
+//             .PersistKeysToFileSystem(new DirectoryInfo(@"/app/keys"))
+//             .SetApplicationName("MedAnnotateApplication");
 
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
 

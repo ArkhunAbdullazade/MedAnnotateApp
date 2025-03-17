@@ -21,6 +21,7 @@ public class AnnotatedMedData
     public string? ExtractedKeyword { get; set; }
     public string? PressedButton { get; set; }
     public string? Timestamps { get; set; }
+    public string? Comment { get; set; }
 
     // UserData
     public string? Email { get; set; }

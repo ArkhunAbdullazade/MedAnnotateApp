@@ -122,18 +122,18 @@
 
                                                 <div class="form-outline mb-2">
                                                     <select asp-for="Speciality" class="form-control">
-                                                        <option disabled selected value="">Select Speciality</option>
+                                                        <option disabled selected value="">Select Specialty</option>
                                                         @foreach (var speciality in specialities)
                                                         {
                                                             <option value="@speciality">@speciality</option>
                                                         }
                                                     </select>
-                                                    <span asp-validation-for="Speciality" class="text-dark">Speciality</span>
+                                                    <span asp-validation-for="Speciality" class="text-dark">Specialty</span>
                                                 </div>
 
                                                 <div data-mdb-input-init class="form-outline mb-2">
                                                     <input type="number" asp-for="ClinicalExperience"  min="0" class="form-control" />
-                                                    <span asp-validation-for="ClinicalExperience" class="form-label text-dark">Year Of Clinical Experience</span>
+                                                    <span asp-validation-for="ClinicalExperience" class="form-label text-dark">Years Of Clinical Experience</span>
                                                 </div>
 
                                                 <div data-mdb-input-init class="form-outline mb-2">

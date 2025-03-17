@@ -25,6 +25,14 @@
       "PackagePath": "staticwebassets\\images\\bmir-logo.png"
     },
     {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\images\\magnifying-glass.png",
+      "PackagePath": "staticwebassets\\images\\magnifying-glass.png"
+    },
+    {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\images\\rotate-icon.png",
+      "PackagePath": "staticwebassets\\images\\rotate-icon.png"
+    },
+    {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\images\\stanford-medicine-logo.png",
       "PackagePath": "staticwebassets\\images\\stanford-medicine-logo.png"
     },
@@ -39,10 +47,6 @@
     {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\signupPage.js",
       "PackagePath": "staticwebassets\\js\\signupPage.js"
-    },
-    {
-      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\site.js",
-      "PackagePath": "staticwebassets\\js\\site.js"
     },
     {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\lib\\bootstrap\\LICENSE",

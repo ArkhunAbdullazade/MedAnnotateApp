@@ -1,641 +1,687 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const nextButton = document.getElementById('next-button');
-    const skipButton = document.getElementById('skip-button');
-    const notPresentButton = document.getElementById('not-present-button');
-    const endButton = document.getElementById('end-button');
+  /***********************
+   * Global Elements & Setup
+   ***********************/
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d');
+  const sourceImage = document.getElementById('sourceImage'); // fixed image src
+  const container = document.getElementById('canvasContainer');
+  const magnifyToggle = document.getElementById('magnifyToggle');
+  const nextButton = document.getElementById('next-button'); // initially "Save and Next Term"
+  const skipButton = document.getElementById('skip-button'); // "Uncertain/Skip"
+  const notPresentButton = document.getElementById('not-present-button'); // "Not Visible/Abstract"
+  const endButton = document.getElementById('end-button');
+  const keywords = document.querySelectorAll('.keyword');
+  
+  // Global array to accumulate keyword annotations.
+  let allKeywordAnnotations = [];
 
-    let isAnnotationStarted = false;
-    let isAnnotationFinished = false;
+  // In-memory keyword states: 1 = not annotated, 2 = annotated, 3 = current, 4 = skipped.
+  // Initially, the first keyword is current (3) and the rest are not annotated (1).
+  let keywordStates = Array.from({ length: keywords.length }, (_, i) => (i === 0 ? 3 : 1));
+
+  // Update keyword UI initially.
+  for (let i = 0; i < keywords.length; i++) {
+    let curr = keywords[i];
+    curr.classList.remove('current_keyword', 'annotated_keyword', 'not_annotated_keyword', 'skipped_keyword');
+    if (keywordStates[i] === 1) {
+      curr.classList.add('not_annotated_keyword');
+    } else if (keywordStates[i] === 2) {
+      curr.classList.add('annotated_keyword');
+    } else if (keywordStates[i] === 3) {
+      curr.classList.add('current_keyword');
+    } else if (keywordStates[i] === 4) {
+      curr.classList.add('skipped_keyword');
+    }
+  }
+  
+  // Global timestamp variables.
+  // tIdentifyStart: when a keyword becomes current.
+  // tAnnotationStart: when the clinician first clicks on the image for that keyword.
+  let tIdentifyStart = Date.now();
+  let tAnnotationStart = 0;
+  
+  // Helper: update keyword button states.
+  function updateKeywordButtonStates() {
+    if (keywordStates.every(state => state === 2 || state === 4)) {
+      nextButton.textContent = "Next Image";
+      nextButton.disabled = false;
+      skipButton.disabled = true;
+      notPresentButton.disabled = true;
+    }
+  }
+  
+  /***********************
+   * Annotation Variables
+   ***********************/
+  let annotations = [];         // Array of annotation objects: { cx, cy, width, height, rotation }
+  let selectedAnnotation = null;
+  let currentMode = 'none';     // Modes: 'none', 'draw', 'move', 'resize', 'rotate'
+  let activeHandle = null;      // For resizing: which handle is active
+  let startX = 0, startY = 0;     // For drawing or moving an annotation
+  let offset = { x: 0, y: 0 };    // For moving annotation
+  let resizingFixedCorner = null; // For resizing: the fixed (opposite) corner
+  let originalMouseAngle = 0, originalAnnotationRotation = 0;
+  let currentDrawingAnnotation = null; // Temporary annotation while drawing
+  
+  // Timing variables.
+  let startToDrawEnd = 0;
+  let isFirstDraw = true;
+  
+  /***********************
+   * Utility Functions
+   ***********************/
+  function clamp(val, min, max) {
+    return Math.min(Math.max(val, min), max);
+  }
+  
+  /***********************
+   * Canvas & Image Sizing
+   ***********************/
+  sourceImage.onload = function () {
+    canvas.height = 470;
+    canvas.width = sourceImage.naturalWidth * (470 / sourceImage.naturalHeight);
+    container.style.width = canvas.width + 'px';
+    container.style.height = canvas.height + 'px';
+    drawCanvas();
+  };
+  if (sourceImage.complete) {
+    sourceImage.onload();
+  }
+  
+  /***********************
+   * Drawing Functions
+   ***********************/
+  function drawCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
+    annotations.forEach(ann => {
+      drawAnnotation(ann, ann === selectedAnnotation);
+    });
+    if (currentMode === 'draw' && currentDrawingAnnotation) {
+      drawAnnotation(currentDrawingAnnotation, true);
+    }
+  }
+  
+  function drawAnnotation(ann, isSelected) {
+    ctx.save();
+    ctx.translate(ann.cx, ann.cy);
+    ctx.rotate(ann.rotation);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = isSelected ? 'red' : 'blue';
+    ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
+    ctx.restore();
     
-    endButton.addEventListener('click', function () {
-        const requestData = {
-            isAnnotationFinished: isAnnotationFinished,
-            isAnnotationStarted: isAnnotationStarted,
-            medDataId: window.annotatedMedData ? window.annotatedMedData.id : null
-        };
-        
-        fetch(`/Identity/Logout`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestData)
-        })
+    if (isSelected) {
+      const handles = getAnnotationHandles(ann);
+      // Draw corner handles as white squares (8x8 with 1px border)
+      const size = 8;
+      ctx.fillStyle = 'white';
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'black';
+      ['tl', 'tr', 'bl', 'br'].forEach(key => {
+        let h = handles[key];
+        ctx.fillRect(h.x - size / 2, h.y - size / 2, size, size);
+        ctx.strokeRect(h.x - size / 2, h.y - size / 2, size, size);
+      });
+      // Draw rotation handle as a red circle (radius 5, 1px border)
+      const rHandle = handles.rotate;
+      ctx.beginPath();
+      ctx.arc(rHandle.x, rHandle.y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = 'red';
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'black';
+      ctx.stroke();
+      // Draw delete handle as a white square (12x12 with 1px border) with an "X"
+      const dHandle = handles.delete;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'black';
+      ctx.strokeRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
+      ctx.fillStyle = 'black';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('X', dHandle.x, dHandle.y);
+    }
+  }
+  
+  function getAnnotationHandles(ann) {
+    const hw = ann.width / 2, hh = ann.height / 2;
+    const localHandles = {
+      tl: { x: -hw, y: -hh },
+      tr: { x: hw, y: -hh },
+      bl: { x: -hw, y: hh },
+      br: { x: hw, y: hh },
+      rotate: { x: 0, y: -hh - 30 },
+      delete: { x: hw + 10, y: -hh - 10 }
+    };
+    const handles = {};
+    for (let key in localHandles) {
+      const local = localHandles[key];
+      const cos = Math.cos(ann.rotation), sin = Math.sin(ann.rotation);
+      handles[key] = {
+        x: ann.cx + local.x * cos - local.y * sin,
+        y: ann.cy + local.x * sin + local.y * cos
+      };
+    }
+    return handles;
+  }
+  
+  function isPointInAnnotation(ann, x, y) {
+    const dx = x - ann.cx, dy = y - ann.cy;
+    const cos = Math.cos(-ann.rotation), sin = Math.sin(-ann.rotation);
+    const localX = dx * cos - dy * sin;
+    const localY = dx * sin + dy * cos;
+    return (Math.abs(localX) <= ann.width / 2 && Math.abs(localY) <= ann.height / 2);
+  }
+  
+  function isPointNearHandle(point, handle, radius = 8) {
+    const dx = point.x - handle.x, dy = point.y - handle.y;
+    return Math.sqrt(dx * dx + dy * dy) < radius;
+  }
+  
+  /***********************
+   * Converting Coordinates to Original Image Scale
+   ***********************/
+  function getAnnotationCornersOriginal(ann) {
+    const hw = ann.width / 2, hh = ann.height / 2;
+    function transform(local) {
+      const xCanvas = ann.cx + local.x * Math.cos(ann.rotation) - local.y * Math.sin(ann.rotation);
+      const yCanvas = ann.cy + local.x * Math.sin(ann.rotation) + local.y * Math.cos(ann.rotation);
+      const scaleX = sourceImage.naturalWidth / canvas.width;
+      const scaleY = sourceImage.naturalHeight / canvas.height;
+      return [Math.round(xCanvas * scaleX), Math.round(yCanvas * scaleY)];
+    }
+    return [
+      transform({ x: -hw, y: -hh }), // topLeft
+      transform({ x: hw, y: -hh }),  // topRight
+      transform({ x: hw, y: hh }),   // bottomRight
+      transform({ x: -hw, y: hh })   // bottomLeft
+    ];
+  }
+  
+  /***********************
+   * Build JSON of All Annotations (BoxCoordinates)
+   ***********************/
+  function getAllAnnotationsJSON() {
+    const arr = annotations.map(ann => getAnnotationCornersOriginal(ann));
+    return JSON.stringify(arr);
+  }
+  
+  /***********************
+   * Canvas Mouse Event Handlers
+   ***********************/
+  canvas.addEventListener('mousedown', function (e) {
+    if (magnifierActive) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - canvasRect.left;
+    const mouseY = e.clientY - canvasRect.top;
+    startX = mouseX;
+    startY = mouseY;
+    
+    // On first click for annotation, set tAnnotationStart and log t1.
+    if (currentMode === 'none' && tAnnotationStart === 0) {
+      tAnnotationStart = Date.now();
+      let t1 = tAnnotationStart - tIdentifyStart;
+      console.log("t1 (Identification Time):", t1, "ms");
+    }
+    
+    if (selectedAnnotation) {
+      const handles = getAnnotationHandles(selectedAnnotation);
+      if (isPointNearHandle({ x: mouseX, y: mouseY }, handles.delete)) {
+        annotations = annotations.filter(ann => ann !== selectedAnnotation);
+        selectedAnnotation = null;
+        drawCanvas();
+        updateButtonState();
+        return;
+      }
+      if (isPointNearHandle({ x: mouseX, y: mouseY }, handles.rotate)) {
+        currentMode = 'rotate';
+        originalMouseAngle = Math.atan2(mouseY - selectedAnnotation.cy, mouseX - selectedAnnotation.cx);
+        originalAnnotationRotation = selectedAnnotation.rotation;
+        return;
+      }
+      for (let key of ['tl', 'tr', 'bl', 'br']) {
+        if (isPointNearHandle({ x: mouseX, y: mouseY }, handles[key])) {
+          currentMode = 'resize';
+          activeHandle = key;
+          const opposite = { tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' }[key];
+          resizingFixedCorner = handles[opposite];
+          return;
+        }
+      }
+      if (isPointInAnnotation(selectedAnnotation, mouseX, mouseY)) {
+        currentMode = 'move';
+        offset.x = mouseX - selectedAnnotation.cx;
+        offset.y = mouseY - selectedAnnotation.cy;
+        return;
+      }
+    }
+    
+    let found = false;
+    for (let i = annotations.length - 1; i >= 0; i--) {
+      if (isPointInAnnotation(annotations[i], mouseX, mouseY)) {
+        selectedAnnotation = annotations[i];
+        currentMode = 'move';
+        offset.x = mouseX - selectedAnnotation.cx;
+        offset.y = mouseY - selectedAnnotation.cy;
+        found = true;
+        drawCanvas();
+        break;
+      }
+    }
+    if (found) return;
+    
+    currentMode = 'draw';
+    currentDrawingAnnotation = {
+      cx: (startX + mouseX) / 2,
+      cy: (startY + mouseY) / 2,
+      width: Math.abs(mouseX - startX),
+      height: Math.abs(mouseY - startY),
+      rotation: 0
+    };
+    selectedAnnotation = currentDrawingAnnotation;
+    drawCanvas();
+  });
+  
+  canvas.addEventListener('mousemove', function (e) {
+    if (magnifierActive) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - canvasRect.left;
+    const mouseY = e.clientY - canvasRect.top;
+    
+    if (currentMode === 'draw' && currentDrawingAnnotation) {
+      currentDrawingAnnotation.cx = (startX + mouseX) / 2;
+      currentDrawingAnnotation.cy = (startY + mouseY) / 2;
+      currentDrawingAnnotation.width = Math.abs(mouseX - startX);
+      currentDrawingAnnotation.height = Math.abs(mouseY - startY);
+      drawCanvas();
+    } else if (currentMode === 'move' && selectedAnnotation) {
+      let newCX = mouseX - offset.x;
+      let newCY = mouseY - offset.y;
+      const cosTheta = Math.abs(Math.cos(selectedAnnotation.rotation));
+      const sinTheta = Math.abs(Math.sin(selectedAnnotation.rotation));
+      const boundingW = selectedAnnotation.width * cosTheta + selectedAnnotation.height * sinTheta;
+      const boundingH = selectedAnnotation.width * sinTheta + selectedAnnotation.height * cosTheta;
+      newCX = clamp(newCX, boundingW / 2, canvas.width - boundingW / 2);
+      newCY = clamp(newCY, boundingH / 2, canvas.height - boundingH / 2);
+      selectedAnnotation.cx = newCX;
+      selectedAnnotation.cy = newCY;
+      drawCanvas();
+    } else if (currentMode === 'resize' && selectedAnnotation) {
+      let newCX = (resizingFixedCorner.x + mouseX) / 2;
+      let newCY = (resizingFixedCorner.y + mouseY) / 2;
+      let dx = mouseX - newCX;
+      let dy = mouseY - newCY;
+      let cos = Math.cos(-selectedAnnotation.rotation);
+      let sin = Math.sin(-selectedAnnotation.rotation);
+      let localX = dx * cos - dy * sin;
+      let localY = dx * sin + dy * cos;
+      selectedAnnotation.cx = newCX;
+      selectedAnnotation.cy = newCY;
+      selectedAnnotation.width = Math.abs(localX) * 2;
+      selectedAnnotation.height = Math.abs(localY) * 2;
+      drawCanvas();
+    } else if (currentMode === 'rotate' && selectedAnnotation) {
+      let angle = Math.atan2(mouseY - selectedAnnotation.cy, mouseX - selectedAnnotation.cx);
+      let deltaAngle = angle - originalMouseAngle;
+      selectedAnnotation.rotation = originalAnnotationRotation + deltaAngle;
+      drawCanvas();
+    }
+  });
+  
+  canvas.addEventListener('mouseup', function (e) {
+    if (magnifierActive) return;
+    if (currentMode === 'draw' && currentDrawingAnnotation) {
+      annotations.push(currentDrawingAnnotation);
+      currentDrawingAnnotation = null;
+      startToDrawEnd = Date.now();
+      if (tAnnotationStart === 0) {
+        tAnnotationStart = Date.now();
+      }
+    }
+    currentMode = 'none';
+    activeHandle = null;
+    resizingFixedCorner = null;
+    drawCanvas();
+    updateButtonState();
+  });
+  
+  /***********************
+   * Draggable & Resizable Magnifier
+   ***********************/
+  let magnifierActive = false;
+  let lens; // the magnifier lens element
+  let lensSize = 150;  // initial diameter in pixels (resizable)
+  const zoomFactor = 2;  // magnification factor
+  let draggingLens = false;
+  let isResizingLens = false;
+  let lensOffset = { x: 0, y: 0 };
+  let initialLensSize = 150;
+  let initialMousePos = { x: 0, y: 0 };
+  const resizeMargin = 20; // margin in pixels to trigger resizing
+  
+  function updateLensCursor(e) {
+    if (!lens) return;
+    const lensRect = lens.getBoundingClientRect();
+    const x = e.clientX - lensRect.left;
+    const y = e.clientY - lensRect.top;
+    if (x < resizeMargin || x > lensRect.width - resizeMargin ||
+        y < resizeMargin || y > lensRect.height - resizeMargin) {
+      lens.style.cursor = 'nwse-resize';
+    } else {
+      lens.style.cursor = 'move';
+    }
+  }
+  
+  magnifyToggle.addEventListener('click', function (e) {
+    if (magnifierActive) {
+      hideLens();
+    } else {
+      showLens();
+    }
+    e.stopPropagation();
+  });
+  
+  function showLens() {
+    if (!lens) {
+      lens = document.createElement('div');
+      lens.className = 'lens';
+      const lensCanvas = document.createElement('canvas');
+      lensCanvas.width = lensSize;
+      lensCanvas.height = lensSize;
+      lens.appendChild(lensCanvas);
+      lens.ctx = lensCanvas.getContext('2d');
+      const containerRect = container.getBoundingClientRect();
+      lens.style.left = (containerRect.left + canvas.width / 2 - lensSize / 2) + 'px';
+      lens.style.top = (containerRect.top + canvas.height / 2 - lensSize / 2) + 'px';
+      document.body.appendChild(lens);
+      
+      lens.addEventListener('mousemove', updateLensCursor);
+      
+      lens.addEventListener('mousedown', function (e) {
+        const lensRect = lens.getBoundingClientRect();
+        const x = e.clientX - lensRect.left;
+        const y = e.clientY - lensRect.top;
+        if (x < resizeMargin || x > lensRect.width - resizeMargin ||
+            y < resizeMargin || y > lensRect.height - resizeMargin) {
+          isResizingLens = true;
+          initialLensSize = lensSize;
+          initialMousePos = { x: e.clientX, y: e.clientY };
+        } else {
+          draggingLens = true;
+          lensOffset.x = e.clientX - lensRect.left;
+          lensOffset.y = e.clientY - lensRect.top;
+        }
+        e.stopPropagation();
+        e.preventDefault();
+      });
+      
+      document.addEventListener('mousemove', function (e) {
+        if (isResizingLens) {
+          const dx = e.clientX - initialMousePos.x;
+          const dy = e.clientY - initialMousePos.y;
+          const delta = (Math.abs(dx) + Math.abs(dy)) / 2;
+          const sign = (dx + dy) >= 0 ? 1 : -1;
+          let newSize = initialLensSize + sign * delta;
+          newSize = Math.max(50, Math.min(newSize, canvas.width));
+          lensSize = newSize;
+          lens.style.width = lensSize + 'px';
+          lens.style.height = lensSize + 'px';
+          const lensCanvas = lens.querySelector('canvas');
+          lensCanvas.width = lensSize;
+          lensCanvas.height = lensSize;
+          updateLens();
+        } else if (draggingLens) {
+          let newLeft = e.clientX - lensOffset.x;
+          let newTop = e.clientY - lensOffset.y;
+          const containerRect = container.getBoundingClientRect();
+          newLeft = clamp(newLeft, containerRect.left, containerRect.left + canvas.width - lensSize);
+          newTop = clamp(newTop, containerRect.top, containerRect.top + canvas.height - lensSize);
+          lens.style.left = newLeft + 'px';
+          lens.style.top = newTop + 'px';
+          updateLens();
+        }
+      });
+      
+      document.addEventListener('mouseup', function (e) {
+        draggingLens = false;
+        isResizingLens = false;
+      });
+    }
+    lens.style.display = 'block';
+    magnifierActive = true;
+    drawCanvas();
+    updateLens();
+  }
+  
+  function hideLens() {
+    if (lens) {
+      lens.style.display = 'none';
+    }
+    magnifierActive = false;
+  }
+  
+  function updateLens() {
+    if (!lens) return;
+    const lensRect = lens.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const lensCenterX = lensRect.left - containerRect.left + lensSize / 2;
+    const lensCenterY = lensRect.top - containerRect.top + lensSize / 2;
+    const regionWidth = lensSize / zoomFactor;
+    const regionHeight = lensSize / zoomFactor;
+    let sx = lensCenterX - regionWidth / 2;
+    let sy = lensCenterY - regionHeight / 2;
+    sx = Math.max(0, Math.min(sx, canvas.width - regionWidth));
+    sy = Math.max(0, Math.min(sy, canvas.height - regionHeight));
+    const lensCanvas = lens.querySelector('canvas');
+    const lensCtx = lensCanvas.getContext('2d');
+    lensCtx.clearRect(0, 0, lensSize, lensSize);
+    lensCtx.drawImage(canvas, sx, sy, regionWidth, regionHeight, 0, 0, lensSize, lensSize);
+  }
+  
+  /***********************
+   * Button Logic & Sending Annotations
+   ***********************/
+  function updateButtonState() {
+    if (nextButton.textContent.trim() === "Next Image") {
+      nextButton.disabled = false;
+    } else {
+      nextButton.disabled = annotations.length > 0 ? false : true;
+    }
+  }
+  
+  function getAllAnnotationsJSON() {
+    const arr = annotations.map(ann => getAnnotationCornersOriginal(ann));
+    return JSON.stringify(arr);
+  }
+  
+  function getAnnotationCornersOriginal(ann) {
+    const hw = ann.width / 2, hh = ann.height / 2;
+    function transform(local) {
+      const xCanvas = ann.cx + local.x * Math.cos(ann.rotation) - local.y * Math.sin(ann.rotation);
+      const yCanvas = ann.cy + local.x * Math.sin(ann.rotation) + local.y * Math.cos(ann.rotation);
+      const scaleX = sourceImage.naturalWidth / canvas.width;
+      const scaleY = sourceImage.naturalHeight / canvas.height;
+      return [Math.round(xCanvas * scaleX), Math.round(yCanvas * scaleY)];
+    }
+    return [
+      transform({ x: -hw, y: -hh }), // topLeft
+      transform({ x: hw, y: -hh }),  // topRight
+      transform({ x: hw, y: hh }),   // bottomRight
+      transform({ x: -hw, y: hh })   // bottomLeft
+    ];
+  }
+  
+  endButton.addEventListener('click', function () {
+    const requestData = {
+      isAnnotationStarted: annotations.length > 0,
+      medDataId: window.annotatedMedData ? window.annotatedMedData.id : null
+    };
+  
+    fetch(`/Identity/Logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          window.location.href = '/Identity/Login';
+        } else {
+          console.error("Failed to process data.");
+        }
+      })
+      .catch(error => console.error('Error:', error));
+  });
+  
+  // Helper: store current annotation data.
+  // For "Save and Next Term", compute timestamps and boxCoordinates.
+  // For other actions ("Uncertain/Skip" or "Not Visible/Abstract"), store them empty.
+  function storeCurrentAnnotation(pressedButton) {
+    const currentKeyword = document.querySelector('.current_keyword');
+    if (currentKeyword) {
+      let medData = window.annotatedMedData;
+      let boxCoordinates = "";
+      let timestamps = "";
+      // Read comment value from the textbox.
+      const commentField = document.getElementById("comments");
+      const commentValue = commentField.value.trim();
+  
+      if (pressedButton === "Save and Next Term") {
+        boxCoordinates = getAllAnnotationsJSON();
+        let t2 = Date.now() - tAnnotationStart;
+        let t1 = tAnnotationStart - tIdentifyStart;
+        timestamps = `(${t1},${t2})`;
+      }
+      // Store the annotation data along with the comment.
+      allKeywordAnnotations.push({
+        Id: medData.id,
+        ImageUrl: medData.imageUrl,              // adjust casing if needed
+        ImageDescription: medData.imageDescription,
+        Sex: medData.sex,
+        Age: medData.age,
+        SkinTone: medData.skinTone,
+        BodyRegion: medData.bodyRegion,
+        Diagnosis: medData.diagnosis,
+        TreatmentName: medData.treatmentName,
+        Speciality: medData.speciality,
+        Modality: medData.modality,
+        BoxCoordinates: boxCoordinates,
+        ExtractedKeyword: currentKeyword.textContent,
+        Timestamps: timestamps,
+        PressedButton: pressedButton,
+        Comment: commentValue  // new property for the comment
+      });
+  
+      // Clear the textbox after storing.
+      commentField.value = "";
+  
+      let currentIndex = Number(currentKeyword.id.split('-')[1]);
+      if (pressedButton === "Save and Next Term") {
+        currentKeyword.classList.remove('current_keyword');
+        currentKeyword.classList.add('annotated_keyword');
+        keywordStates[currentIndex] = 2;
+      } else {
+        currentKeyword.classList.remove('current_keyword');
+        currentKeyword.classList.add('skipped_keyword');
+        keywordStates[currentIndex] = 4;
+      }
+  
+      const nextKeyword = currentKeyword.nextElementSibling;
+      if (nextKeyword && nextKeyword.classList.contains('not_annotated_keyword')) {
+        nextKeyword.classList.remove('not_annotated_keyword');
+        nextKeyword.classList.add('current_keyword');
+        keywordStates[currentIndex + 1] = 3;
+        tIdentifyStart = Date.now();
+        tAnnotationStart = 0;
+      } else {
+        nextButton.textContent = "Next Image";
+        skipButton.disabled = true;
+        notPresentButton.disabled = true;
+      }
+    }
+  }
+  
+  nextButton.addEventListener('click', function () {
+    if (nextButton.textContent.trim() === "Save and Next Term") {
+      if (annotations.length > 0) {
+        storeCurrentAnnotation("Save and Next Term");
+        resetAnnotation();
+      }
+    } else {
+      // Next Image branch: send all accumulated keyword annotations.
+      const payload = { 
+        MedDataId: window.annotatedMedData.id, 
+        Items: allKeywordAnnotations 
+      };
+      console.log(payload);
+      
+      fetch(`/MedData/NextImage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
         .then(response => response.json())
         .then(result => {
-            if (result.success) {
-                console.log(isAnnotationFinished);
-                console.log("bruh");
-                
-                if (isAnnotationFinished) {
-                    localStorage.removeItem('keywordStates');
-                }
-                window.location.href = '/Identity/Login';
-            } else {
-                console.error("Failed to process data.");
-            }
+          if (result.success) {
+            allKeywordAnnotations = [];
+            resetAnnotation();
+            location.reload();
+          } else {
+            console.error("Failed to process data.");
+          }
         })
         .catch(error => console.error('Error:', error));
-    });
-
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const image = document.getElementById('image');
-    const container = document.getElementById('image-container');
-    const keywords = document.querySelectorAll('.keyword');
-    
-    let isDrawingDisabled = false;
-
-    let isMagnifierActive = false;
-    let isDraggingMagnifier = false;
-    let isResizingMagnifier = false;
-    let initialDiameter = 200; // Initial magnifier diameter
-    let magnifierDiameter = initialDiameter;
-    let initialMouseX, initialMouseY, initialMagnifierLeft, initialMagnifierTop;
-
-    function magnify(imgID, zoom) {
-        let img, glass, resizeHandle, bw;
-        img = document.getElementById(imgID);
-
-        // Create the magnifier glass
-        glass = document.createElement("DIV");
-        glass.setAttribute("class", "img-magnifier-glass");
-        img.parentElement.insertBefore(glass, img);
-
-        // Create the rectangular resize handle in the bottom-right corner
-        resizeHandle = document.createElement("DIV");
-        resizeHandle.setAttribute("class", "resize-handle");
-        glass.appendChild(resizeHandle);
-
-        // Set up the magnifier glass background
-        glass.style.backgroundImage = `url('${img.src}')`;
-        glass.style.backgroundRepeat = "no-repeat";
-        glass.style.backgroundSize = `${img.width * zoom}px ${img.height * zoom}px`;
-
-        // Set initial styles for magnifier
-        bw = 3; // Border width
-        glass.style.width = `${magnifierDiameter}px`;
-        glass.style.height = `${magnifierDiameter}px`;
-        glass.style.cursor = "grab";
-
-        // Style the rectangular resize handle
-        resizeHandle.style.width = "20px";
-        resizeHandle.style.height = "20px";
-        resizeHandle.style.position = "absolute";
-        resizeHandle.style.right = "0";
-        resizeHandle.style.bottom = "0";
-        resizeHandle.style.cursor = "nwse-resize";
-        resizeHandle.style.backgroundColor = "invisible"; // Handle color to indicate resizing
-
-        // Toggle magnifier on right-click
-        img.parentElement.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            isMagnifierActive = !isMagnifierActive;
-            if (isMagnifierActive) {
-                glass.style.display = "block";
-                setMagnifierPosition(event); // Initial position at right-click
-            } else {
-                glass.style.display = "none";
-            }
-        });
-
-        // Enable dragging or resizing on mousedown within the magnifier
-        glass.addEventListener("mousedown", (e) => {
-            if (e.target === resizeHandle) {
-                isResizingMagnifier = true; // Start resizing if the handle is clicked
-                initialMouseX = e.clientX;
-                initialMouseY = e.clientY;
-            } else {
-                isDraggingMagnifier = true; // Start dragging if glass itself is clicked
-                initialMouseX = e.clientX;
-                initialMouseY = e.clientY;
-                initialMagnifierLeft = glass.offsetLeft;
-                initialMagnifierTop = glass.offsetTop;
-                glass.style.cursor = "grabbing";
-            }
-            e.preventDefault();
-        });
-
-        // Update magnifier position and background on mousemove only while dragging or resizing
-        document.addEventListener("mousemove", (e) => {
-            if (isMagnifierActive && isDraggingMagnifier) {
-                // Move the magnifier
-
-                const dx = e.clientX - initialMouseX;
-                const dy = e.clientY - initialMouseY;
-
-                let newLeft = initialMagnifierLeft + dx;
-                let newTop = initialMagnifierTop + dy;
-                
-                // Canvas boundaries
-                const canvasRect = canvas.getBoundingClientRect();
-                
-                // Adjusted constraints for the magnifier within the canvas
-                const maxLeft = canvasRect.width - glass.offsetWidth + 50;
-                const maxTop = canvasRect.height - glass.offsetHeight + 50;
-                
-                // Constrain the new position within the canvas
-                newLeft = Math.max(-70, Math.min(newLeft, maxLeft));
-                newTop = Math.max(-70, Math.min(newTop, maxTop));
-
-                // Apply the constrained position within the canvas
-                glass.style.left = `${newLeft}px`;
-                glass.style.top = `${newTop}px`;
-
-                // Update the background position to maintain zoomed area alignment
-                const imgRect = img.getBoundingClientRect();
-                const glassRect = glass.getBoundingClientRect();
-                const w = glass.offsetWidth / 2;
-                const h = glass.offsetHeight / 2;
-                const x = glassRect.left + w - imgRect.left;
-                const y = glassRect.top + h - imgRect.top;
-                glass.style.backgroundPosition = `-${(x * zoom - w + bw)}px -${(y * zoom - h + bw)}px`;
-            } else if (isMagnifierActive && isResizingMagnifier) {
-                // Resize the magnifier smoothly with less sensitivity
-                const dx = e.clientX - initialMouseX;
-                const dy = e.clientY - initialMouseY;
-                const delta = Math.min(Math.max(130, magnifierDiameter + (dx + dy) * 0.04), 300); // Smoother, slower resizing
-                magnifierDiameter = delta;
-
-                // Apply new diameter
-                glass.style.width = `${magnifierDiameter}px`;
-                glass.style.height = `${magnifierDiameter}px`;
-
-                // Update background size to maintain zoom level
-                glass.style.backgroundSize = `${img.width * zoom}px ${img.height * zoom}px`;
-            }
-        });
-
-        // Stop dragging or resizing on mouseup
-        document.addEventListener("mouseup", () => {
-            isDraggingMagnifier = false;
-            isResizingMagnifier = false;
-            glass.style.cursor = "grab";
-        });
-
-        // Set the initial position of the magnifier based on right-click location
-        function setMagnifierPosition(e) {
-            const pos = getCursorPos(e, img);
-            const x = pos.x;
-            const y = pos.y;
-            const w = glass.offsetWidth / 2;
-            const h = glass.offsetHeight / 2;
-
-            // Center the magnifier at the cursor with an offset
-            glass.style.left = `${x + img.getBoundingClientRect().left - img.parentElement.getBoundingClientRect().left - w}px`;
-            glass.style.top = `${y + img.getBoundingClientRect().top - img.parentElement.getBoundingClientRect().top - h}px`;
-
-            // Set the background position to zoom in on the exact spot
-            glass.style.backgroundPosition = `-${(x * zoom - w + bw)}px -${(y * zoom - h + bw)}px`;
-        }
-
-        // Get cursor position relative to the image
-        function getCursorPos(e) {
-            const a = img.getBoundingClientRect();
-            const x = e.pageX - a.left - window.pageXOffset;
-            const y = e.pageY - a.top - window.pageYOffset;
-            return { x, y };
-        }
     }
-
-    // Initialize magnifier with image ID and zoom level
-    magnify("image", 3);
-    
-    // 1 - not annotated; 2 - annotated; 3 - current; 4 - skipped
-    let keywordStatesJson = localStorage.getItem("keywordStates");
-    let keywordStates = JSON.parse(keywordStatesJson) || Array.from({ length: keywords.length }, (_, i) => (i === 0 ? 3 : 1));
-    
-    let startToDrawStart = Date.now();
-    let startToDrawEnd;
-    let drawToNextStart;
-    let isFirstDraw = true; // Flag to ensure first draw on current keyword
-    
-    function removeAllKeywordClasses(element) { 
-        element.classList.forEach(className => {
-            if (className.includes('_')) {
-                element.classList.remove(className);
-            }
-        });
+  });
+  
+  function skipOrNotPresentHandler(event) {
+    storeCurrentAnnotation(event.target.id === 'skip-button' ? "Uncertain/Skip" : "Not Visible/Abstract");
+    resetAnnotation();
+    tIdentifyStart = Date.now();
+  }
+  
+  skipButton.addEventListener('click', skipOrNotPresentHandler);
+  notPresentButton.addEventListener('click', skipOrNotPresentHandler);
+  
+  function resetAnnotation() {
+    annotations = [];
+    selectedAnnotation = null;
+    currentMode = 'none';
+    drawCanvas();
+    updateButtonState();
+    isFirstDraw = true;
+    tAnnotationStart = 0;
+  }
+  
+  function updateButtonState() {
+    if (nextButton.textContent.trim() === "Next Image") {
+      nextButton.disabled = false;
+    } else {
+      nextButton.disabled = annotations.length > 0 ? false : true;
     }
-    
-    if (keywordStatesJson) {    
-        for (let i = 0; i < keywords.length; i++) {
-            let curr = keywords[i];
-            removeAllKeywordClasses(curr);
-            if (keywordStates[i] == 1) {
-                curr.classList.add('not_annotated_keyword');
-            } else if (keywordStates[i] == 2) {
-                curr.classList.add('annotated_keyword');
-            } else if (keywordStates[i] == 3) {
-                curr.classList.add('current_keyword');
-            } else if (keywordStates[i] == 4) {
-                curr.classList.add('skipped_keyword');
-            }
-        }
-        if (keywordStates[keywords.length-1] === 2 ||  keywordStates[keywords.length-1] === 4) {
-            nextButton.textContent = "Next Image";
-            nextButton.removeAttribute('disabled');
-            skipButton.setAttribute('disabled', 'true');
-            notPresentButton.setAttribute('disabled', 'true');
-            isDrawingDisabled = true;
-        }
+  }
+  
+  // Update keyword UI and button states.
+  function updateKeywordUI() {
+    for (let i = 0; i < keywords.length; i++) {
+      let curr = keywords[i];
+      curr.classList.remove('current_keyword', 'annotated_keyword', 'not_annotated_keyword', 'skipped_keyword');
+      if (keywordStates[i] === 1) {
+        curr.classList.add('not_annotated_keyword');
+      } else if (keywordStates[i] === 2) {
+        curr.classList.add('annotated_keyword');
+      } else if (keywordStates[i] === 3) {
+        curr.classList.add('current_keyword');
+      } else if (keywordStates[i] === 4) {
+        curr.classList.add('skipped_keyword');
+      }
     }
-    
-
-    // Initialize canvas size based on container
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    
-    let isDrawing = false, isDragging = false, isResizing = false;  
-    let startX, startY, dragOffsetX, dragOffsetY, resizeDirection;
-    let rect = { x: 0, y: 0, width: 0, height: 0 };
-
-    function getRectangleCorners() {
-        const scaleCoefficient = image.naturalWidth / image.clientWidth;
-
-        return {
-            topLeft: {
-                x: rect.x * scaleCoefficient,
-                y: rect.y * scaleCoefficient
-            },
-            topRight: {
-                x: (rect.x + rect.width) * scaleCoefficient,
-                y: rect.y * scaleCoefficient
-            },
-            bottomLeft: {
-                x: rect.x * scaleCoefficient,
-                y: (rect.y + rect.height) * scaleCoefficient
-            },
-            bottomRight: {
-                x: (rect.x + rect.width) * scaleCoefficient,
-                y: (rect.y + rect.height) * scaleCoefficient
-            }
-        };
-    }
-
-    function updateButtonState() {
-        if (rect.width > 0 && rect.height > 0) {
-            nextButton.disabled = false;
-        } else {
-            nextButton.disabled = true;
-        }
-    }
-    
-    // Mouse down event
-    canvas.addEventListener('mousedown', (e) => {
-        if (e.button === 0 && isMagnifierActive === false) {
-            if (isFirstDraw) {
-                startToDrawEnd = Date.now();
-                drawToNextStart = Date.now(); // Draw-to-Next timestamp starts
-                isFirstDraw = false;
-            }
-    
-            if (isDrawingDisabled) return;
-    
-            const { offsetX, offsetY } = e;
-            if (isCorner(offsetX, offsetY)) {
-                isResizing = true;
-                resizeDirection = getResizeDirection(offsetX, offsetY);
-            } else if (isInsideRect(offsetX, offsetY)) {
-                isDragging = true;
-                dragOffsetX = offsetX - rect.x;
-                dragOffsetY = offsetY - rect.y;
-            } else {
-                isDrawing = true;
-                startX = offsetX;
-                startY = offsetY;
-                rect = { x: startX, y: startY, width: 0, height: 0 };
-            }
-        }
-    });
-
-    // Mouse move event
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDrawingDisabled) return;
- 
-        const { offsetX, offsetY } = e;
-        if (isDrawing) {
-            rect.width = Math.max(0, offsetX - startX);
-            rect.height = Math.max(0, offsetY - startY);
-        } else if (isDragging) {
-            rect.x = Math.min(Math.max(offsetX - dragOffsetX, 0), canvas.width - rect.width);
-            rect.y = Math.min(Math.max(offsetY - dragOffsetY, 0), canvas.height - rect.height);
-        } else if (isResizing) {
-            resizeRectangle(offsetX, offsetY);
-        }
-        drawCanvas();
-    });
-
-    // Mouse up event
-    canvas.addEventListener('mouseup', () => {
-        isDrawing = false;
-        isDragging = false;
-        isResizing = false;
-    });
-
-    // Function to draw the rectangle and corner handles
-    function drawCanvas() {
-        if (isDrawingDisabled) return;
- 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = '#a9000e';
-        ctx.lineWidth = 2;
-
-        if (rect.width > 0 && rect.height > 0) {
-            ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-            drawHandles();
-        }
-
-        updateButtonState();
-    }
-
-    // Draw corner handles with dynamic size
-    function drawHandles() {
-        const minDim = Math.min(rect.width, rect.height);
-
-        const handleLength = Math.max(0.06, minDim * 0.07); // Scale handles based on rectangle size
-
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5;
-
-        // Top-left corner
-        ctx.beginPath();
-        ctx.moveTo(rect.x, rect.y);
-        ctx.lineTo(rect.x + handleLength, rect.y);
-        ctx.moveTo(rect.x, rect.y);
-        ctx.lineTo(rect.x, rect.y + handleLength);
-        ctx.stroke();
-
-        // Top-right corner
-        ctx.beginPath();
-        ctx.moveTo(rect.x + rect.width, rect.y);
-        ctx.lineTo(rect.x + rect.width - handleLength, rect.y);
-        ctx.moveTo(rect.x + rect.width, rect.y);
-        ctx.lineTo(rect.x + rect.width, rect.y + handleLength);
-        ctx.stroke();
-
-        // Bottom-left corner
-        ctx.beginPath();
-        ctx.moveTo(rect.x, rect.y + rect.height);
-        ctx.lineTo(rect.x + handleLength, rect.y + rect.height);
-        ctx.moveTo(rect.x, rect.y + rect.height);
-        ctx.lineTo(rect.x, rect.y + rect.height - handleLength);
-        ctx.stroke();
-
-        // Bottom-right corner
-        ctx.beginPath();
-        ctx.moveTo(rect.x + rect.width, rect.y + rect.height);
-        ctx.lineTo(rect.x + rect.width - handleLength, rect.y + rect.height);
-        ctx.moveTo(rect.x + rect.width, rect.y + rect.height);
-        ctx.lineTo(rect.x + rect.width, rect.y + rect.height - handleLength);
-        ctx.stroke();
-    }
-
-    // Check if a point is inside the rectangle
-    function isInsideRect(x, y) {
-        return x > rect.x && x < rect.x + rect.width && y > rect.y && y < rect.y + rect.height;
-    }
-
-    // Check if a point is near a corner handle for resizing
-    function isCorner(x, y) {
-        return ['top-left', 'top-right', 'bottom-left', 'bottom-right'].some(corner => isInHandle(x, y, corner));
-    }
-
-    // Check if point is inside a specific handle
-    function isInHandle(x, y, corner) {
-        const minDim = Math.min(rect.width, rect.height);
-        const handleLength = Math.max(5, minDim * 0.1);
-        const corners = {
-            'top-left': { x: rect.x, y: rect.y },
-            'top-right': { x: rect.x + rect.width, y: rect.y },
-            'bottom-left': { x: rect.x, y: rect.y + rect.height },
-            'bottom-right': { x: rect.x + rect.width, y: rect.y + rect.height }
-        };
-        const { x: hx, y: hy } = corners[corner];
-        return x >= hx - handleLength && x <= hx + handleLength && y >= hy - handleLength && y <= hy + handleLength;
-    }
-
-    // Get the resize direction based on the corner
-    function getResizeDirection(x, y) {
-        if (isInHandle(x, y, 'top-left')) return 'top-left';
-        if (isInHandle(x, y, 'top-right')) return 'top-right';
-        if (isInHandle(x, y, 'bottom-left')) return 'bottom-left';
-        if (isInHandle(x, y, 'bottom-right')) return 'bottom-right';
-        return '';
-    }
-
-    // Resize the rectangle based on the mouse position and resize direction
-    function resizeRectangle(x, y) {
-        switch (resizeDirection) {
-            case 'top-left':
-                rect.width += rect.x - x;
-                rect.height += rect.y - y;
-                rect.x = x;
-                rect.y = y;
-                break;
-            case 'top-right':
-                rect.width = x - rect.x;
-                rect.height += rect.y - y;
-                rect.y = y;
-                break;
-            case 'bottom-left':
-                rect.width += rect.x - x;
-                rect.x = x;
-                rect.height = y - rect.y;
-                break;
-            case 'bottom-right':
-                rect.width = x - rect.x;
-                rect.height = y - rect.y;
-                break;
-        }
-
-        // Ensure the rectangle stays within canvas boundaries when resizing
-        rect.width = Math.max(0, Math.min(rect.width, canvas.width - rect.x));
-        rect.height = Math.max(0, Math.min(rect.height, canvas.height - rect.y));
-    }
-
-    function resetRectangle() {
-        rect = { x: 0, y: 0, width: 0, height: 0 };
-        drawCanvas(); // Redraws the canvas to clear the rectangle
-        updateButtonState();
-    }
-
-    function changeNextWordToImage() {
-        nextButton.textContent = "Next Image";
-        nextButton.removeAttribute('disabled');
-        skipButton.setAttribute('disabled', 'true');
-        notPresentButton.setAttribute('disabled', 'true');
-        isDrawingDisabled = true;
-    }
-
-    function resetTimestamps() {
-        isFirstDraw = true;
-        startToDrawStart = Date.now();
-    }
-
-    nextButton.addEventListener('click', function () {
-        if (nextButton.textContent.trim() === "Save and Next" ) {
-
-            const currentKeyword = document.querySelector('.current_keyword');
-            
-            if (currentKeyword) {
-                let medData = window.annotatedMedData;
-                const corners = getRectangleCorners();
-
-                const annotatedMedData = {
-                    Id: medData.id,
-                    ImageUrl: medData.imageUrl,
-                    ImageDescription: medData.imageDescription,
-                    Sex: medData.sex,
-                    Age: medData.age,
-                    SkinTone: medData.skinTone,
-                    BodyRegion: medData.bodyRegion,
-                    Diagnosis: medData.diagnosis,
-                    TreatmentName: medData.treatmentName,
-                    Speciality: medData.speciality,
-                    Modality: medData.modality,
-                    BoxCoordinates: `[(${corners.topLeft.x},${corners.topLeft.y}),(${corners.bottomLeft.x},${corners.bottomLeft.y}),(${corners.bottomRight.x},${corners.bottomRight.y}),(${corners.topRight.x},${corners.topRight.y})]`,
-                    ExtractedKeyword: currentKeyword.textContent,
-                    PressedButton: "Save and Next",
-                    Timestamps: `(${(startToDrawEnd - startToDrawStart) / 1000},${(Date.now() - drawToNextStart) / 1000})`
-                };                          
-
-                fetch('/MedData/ProcessAnnotatedMedData', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(annotatedMedData)
-                })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.success) {
-                        isAnnotationStarted = true;
-                        console.log("annotation started");
-                        
-                        let currentIndex = Number(currentKeyword.id.split('-')[1]);
-
-                        currentKeyword.classList.remove('current_keyword');
-                        currentKeyword.classList.add('annotated_keyword');
-                        keywordStates[currentIndex] = 2;
-
-                        const nextKeyword = currentKeyword.nextElementSibling;
-
-                        if (nextKeyword && nextKeyword.classList.contains('not_annotated_keyword')) {
-                            nextKeyword.classList.remove('not_annotated_keyword');
-                            nextKeyword.classList.add('current_keyword');
-                            keywordStates[currentIndex+1] = 3;
-
-                            localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
-                        } else {
-                            isAnnotationFinished = true;
-                            console.log("annotation finished");
-                            
-                            resetRectangle();
-                            changeNextWordToImage();
-                            localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
-                            return;
-                        }
-                        
-                        resetRectangle();
-                        resetTimestamps();
-                    } else {
-                        console.error("Failed to process data.");
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-            }
-        } else {
-            fetch(`/MedData/NextImage?medDataId=${window.annotatedMedData.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    localStorage.removeItem('keywordStates');
-                    resetRectangle();
-                    resetTimestamps();
-                    location.reload();
-                    location.reload();
-                } else {
-                    console.error("Failed to process data.");
-                }
-            })
-            .catch(error => console.error('Error:', error));
-        }
-    });
-
-    
-
-    function skipOrNotPresentHandler(event) {
-        const currentKeyword = document.querySelector('.current_keyword');
-        if (currentKeyword) {
-            let medData = window.annotatedMedData;
-            
-            const annotatedMedData = {
-                Id: medData.id,
-                ImageUrl: medData.imageUrl,
-                ImageDescription: medData.imageDescription,
-                Sex: medData.sex,
-                Age: medData.age,
-                SkinTone: medData.skinTone,
-                BodyRegion: medData.bodyRegion,
-                Diagnosis: medData.diagnosis,
-                TreatmentName: medData.treatmentName,
-                Speciality: medData.speciality,
-                Modality: medData.modality,
-                PressedButton: event.target.id === 'skip-button' ? "Location Uncertain" : "Not Visible",
-                ExtractedKeyword: currentKeyword.textContent,
-            };            
-
-            fetch('/MedData/ProcessAnnotatedMedData', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(annotatedMedData)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    isAnnotationStarted = true;
-                        
-                    let currentIndex = Number(currentKeyword.id.split('-')[1]);
-
-                    currentKeyword.classList.remove('current_keyword');
-                    currentKeyword.classList.add('skipped_keyword');
-                    keywordStates[currentIndex] = 4;
-
-                    const nextKeyword = currentKeyword.nextElementSibling;
-
-                    if (nextKeyword && nextKeyword.classList.contains('not_annotated_keyword')) {
-                        nextKeyword.classList.remove('not_annotated_keyword');
-                        nextKeyword.classList.add('current_keyword');
-                        keywordStates[currentIndex+1] = 3;
-                        
-                        localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
-                    } else {
-                        isAnnotationFinished = true;
-                        resetRectangle();
-                        changeNextWordToImage();
-                        localStorage.setItem('keywordStates', JSON.stringify(keywordStates));
-                        return;
-                    }
-                    
-                    resetRectangle();
-
-                    startToDrawStart = Date.now();
-                } else {
-                    console.error("Failed to process data.");
-                }
-            })
-            .catch(error => console.error('Error:', error));
-        }
-    }
-
-    skipButton.addEventListener('click', skipOrNotPresentHandler);
-    notPresentButton.addEventListener('click', skipOrNotPresentHandler);
+  }
+  updateKeywordUI();
+  updateKeywordButtonStates();
 });
