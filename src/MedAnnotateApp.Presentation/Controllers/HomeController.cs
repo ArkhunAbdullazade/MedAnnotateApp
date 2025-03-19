@@ -28,7 +28,9 @@ public class HomeController : Controller
     {
         var user = await userManager.GetUserAsync(User);
 
-        var medData = await medDataRepository.GetNthMedDataBySpecialityAndPositionAsync(user?.Speciality!, user?.Position!, user?.Id!);
+        var (medData, counter) = await medDataRepository.GetNthMedDataBySpecialityAndPositionAsync(user?.Speciality!, user?.Position!, user?.BodyRegion!, user?.ImageModality!, user?.Id!);
+
+        ViewBag.Counter = counter;  
 
         if (medData != null) ViewBag.MedDataKeywords = (await medDataRepository.GetKeywordsByMedDataIdAsync(medData.Id)).ToList();
         else ViewBag.MedDataKeywords = null;

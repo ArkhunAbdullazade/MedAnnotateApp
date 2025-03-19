@@ -7,149 +7,429 @@
 }
 
 <style>
+    /* Main layout and containers */
     .centered {
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 680px;
+        height: 680px; /* Account for navbar height */
+        padding: 10px 0;
     }
 
-    .centered-form {
+    .form-container {
+        padding: 15px !important;
+        height: 620px; /* Match exact card height */
         display: flex;
         flex-direction: column;
-        justify-content: center;
         align-items: center;
-        overflow: hidden;
-        max-width: 100%; /* Prevents form elements from pushing out horizontally */
+        justify-content: center; /* This centers content vertically */
     }
 
+    /* Form styling */
+    form {
+        width: 90%;
+        max-width: 450px;
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* Center horizontally */
+    }
+
+    /* Form controls styling */
     .form-control,
     .form-outline select,
     .form-outline input {
         box-sizing: border-box;
         width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        font-size: 15px;
+        margin-bottom: 15px;
+    }
+    
+    /* Row spacing for grouped inputs */
+    form .row {
+        margin-bottom: 0;
+    }
+    
+    form .row .form-control {
+        margin-bottom: 15px;
+    }
+    
+    /* Error summary styling */
+    .validation-summary-valid {
+        display: none !important;
+    }
+    
+    .text-danger:empty {
+        display: none !important;
+    }
+    
+    /* Additional style to ensure the validation summary is hidden */
+    div[asp-validation-summary="All"]:not(.validation-summary-errors) {
+        display: none !important;
+    }
+    
+    .text-danger {
+        max-height: 90px;
+        overflow-y: auto;
+        color: #dc3545 !important;
+        font-size: 13px;
+        margin-bottom: 10px;
+        padding: 8px;
+        border-radius: 6px;
+        background-color: rgba(220, 53, 69, 0.1);
+        width: 100%;
+        display: flex;
+        align-items: flex-start;
+        line-height: 1.4;
+    }
+    
+    .text-danger ul {
+        margin-bottom: 0;
+        padding-left: 20px;
+        width: 100%;
+    }
+    
+    /* Hide individual field validation errors */
+    .field-validation-error {
+        display: none !important;
+    }
+    
+    /* Regular dropdown styling */
+    select.form-control {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23343a40' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 8px 5px;
+        padding-right: 30px;
+        cursor: pointer;
+    }
+    
+    /* Custom multi-select dropdown */
+    .multiselect-dropdown {
+        position: relative;
+        width: 100%;
+        margin-bottom: 15px; 
+    }
+    
+    .multiselect-dropdown-button {
+        width: 100%;
+        padding: 8px 10px;
+        text-align: left;
+        background-color: #fff;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: all 0.2s ease;
+        font-size: 15px;
+    }
+    
+    .multiselect-dropdown-button:after {
+        content: '▼';
+        font-size: 10px;
+        margin-left: 10px;
+        flex-shrink: 0;
+        opacity: 0.7;
+    }
+    
+    .multiselect-dropdown-button:hover, .form-control:hover {
+        border-color: #b1b1b1;
+    }
+    
+    .multiselect-dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #fff;
+        width: 100%;
+        max-height: 180px;
+        overflow-y: auto;
+        border: 1px solid #ced4da;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 100;
+    }
+    
+    .multiselect-option {
+        padding: 6px 10px;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        border-bottom: 1px solid #f5f5f5;
+        transition: background-color 0.15s ease;
+    }
+    
+    .multiselect-option:hover {
+        background-color: #f8f9fa;
     }
 
-    .button:hover {
-        background-color: #8f000c;
+    .multiselect-option:last-child {
+        border-bottom: none;
+    }
+    
+    .multiselect-option input {
+        margin-right: 8px;
+        width: auto !important;
+        cursor: pointer;
+    }
+    
+    .multiselect-option label {
+        cursor: pointer;
+        width: 100%;
+        margin: 0;
+        font-size: 14px;
     }
 
+    /* Focus states */
     input:focus,
-    select:focus {
-        border-color: #d78188 !important;
-        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px #d78188 !important;
+    select:focus,
+    .multiselect-dropdown-button:focus {
+        border-color: #b96b74 !important;
+        box-shadow: 0 0 0 3px rgba(217, 107, 119, 0.2) !important;
         outline: 0 none !important;
     }
 
-    /* Ensures the card doesn't overflow */
-    .form-container {
-        max-height: 100%;
-        overflow-y: auto; /* Adds scroll if needed */
+    /* Submit button styling */
+    .btn-submit {
+        padding: 10px 20px;
+        border: none;
+        color: white;
+        background-color: #a9000e;
+        cursor: pointer;
+        width: auto;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        min-width: 150px;
+        margin-top: 3px;
     }
 
-    .text-danger {
-        max-height: 100px; /* Set a fixed height for the error container */
-        overflow-y: auto   ; /* Enable vertical scrolling */
+    .btn-submit:hover {
+        background-color: #8f000c;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .btn-submit:active {
+        transform: translateY(0);
+    }
+    
+    /* Card styling */
+    .welcome-card {
+        background: linear-gradient(145deg, #f8f9fa, #ffffff);
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        overflow: hidden;
+        height: 620px;
+    }
+    
+    .welcome-column {
+        background-color: #f8f9fa;
+        border-radius: 8px 0 0 8px;
+        height: 620px;
+        padding: 30px !important;
+        display: flex;
+        align-items: center;
+    }
+    
+    .form-column {
+        background-color: #ffffff;
+        height: 620px;
+    }
+    
+    /* App branding */
+    .brand-color {
+        color: #a9000e !important;
+    }
+    
+    .brand-title {
+        font-weight: 700;
+        letter-spacing: -1px;
+    }
+    
+    /* Welcome text */
+    .welcome-text {
+        line-height: 1.5;
+        font-size: 15px;
+        color: rgb(100, 100, 100);
+    }
+    
+    /* Login link */
+    .login-link {
+        font-size: 13px;
+        margin-top: 10px;
+        margin-bottom: 0;
     }
 </style>
 
 <section class="centered">
-   <div class="container">
+    <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-11">
-                <div class="card shadow-lg p-4" style="background-color: #f8f9fa;">
-                    <div class="row">
-                        <div class="col-md-6 d-flex align-items-center " style="height: 580px;">
+                <div class="card shadow-lg p-0 welcome-card">
+                    <div class="row g-0 h-100">
+                        <div class="col-md-7 welcome-column">
                             <div>
-                                <h1 class="display-3 fw-bold ls-tight text-center" style="color: #a9000e;">
+                                <h1 class="display-5 fw-bold ls-tight text-center brand-title brand-color">
                                     Welcome
                                 </h1>
-                                <p class="mt-4" style="color:rgb(122, 122, 122)">
-                                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                                    Eveniet, itaque accusantium odio, soluta, corrupti aliquam
-                                    quibusdam tempora at cupiditate quis eum maiores libero
-                                    veritatis? Dicta facilis sint aliquid ipsum atque?
-                                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                                    Eveniet, itaque accusantium odio, soluta, corrupti aliquam
-                                    quibusdam tempora at cupiditate quis eum maiores libero
-                                    veritatis? Dicta facilis sint aliquid ipsum atque?
+                                <p class="mt-3 welcome-text">
+                                    Join our medical annotation platform to contribute to the development of advanced
+                                    diagnostic tools. Your expertise helps improve healthcare technology and patient outcomes
+                                    through accurate image annotation and collaborative research.
                                 </p>
                             </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <div class="card shadow-sm p-4 form-container" style="background-color: #ffffff; height: 580px;">
-                                <div class="card-body centered-form">
-                                    <form method="post" asp-action="PostSignup" asp-controller="Identity">
-                                        <div class="text-danger" asp-validation-summary="All"></div>
+                        <div class="col-md-5 form-column">
+                            <div class="card-body form-container">
+                                <form method="post" asp-action="PostSignup" asp-controller="Identity" class="mb-0">
+                                    <div class="text-danger mb-3 validation-summary-valid" asp-validation-summary="All"></div>
 
-                                        <div class="row">
-                                            <div class="col-md-6 mb-4">
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="email" asp-for="Email" class="form-control" />
-                                                    <span asp-validation-for="Email" class="form-label text-dark">Institutional Email</span>
-                                                </div>
+                                    <input type="email" asp-for="Email" class="form-control" placeholder="Institutional Email" />
+                                    <span asp-validation-for="Email" class="field-validation-error"></span>
 
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="text" asp-for="FullName" class="form-control" />
-                                                    <span asp-validation-for="FullName" class="form-label text-dark">Full Name</span>
-                                                </div>
+                                    <input type="text" asp-for="FullName" class="form-control" placeholder="Full Name" />
+                                    <span asp-validation-for="FullName" class="field-validation-error"></span>
 
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="password" asp-for="Password" class="form-control" />
-                                                    <span asp-validation-for="Password" class="form-label text-dark">Password</span>
-                                                </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <input type="password" asp-for="Password" class="form-control" placeholder="Password" />
+                                            <span asp-validation-for="Password" class="field-validation-error"></span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="password" asp-for="ConfirmPassword" class="form-control" placeholder="Confirm Password" />
+                                            <span asp-validation-for="ConfirmPassword" class="field-validation-error"></span>
+                                        </div>
+                                    </div>
 
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="password" asp-for="ConfirmPassword" class="form-control" />
-                                                    <span asp-validation-for="ConfirmPassword" class="form-label text-dark">Confirm Your Password</span>
-                                                </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <select asp-for="Position" class="form-control">
+                                                <option disabled selected value="">Select Position</option>
+                                                <option value="specialist">Specialist</option>
+                                                <option value="general practitioner">General Practitioner</option>
+                                                <option value="resident/assistant">Resident/Assistant</option>
+                                                <option value="medical student">Medical Student</option>
+                                            </select>
+                                            <span asp-validation-for="Position" class="field-validation-error"></span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <select asp-for="Speciality" class="form-control">
+                                                <option disabled selected value="">Select Specialty</option>
+                                                @foreach (var speciality in specialities)
+                                                {
+                                                    <option value="@speciality">@speciality</option>
+                                                }
+                                            </select>
+                                            <span asp-validation-for="Speciality" class="field-validation-error"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <input type="text" asp-for="University" class="form-control" placeholder="University" />
+                                            <span asp-validation-for="University" class="field-validation-error"></span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" asp-for="ClinicalExperience" min="0" class="form-control" placeholder="Clinical Experience (years)" />
+                                            <span asp-validation-for="ClinicalExperience" class="field-validation-error"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="multiselect-dropdown">
+                                        <div class="multiselect-dropdown-button" id="bodyRegionButton">
+                                            Select Body Region
+                                        </div>
+                                        <div class="multiselect-dropdown-content" id="bodyRegionDropdown">
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="region-abdomen" name="BodyRegion" value="abdomen">
+                                                <label for="region-abdomen">Abdomen</label>
                                             </div>
-                                            <div class="col-md-6 mb-4">
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="text" asp-for="University" class="form-control" />
-                                                    <span asp-validation-for="University" class="form-label text-dark">University</span>
-                                                </div>
-
-                                                <div class="form-outline mb-2">
-                                                    <select asp-for="Position" class="form-control">
-                                                        <option disabled selected value="">Select Position</option>
-                                                        <option value="medical student">Medical Student</option>
-                                                        <option value="clinician">Clinician</option>
-                                                    </select>
-                                                    <span asp-validation-for="Position" class="text-dark">Position</span>
-                                                </div>
-
-                                                <div class="form-outline mb-2">
-                                                    <select asp-for="Speciality" class="form-control">
-                                                        <option disabled selected value="">Select Specialty</option>
-                                                        @foreach (var speciality in specialities)
-                                                        {
-                                                            <option value="@speciality">@speciality</option>
-                                                        }
-                                                    </select>
-                                                    <span asp-validation-for="Speciality" class="text-dark">Specialty</span>
-                                                </div>
-
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="number" asp-for="ClinicalExperience"  min="0" class="form-control" />
-                                                    <span asp-validation-for="ClinicalExperience" class="form-label text-dark">Years Of Clinical Experience</span>
-                                                </div>
-
-                                                <div data-mdb-input-init class="form-outline mb-2">
-                                                    <input type="text" asp-for="OrcidId" class="form-control" />
-                                                    <span asp-validation-for="OrcidId" class="form-label text-dark">ORCID ID (optional)</span>
-                                                </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="region-head-neck" name="BodyRegion" value="head and neck">
+                                                <label for="region-head-neck">Head and Neck</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="region-lower" name="BodyRegion" value="lower extremities">
+                                                <label for="region-lower">Lower Extremities</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="region-multiple" name="BodyRegion" value="multiple">
+                                                <label for="region-multiple">Multiple</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="region-thorax" name="BodyRegion" value="thorax">
+                                                <label for="region-thorax">Thorax</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="region-upper" name="BodyRegion" value="upper extremities">
+                                                <label for="region-upper">Upper Extremities</label>
                                             </div>
                                         </div>
+                                    </div>
+                                    <span asp-validation-for="BodyRegion" class="field-validation-error"></span>
 
-                                        <!-- Submit button -->
-                                        <button type="submit" data-mdb-button-init data-mdb-ripple-init
-                                            class="btn btn-block mb-4" style="color: white; background-color: #a9000e;">
-                                            Sign Up
+                                    <div class="multiselect-dropdown">
+                                        <div class="multiselect-dropdown-button" id="modalityButton">
+                                            Select Image Modality
+                                        </div>
+                                        <div class="multiselect-dropdown-content" id="modalityDropdown">
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-ce-xray" name="ImageModality" value="ce x-ray">
+                                                <label for="modality-ce-xray">CE X-Ray</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-ct" name="ImageModality" value="ct">
+                                                <label for="modality-ct">CT</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-endoscopy" name="ImageModality" value="endoscopy">
+                                                <label for="modality-endoscopy">Endoscopy</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-microscopy" name="ImageModality" value="microscopy">
+                                                <label for="modality-microscopy">Microscopy</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-mri" name="ImageModality" value="mri">
+                                                <label for="modality-mri">MRI</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-photo" name="ImageModality" value="photo">
+                                                <label for="modality-photo">Photo</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-ultrasound" name="ImageModality" value="ultrasound">
+                                                <label for="modality-ultrasound">Ultrasound</label>
+                                            </div>
+                                            <div class="multiselect-option">
+                                                <input type="checkbox" id="modality-xray" name="ImageModality" value="x-ray">
+                                                <label for="modality-xray">X-Ray</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span asp-validation-for="ImageModality" class="field-validation-error"></span>
+
+                                    <input type="text" asp-for="OrcidId" class="form-control" placeholder="ORCID ID (optional)" />
+                                    <span asp-validation-for="OrcidId" class="field-validation-error"></span>
+
+                                    <div class="text-center">
+                                        <button type="submit" class="btn-submit">
+                                            Register
                                         </button>
-                                    </form>
-                                </div>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -161,4 +441,72 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up Body Region dropdown
+            setupMultiSelect('bodyRegionButton', 'bodyRegionDropdown', 'Body Region');
+            
+            // Set up Image Modality dropdown
+            setupMultiSelect('modalityButton', 'modalityDropdown', 'Image Modality');
+            
+            function setupMultiSelect(buttonId, dropdownId, fieldName) {
+                const button = document.getElementById(buttonId);
+                const dropdown = document.getElementById(dropdownId);
+                
+                // Toggle dropdown when button is clicked
+                button.addEventListener('click', function() {
+                    if (dropdown.style.display === 'block') {
+                        dropdown.style.display = 'none';
+                    } else {
+                        // Close all other dropdowns first
+                        document.querySelectorAll('.multiselect-dropdown-content').forEach(el => {
+                            if (el.id !== dropdownId) {
+                                el.style.display = 'none';
+                            }
+                        });
+                        dropdown.style.display = 'block';
+                    }
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(event) {
+                    if (!button.contains(event.target) && !dropdown.contains(event.target)) {
+                        dropdown.style.display = 'none';
+                    }
+                });
+                
+                // Handle checkbox changes
+                const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        updateButtonText(checkboxes, button, fieldName);
+                    });
+                });
+            }
+            
+            function updateButtonText(checkboxes, button, fieldName) {
+                // Count selected items and collect their labels
+                let selectedCount = 0;
+                let selectedLabels = [];
+                
+                checkboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        selectedCount++;
+                        selectedLabels.push(checkbox.nextElementSibling.textContent.trim());
+                    }
+                });
+                
+                // Update button text
+                if (selectedCount === 0) {
+                    button.textContent = 'Select ' + fieldName;
+                } else if (selectedCount === 1) {
+                    button.textContent = selectedLabels[0];
+                } else if (selectedCount <= 2) {
+                    button.textContent = selectedLabels.join(', ');
+                } else {
+                    button.textContent = selectedCount + ' items selected';
+                }
+            }
+        });
+    </script>
 }

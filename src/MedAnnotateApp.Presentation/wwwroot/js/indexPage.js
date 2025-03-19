@@ -1,271 +1,575 @@
-document.addEventListener('DOMContentLoaded', function () {
-  /***********************
-   * Global Elements & Setup
-   ***********************/
-  const canvas = document.getElementById('mainCanvas');
-  const ctx = canvas.getContext('2d');
-  const sourceImage = document.getElementById('sourceImage'); // fixed image src
-  const container = document.getElementById('canvasContainer');
-  const magnifyToggle = document.getElementById('magnifyToggle');
-  const nextButton = document.getElementById('next-button'); // initially "Save and Next Term"
-  const skipButton = document.getElementById('skip-button'); // "Uncertain/Skip"
-  const notPresentButton = document.getElementById('not-present-button'); // "Not Visible/Abstract"
-  const endButton = document.getElementById('end-button');
-  const keywords = document.querySelectorAll('.keyword');
+document.addEventListener("DOMContentLoaded", function () {
+  // ====================================================
+  // Global Elements & Setup
+  // ====================================================
+  const canvas = document.getElementById("mainCanvas");
+  const ctx = canvas.getContext("2d");
+  const sourceImage = document.getElementById("sourceImage");
+  const container = document.getElementById("canvasContainer");
+  const nextButton = document.getElementById("next-button"); // "Save and Next Term" / "Next Image"
+  const skipButton = document.getElementById("skip-button"); // "Uncertain/Skip"
+  const notPresentButton = document.getElementById("not-present-button"); // "Not Visible/Abstract"
+  const endButton = document.getElementById("end-button");
+  const keywords = document.querySelectorAll(".keyword");
+  const commentField = document.getElementById("comments");
+
+  // ====================================================
+  // Create tools container and buttons
+  // ====================================================
+  const imageContainer = document.getElementById("image-container");
   
-  // Global array to accumulate keyword annotations.
-  let allKeywordAnnotations = [];
+  // Create tools container
+  const toolsContainer = document.createElement("div");
+  toolsContainer.className = "tools-container";
+  
+  // Create rectangle button
+  const rectButton = document.createElement("div");
+  rectButton.className = "tool-button active"; // Active by default
+  rectButton.id = "rectModeButton";
+  rectButton.title = "Rectangle Mode";
+  
+  const rectIcon = document.createElement("img");
+  rectIcon.src = "../images/rectangle-icon.png";
+  rectIcon.alt = "Rectangle Mode";
+  
+  rectButton.appendChild(rectIcon);
+  
+  // Create freehand button
+  const freehandButton = document.createElement("div");
+  freehandButton.className = "tool-button";
+  freehandButton.id = "freehandModeButton";
+  freehandButton.title = "Freehand Mode";
+  
+  const penIcon = document.createElement("img");
+  penIcon.src = "../images/pen-icon.png";
+  penIcon.alt = "Freehand Mode";
+  
+  freehandButton.appendChild(penIcon);
+  
+  // Create magnify button
+  const magnifyButton = document.createElement("div");
+  magnifyButton.className = "tool-button";
+  magnifyButton.id = "magnifyButton";
+  magnifyButton.title = "Magnifier Tool";
+  
+  const magnifyIcon = document.createElement("img");
+  magnifyIcon.src = "../images/magnifying-glass.png";
+  magnifyIcon.alt = "Magnifier Tool";
+  
+  magnifyButton.appendChild(magnifyIcon);
+  
+  // Add all buttons to tools container
+  toolsContainer.appendChild(rectButton);
+  toolsContainer.appendChild(freehandButton);
+  toolsContainer.appendChild(magnifyButton);
+  
+  // Add tools container to the image container (not annotation section)
+  // This allows tools to be positioned relative to the image container
+  imageContainer.appendChild(toolsContainer);
 
-  // In-memory keyword states: 1 = not annotated, 2 = annotated, 3 = current, 4 = skipped.
-  // Initially, the first keyword is current (3) and the rest are not annotated (1).
-  let keywordStates = Array.from({ length: keywords.length }, (_, i) => (i === 0 ? 3 : 1));
-
-  // Update keyword UI initially.
-  for (let i = 0; i < keywords.length; i++) {
-    let curr = keywords[i];
-    curr.classList.remove('current_keyword', 'annotated_keyword', 'not_annotated_keyword', 'skipped_keyword');
-    if (keywordStates[i] === 1) {
-      curr.classList.add('not_annotated_keyword');
-    } else if (keywordStates[i] === 2) {
-      curr.classList.add('annotated_keyword');
-    } else if (keywordStates[i] === 3) {
-      curr.classList.add('current_keyword');
-    } else if (keywordStates[i] === 4) {
-      curr.classList.add('skipped_keyword');
+  // Global mode variable for new annotations ("rectangle" or "freehand")
+  let currentAnnotationMode = "rectangle"; // default
+  function switchMode(newMode) {
+    if (newMode !== currentAnnotationMode) {
+      currentAnnotationMode = newMode;
+      resetAnnotation(); // Clears all existing annotations when switching
+      drawCanvas();
+      
+      // Update active button styling
+      if (newMode === "rectangle") {
+        rectButton.classList.add("active");
+        freehandButton.classList.remove("active");
+      } else if (newMode === "freehand") {
+        freehandButton.classList.add("active");
+        rectButton.classList.remove("active");
+      }
     }
   }
   
-  // Global timestamp variables.
-  // tIdentifyStart: when a keyword becomes current.
-  // tAnnotationStart: when the clinician first clicks on the image for that keyword.
+  rectButton.addEventListener("click", () => switchMode("rectangle"));
+  freehandButton.addEventListener("click", () => switchMode("freehand"));
+  magnifyButton.addEventListener("click", function(e) {
+    if (magnifierActive) {
+      hideLens();
+      magnifyButton.classList.remove("active");
+    } else {
+      showLens();
+      magnifyButton.classList.add("active");
+    }
+    e.stopPropagation();
+  });
+
+  // ====================================================
+  // Global Navigation & Storage Variables
+  // ====================================================
+  let currentIndex = 0; // Index of the current keyword
+  let keywordStatesJson = window.annotatedMedData.keywordStates;
+  let storedAnnotations = new Array(keywords.length).fill(null);
+  // Add a flag to track if any annotations have been made for this image
+  let hasAnnotatedCurrentImage = false;
+  // Keyword states: 1 = not annotated, 2 = annotated, 3 = current, 4 = skipped.
+  let keywordStates = JSON.parse(keywordStatesJson) || Array.from({ length: keywords.length }, (_, i) =>
+    i === 0 ? 3 : 1
+  );
+  
+  // Initialize currentIndex by finding which keyword is marked as current (state 3)
+  for (let i = 0; i < keywordStates.length; i++) {
+    if (keywordStates[i] === 3) {
+      currentIndex = i;
+      break;
+    }
+  }
+  
+  function updateKeywordUI() {
+    keywords.forEach((kw, i) => {
+      kw.classList.remove(
+        "current_keyword",
+        "annotated_keyword",
+        "not_annotated_keyword",
+        "skipped_keyword"
+      );
+      if (keywordStates[i] === 1) kw.classList.add("not_annotated_keyword");
+      else if (keywordStates[i] === 2) kw.classList.add("annotated_keyword");
+      else if (keywordStates[i] === 3) kw.classList.add("current_keyword");
+      else if (keywordStates[i] === 4) kw.classList.add("skipped_keyword");
+    });
+  }
+  function updateNavigationButtons() {
+    /* Previous button removed */
+  }
+  function updateButtonState() {
+    if (nextButton.textContent.trim() === "Next Image") {
+      nextButton.disabled = false;
+    } else {
+      nextButton.disabled = annotations.length > 0 ? false : true;
+    }
+  }
+  updateKeywordUI();
+  updateNavigationButtons();
+
+  // ====================================================
+  // Timestamp Variables for Current Term
+  // ====================================================
   let tIdentifyStart = Date.now();
   let tAnnotationStart = 0;
-  
-  // Helper: update keyword button states.
-  function updateKeywordButtonStates() {
-    if (keywordStates.every(state => state === 2 || state === 4)) {
-      nextButton.textContent = "Next Image";
-      nextButton.disabled = false;
-      skipButton.disabled = true;
-      notPresentButton.disabled = true;
-    }
-  }
-  
-  /***********************
-   * Annotation Variables
-   ***********************/
-  let annotations = [];         // Array of annotation objects: { cx, cy, width, height, rotation }
-  let selectedAnnotation = null;
-  let currentMode = 'none';     // Modes: 'none', 'draw', 'move', 'resize', 'rotate'
-  let activeHandle = null;      // For resizing: which handle is active
-  let startX = 0, startY = 0;     // For drawing or moving an annotation
-  let offset = { x: 0, y: 0 };    // For moving annotation
-  let resizingFixedCorner = null; // For resizing: the fixed (opposite) corner
-  let originalMouseAngle = 0, originalAnnotationRotation = 0;
-  let currentDrawingAnnotation = null; // Temporary annotation while drawing
-  
-  // Timing variables.
+
+  // ====================================================
+  // Annotation Variables for Current Term
+  // ====================================================
+  let annotations = []; // Array holding saved annotation objects
+  let selectedAnnotation = null; // Currently selected shape
+  // currentAction: transformation during mouse events ("none", "draw", "move", "resize", "rotate")
+  let currentAction = "none";
+  let offset = { x: 0, y: 0 };
+  let activeHandle = null;
+  let resizingFixedCorner = null;
+  let originalMouseAngle = 0,
+    originalAnnotationRotation = 0;
+  // For rectangle mode:
+  let rectStart = null;
+  // For freehand mode:
+  let freehandPoints = [];
+  // currentDrawingAnnotation holds the shape while drawing
+  let currentDrawingAnnotation = null;
   let startToDrawEnd = 0;
   let isFirstDraw = true;
-  
-  /***********************
-   * Utility Functions
-   ***********************/
+
+  // resetDrawingState resets only temporary drawing variables so you can accumulate multiple shapes.
+  function resetDrawingState() {
+    currentDrawingAnnotation = null;
+    rectStart = null;
+    freehandPoints = [];
+    currentAction = "none";
+    updateButtonState();
+  }
+  // resetAnnotation clears all annotations for a new term.
+  function resetAnnotation() {
+    annotations = [];
+    selectedAnnotation = null;
+    currentAction = "none";
+    rectStart = null;
+    freehandPoints = [];
+    currentDrawingAnnotation = null;
+    drawCanvas();
+    updateButtonState();
+    isFirstDraw = true;
+    tAnnotationStart = 0;
+  }
+  function loadAnnotationForCurrentTerm() {
+    if (
+      storedAnnotations[currentIndex] &&
+      storedAnnotations[currentIndex].annotationState
+    ) {
+      annotations = storedAnnotations[currentIndex].annotationState.map(
+        (obj) => ({ ...obj })
+      );
+      selectedAnnotation = annotations.length ? annotations[0] : null;
+    } else {
+      annotations = [];
+      selectedAnnotation = null;
+    }
+    drawCanvas();
+    updateButtonState();
+  }
   function clamp(val, min, max) {
     return Math.min(Math.max(val, min), max);
   }
-  
-  /***********************
-   * Canvas & Image Sizing
-   ***********************/
+
+  // ====================================================
+  // Canvas & Image Sizing
+  // ====================================================
   sourceImage.onload = function () {
-    canvas.height = 470;
-    canvas.width = sourceImage.naturalWidth * (470 / sourceImage.naturalHeight);
-    container.style.width = canvas.width + 'px';
-    container.style.height = canvas.height + 'px';
+    // Calculate the image aspect ratio
+    const imgRatio = sourceImage.naturalWidth / sourceImage.naturalHeight;
+    
+    // Get the container dimensions
+    const imageContainer = document.getElementById("image-container");
+    
+    // Fixed height of exactly 430px
+    let newHeight = 430; 
+    let newWidth = Math.floor(newHeight * imgRatio);
+    
+    // Make sure we don't exceed the container width, with a margin
+    const maxWidth = imageContainer.parentElement.clientWidth - 100; // More margin (100px)
+    if (newWidth > maxWidth) {
+      newWidth = maxWidth;
+      // Keep height at exactly 430px regardless
+      newHeight = 430;
+    }
+    
+    // Set canvas dimensions
+    canvas.height = newHeight;
+    canvas.width = newWidth;
+    
+    // Set canvas container to exact same size as canvas
+    const canvasContainer = document.getElementById("canvasContainer");
+    canvasContainer.style.width = newWidth + "px";
+    canvasContainer.style.height = newHeight + "px";
+    
+    // Set the image container to exactly match the canvas dimensions
+    imageContainer.style.width = newWidth + "px";
+    imageContainer.style.height = newHeight + "px";
+    
+    // Draw the image
     drawCanvas();
   };
-  if (sourceImage.complete) {
-    sourceImage.onload();
-  }
-  
-  /***********************
-   * Drawing Functions
-   ***********************/
+  if (sourceImage.complete) sourceImage.onload();
+
+  // ====================================================
+  // Drawing Functions
+  // ====================================================
   function drawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
-    annotations.forEach(ann => {
-      drawAnnotation(ann, ann === selectedAnnotation);
-    });
-    if (currentMode === 'draw' && currentDrawingAnnotation) {
+    annotations.forEach((ann) =>
+      drawAnnotation(ann, ann === selectedAnnotation)
+    );
+    if (currentAction === "draw" && currentDrawingAnnotation) {
       drawAnnotation(currentDrawingAnnotation, true);
     }
   }
-  
+  // drawAnnotation supports both rectangle and freehand.
   function drawAnnotation(ann, isSelected) {
-    ctx.save();
-    ctx.translate(ann.cx, ann.cy);
-    ctx.rotate(ann.rotation);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = isSelected ? 'red' : 'blue';
-    ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
-    ctx.restore();
-    
-    if (isSelected) {
-      const handles = getAnnotationHandles(ann);
-      // Draw corner handles as white squares (8x8 with 1px border)
-      const size = 8;
-      ctx.fillStyle = 'white';
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'black';
-      ['tl', 'tr', 'bl', 'br'].forEach(key => {
-        let h = handles[key];
-        ctx.fillRect(h.x - size / 2, h.y - size / 2, size, size);
-        ctx.strokeRect(h.x - size / 2, h.y - size / 2, size, size);
-      });
-      // Draw rotation handle as a red circle (radius 5, 1px border)
-      const rHandle = handles.rotate;
+    if (ann.type === "rectangle") {
+      ctx.save();
+      ctx.translate(ann.cx, ann.cy);
+      ctx.rotate(ann.rotation);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = isSelected ? "red" : "blue";
+      ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
+      ctx.restore();
+    } else if (ann.type === "freehand") {
       ctx.beginPath();
-      ctx.arc(rHandle.x, rHandle.y, 5, 0, 2 * Math.PI);
-      ctx.fillStyle = 'red';
-      ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'black';
+      ann.points.forEach((pt, index) => {
+        if (index === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = isSelected ? "red" : "blue";
       ctx.stroke();
-      // Draw delete handle as a white square (12x12 with 1px border) with an "X"
-      const dHandle = handles.delete;
-      ctx.fillStyle = 'white';
-      ctx.fillRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'black';
-      ctx.strokeRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
-      ctx.fillStyle = 'black';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('X', dHandle.x, dHandle.y);
+    }
+    // Draw delete handle only if the shape is selected.
+    if (isSelected) {
+      if (ann.type === "rectangle") {
+        const handles = getAnnotationHandles(ann);
+        const size = 8;
+        ctx.fillStyle = "white";
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ["tl", "tr", "bl", "br"].forEach((key) => {
+          let h = handles[key];
+          ctx.fillRect(h.x - size / 2, h.y - size / 2, size, size);
+          ctx.strokeRect(h.x - size / 2, h.y - size / 2, size, size);
+        });
+        const rHandle = handles.rotate;
+        ctx.beginPath();
+        ctx.arc(rHandle.x, rHandle.y, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = "red";
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ctx.stroke();
+        const dHandle = handles.delete;
+        ctx.fillStyle = "white";
+        ctx.fillRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
+        ctx.fillStyle = "black";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("X", dHandle.x, dHandle.y);
+      } else if (ann.type === "freehand") {
+        // For freehand shapes, compute the bounding box and draw a delete handle.
+        const bbox = getBoundingBox(ann.points);
+        const handleX = bbox.maxX + 5;
+        const handleY = bbox.minY - 5;
+        ctx.fillStyle = "white";
+        ctx.fillRect(handleX, handleY, 12, 12);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(handleX, handleY, 12, 12);
+        ctx.fillStyle = "black";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("X", handleX + 6, handleY + 6);
+      }
     }
   }
-  
+  // Helper: for rectangles, get transformation handles.
   function getAnnotationHandles(ann) {
-    const hw = ann.width / 2, hh = ann.height / 2;
+    const hw = ann.width / 2,
+      hh = ann.height / 2;
     const localHandles = {
       tl: { x: -hw, y: -hh },
       tr: { x: hw, y: -hh },
       bl: { x: -hw, y: hh },
       br: { x: hw, y: hh },
       rotate: { x: 0, y: -hh - 30 },
-      delete: { x: hw + 10, y: -hh - 10 }
+      delete: { x: hw + 10, y: -hh - 10 },
     };
     const handles = {};
     for (let key in localHandles) {
       const local = localHandles[key];
-      const cos = Math.cos(ann.rotation), sin = Math.sin(ann.rotation);
+      const cos = Math.cos(ann.rotation),
+        sin = Math.sin(ann.rotation);
       handles[key] = {
         x: ann.cx + local.x * cos - local.y * sin,
-        y: ann.cy + local.x * sin + local.y * cos
+        y: ann.cy + local.x * sin + local.y * cos,
       };
     }
     return handles;
   }
-  
+  // Helper: compute bounding box for an array of points.
+  function getBoundingBox(points) {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    points.forEach((pt) => {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y > maxY) maxY = pt.y;
+    });
+    return { minX, minY, maxX, maxY };
+  }
   function isPointInAnnotation(ann, x, y) {
-    const dx = x - ann.cx, dy = y - ann.cy;
-    const cos = Math.cos(-ann.rotation), sin = Math.sin(-ann.rotation);
-    const localX = dx * cos - dy * sin;
-    const localY = dx * sin + dy * cos;
-    return (Math.abs(localX) <= ann.width / 2 && Math.abs(localY) <= ann.height / 2);
+    if (ann.type === "rectangle") {
+      const dx = x - ann.cx,
+        dy = y - ann.cy;
+      const cos = Math.cos(-ann.rotation),
+        sin = Math.sin(-ann.rotation);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      return (
+        Math.abs(localX) <= ann.width / 2 && Math.abs(localY) <= ann.height / 2
+      );
+    } else if (ann.type === "freehand") {
+      for (let i = 0; i < ann.points.length - 1; i++) {
+        if (distanceToSegment({ x, y }, ann.points[i], ann.points[i + 1]) < 5) {
+          return true;
+        }
+      }
+      return false;
+    }
   }
-  
   function isPointNearHandle(point, handle, radius = 8) {
-    const dx = point.x - handle.x, dy = point.y - handle.y;
-    return Math.sqrt(dx * dx + dy * dy) < radius;
+    const dx = point.x - handle.x,
+      dy = point.y - handle.y;
+    return Math.hypot(dx, dy) < radius;
   }
-  
-  /***********************
-   * Converting Coordinates to Original Image Scale
-   ***********************/
+  function distanceToSegment(p, v, w) {
+    const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const proj = { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+    return Math.hypot(p.x - proj.x, p.y - proj.y);
+  }
   function getAnnotationCornersOriginal(ann) {
-    const hw = ann.width / 2, hh = ann.height / 2;
-    function transform(local) {
-      const xCanvas = ann.cx + local.x * Math.cos(ann.rotation) - local.y * Math.sin(ann.rotation);
-      const yCanvas = ann.cy + local.x * Math.sin(ann.rotation) + local.y * Math.cos(ann.rotation);
+    if (ann.type === "rectangle") {
+      const hw = ann.width / 2,
+        hh = ann.height / 2;
+      function transform(local) {
+        const xCanvas =
+          ann.cx +
+          local.x * Math.cos(ann.rotation) -
+          local.y * Math.sin(ann.rotation);
+        const yCanvas =
+          ann.cy +
+          local.x * Math.sin(ann.rotation) +
+          local.y * Math.cos(ann.rotation);
+        const scaleX = sourceImage.naturalWidth / canvas.width;
+        const scaleY = sourceImage.naturalHeight / canvas.height;
+        return [Math.round(xCanvas * scaleX), Math.round(yCanvas * scaleY)];
+      }
+      return [
+        transform({ x: -hw, y: -hh }),
+        transform({ x: hw, y: -hh }),
+        transform({ x: hw, y: hh }),
+        transform({ x: -hw, y: hh }),
+      ];
+    } else if (ann.type === "freehand") {
       const scaleX = sourceImage.naturalWidth / canvas.width;
       const scaleY = sourceImage.naturalHeight / canvas.height;
-      return [Math.round(xCanvas * scaleX), Math.round(yCanvas * scaleY)];
+      return ann.points.map((pt) => [
+        Math.round(pt.x * scaleX),
+        Math.round(pt.y * scaleY),
+      ]);
     }
-    return [
-      transform({ x: -hw, y: -hh }), // topLeft
-      transform({ x: hw, y: -hh }),  // topRight
-      transform({ x: hw, y: hh }),   // bottomRight
-      transform({ x: -hw, y: hh })   // bottomLeft
-    ];
   }
-  
-  /***********************
-   * Build JSON of All Annotations (BoxCoordinates)
-   ***********************/
   function getAllAnnotationsJSON() {
-    const arr = annotations.map(ann => getAnnotationCornersOriginal(ann));
+    const validAnnotations = annotations.filter(
+      (ann) =>
+        ann &&
+        ((ann.type === "rectangle" && ann.width > 0 && ann.height > 0) ||
+          (ann.type === "freehand" && ann.points && ann.points.length > 1))
+    );
+    const arr = validAnnotations.map((ann) =>
+      getAnnotationCornersOriginal(ann)
+    );
     return JSON.stringify(arr);
   }
-  
-  /***********************
-   * Canvas Mouse Event Handlers
-   ***********************/
-  canvas.addEventListener('mousedown', function (e) {
+
+  // ====================================================
+  // Ramer–Douglas–Peucker for Freehand Simplification
+  // ====================================================
+  function rdp(points, epsilon) {
+    if (points.length < 3) return points;
+    let dmax = 0;
+    let index = 0;
+    const start = points[0];
+    const end = points[points.length - 1];
+    for (let i = 1; i < points.length - 1; i++) {
+      const d = perpendicularDistance(points[i], start, end);
+      if (d > dmax) {
+        index = i;
+        dmax = d;
+      }
+    }
+    if (dmax > epsilon) {
+      const recResults1 = rdp(points.slice(0, index + 1), epsilon);
+      const recResults2 = rdp(points.slice(index), epsilon);
+      return recResults1.slice(0, -1).concat(recResults2);
+    } else {
+      return [start, end];
+    }
+  }
+  function perpendicularDistance(p, p1, p2) {
+    const num = Math.abs(
+      (p2.y - p1.y) * p.x - (p2.x - p1.x) * p.y + p2.x * p1.y - p2.y * p1.x
+    );
+    const den = Math.hypot(p2.y - p1.y, p2.x - p1.x);
+    return num / den;
+  }
+
+  // ====================================================
+  // Canvas Mouse Event Handlers
+  // ====================================================
+  canvas.addEventListener("mousedown", function (e) {
     if (magnifierActive) return;
-    const canvasRect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - canvasRect.left;
-    const mouseY = e.clientY - canvasRect.top;
+    
+    const rect = canvas.getBoundingClientRect();
+    // Get the relative position within the canvas
+    const mouseX = clamp(e.clientX - rect.left, 0, canvas.width - 1);
+    const mouseY = clamp(e.clientY - rect.top, 0, canvas.height - 1);
+    
     startX = mouseX;
     startY = mouseY;
     
-    // On first click for annotation, set tAnnotationStart and log t1.
-    if (currentMode === 'none' && tAnnotationStart === 0) {
+    if (currentAction === "none" && tAnnotationStart === 0) {
       tAnnotationStart = Date.now();
-      let t1 = tAnnotationStart - tIdentifyStart;
-      console.log("t1 (Identification Time):", t1, "ms");
+      console.log(
+        "t1 (Identification Time):",
+        tAnnotationStart - tIdentifyStart,
+        "ms"
+      );
     }
-    
+    // If a shape is selected, check if the click is on its delete handle.
     if (selectedAnnotation) {
-      const handles = getAnnotationHandles(selectedAnnotation);
-      if (isPointNearHandle({ x: mouseX, y: mouseY }, handles.delete)) {
-        annotations = annotations.filter(ann => ann !== selectedAnnotation);
-        selectedAnnotation = null;
-        drawCanvas();
-        updateButtonState();
-        return;
-      }
-      if (isPointNearHandle({ x: mouseX, y: mouseY }, handles.rotate)) {
-        currentMode = 'rotate';
-        originalMouseAngle = Math.atan2(mouseY - selectedAnnotation.cy, mouseX - selectedAnnotation.cx);
-        originalAnnotationRotation = selectedAnnotation.rotation;
-        return;
-      }
-      for (let key of ['tl', 'tr', 'bl', 'br']) {
-        if (isPointNearHandle({ x: mouseX, y: mouseY }, handles[key])) {
-          currentMode = 'resize';
-          activeHandle = key;
-          const opposite = { tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' }[key];
-          resizingFixedCorner = handles[opposite];
+      if (selectedAnnotation.type === "rectangle") {
+        const handles = getAnnotationHandles(selectedAnnotation);
+        if (isPointNearHandle({ x: mouseX, y: mouseY }, handles.delete)) {
+          annotations = annotations.filter((ann) => ann !== selectedAnnotation);
+          selectedAnnotation = null;
+          drawCanvas();
+          updateButtonState();
+          return;
+        }
+      } else if (selectedAnnotation.type === "freehand") {
+        const bbox = getBoundingBox(selectedAnnotation.points);
+        const handleX = bbox.maxX + 5;
+        const handleY = bbox.minY - 5;
+        if (
+          mouseX >= handleX &&
+          mouseX <= handleX + 12 &&
+          mouseY >= handleY &&
+          mouseY <= handleY + 12
+        ) {
+          annotations = annotations.filter((ann) => ann !== selectedAnnotation);
+          selectedAnnotation = null;
+          drawCanvas();
+          updateButtonState();
           return;
         }
       }
+      // Check transformation handles (only implemented for rectangles)
+      if (selectedAnnotation.type === "rectangle") {
+        const handles = getAnnotationHandles(selectedAnnotation);
+        if (isPointNearHandle({ x: mouseX, y: mouseY }, handles.rotate)) {
+          currentAction = "rotate";
+          originalMouseAngle = Math.atan2(
+            mouseY - selectedAnnotation.cy,
+            mouseX - selectedAnnotation.cx
+          );
+          originalAnnotationRotation = selectedAnnotation.rotation;
+          return;
+        }
+        for (let key of ["tl", "tr", "bl", "br"]) {
+          if (isPointNearHandle({ x: mouseX, y: mouseY }, handles[key])) {
+            currentAction = "resize";
+            activeHandle = key;
+            const opposite = { tl: "br", tr: "bl", bl: "tr", br: "tl" }[key];
+            resizingFixedCorner = handles[opposite];
+            return;
+          }
+        }
+      }
       if (isPointInAnnotation(selectedAnnotation, mouseX, mouseY)) {
-        currentMode = 'move';
+        currentAction = "move";
         offset.x = mouseX - selectedAnnotation.cx;
         offset.y = mouseY - selectedAnnotation.cy;
         return;
       }
     }
-    
     let found = false;
     for (let i = annotations.length - 1; i >= 0; i--) {
       if (isPointInAnnotation(annotations[i], mouseX, mouseY)) {
         selectedAnnotation = annotations[i];
-        currentMode = 'move';
+        currentAction = "move";
         offset.x = mouseX - selectedAnnotation.cx;
         offset.y = mouseY - selectedAnnotation.cy;
         found = true;
@@ -274,44 +578,69 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
     if (found) return;
-    
-    currentMode = 'draw';
-    currentDrawingAnnotation = {
-      cx: (startX + mouseX) / 2,
-      cy: (startY + mouseY) / 2,
-      width: Math.abs(mouseX - startX),
-      height: Math.abs(mouseY - startY),
-      rotation: 0
-    };
-    selectedAnnotation = currentDrawingAnnotation;
+    // Begin new drawing based on currentAnnotationMode:
+    currentAction = "draw";
+    if (currentAnnotationMode === "rectangle") {
+      rectStart = { x: mouseX, y: mouseY };
+      currentDrawingAnnotation = {
+        type: "rectangle",
+        cx: mouseX,
+        cy: mouseY,
+        width: 0,
+        height: 0,
+        rotation: 0,
+      };
+      selectedAnnotation = currentDrawingAnnotation;
+    } else if (currentAnnotationMode === "freehand") {
+      freehandPoints = [{ x: mouseX, y: mouseY }];
+      currentDrawingAnnotation = {
+        type: "freehand",
+        points: freehandPoints,
+      };
+      selectedAnnotation = currentDrawingAnnotation;
+    }
     drawCanvas();
   });
-  
-  canvas.addEventListener('mousemove', function (e) {
+
+  canvas.addEventListener("mousemove", function (e) {
     if (magnifierActive) return;
-    const canvasRect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - canvasRect.left;
-    const mouseY = e.clientY - canvasRect.top;
     
-    if (currentMode === 'draw' && currentDrawingAnnotation) {
-      currentDrawingAnnotation.cx = (startX + mouseX) / 2;
-      currentDrawingAnnotation.cy = (startY + mouseY) / 2;
-      currentDrawingAnnotation.width = Math.abs(mouseX - startX);
-      currentDrawingAnnotation.height = Math.abs(mouseY - startY);
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = clamp(e.clientX - rect.left, 0, canvas.width - 1);
+    const mouseY = clamp(e.clientY - rect.top, 0, canvas.height - 1);
+    
+    if (currentAction === "draw") {
+      if (currentAnnotationMode === "rectangle" && currentDrawingAnnotation) {
+        // Calculate new center point and dimensions
+        currentDrawingAnnotation.cx = (rectStart.x + mouseX) / 2;
+        currentDrawingAnnotation.cy = (rectStart.y + mouseY) / 2;
+        currentDrawingAnnotation.width = Math.abs(mouseX - rectStart.x);
+        currentDrawingAnnotation.height = Math.abs(mouseY - rectStart.y);
+        
+        // Apply boundary check during drawing
+        currentDrawingAnnotation = boundaryCheck(currentDrawingAnnotation);
+        
+        drawCanvas();
+      } else if (
+        currentAnnotationMode === "freehand" &&
+        currentDrawingAnnotation
+      ) {
+        // Add point to freehand path
+        freehandPoints.push({ x: mouseX, y: mouseY });
+        
+        drawCanvas();
+      }
+    } else if (currentAction === "move" && selectedAnnotation) {
+      // Update position and apply boundary check
+      selectedAnnotation.cx = mouseX - offset.x;
+      selectedAnnotation.cy = mouseY - offset.y;
+      
+      // Apply boundary check during move
+      selectedAnnotation = boundaryCheck(selectedAnnotation);
+      
       drawCanvas();
-    } else if (currentMode === 'move' && selectedAnnotation) {
-      let newCX = mouseX - offset.x;
-      let newCY = mouseY - offset.y;
-      const cosTheta = Math.abs(Math.cos(selectedAnnotation.rotation));
-      const sinTheta = Math.abs(Math.sin(selectedAnnotation.rotation));
-      const boundingW = selectedAnnotation.width * cosTheta + selectedAnnotation.height * sinTheta;
-      const boundingH = selectedAnnotation.width * sinTheta + selectedAnnotation.height * cosTheta;
-      newCX = clamp(newCX, boundingW / 2, canvas.width - boundingW / 2);
-      newCY = clamp(newCY, boundingH / 2, canvas.height - boundingH / 2);
-      selectedAnnotation.cx = newCX;
-      selectedAnnotation.cy = newCY;
-      drawCanvas();
-    } else if (currentMode === 'resize' && selectedAnnotation) {
+    } else if (currentAction === "resize" && selectedAnnotation) {
+      // Calculate new dimensions
       let newCX = (resizingFixedCorner.x + mouseX) / 2;
       let newCY = (resizingFixedCorner.y + mouseY) / 2;
       let dx = mouseX - newCX;
@@ -320,247 +649,473 @@ document.addEventListener('DOMContentLoaded', function () {
       let sin = Math.sin(-selectedAnnotation.rotation);
       let localX = dx * cos - dy * sin;
       let localY = dx * sin + dy * cos;
+      
+      // Update annotation
       selectedAnnotation.cx = newCX;
       selectedAnnotation.cy = newCY;
       selectedAnnotation.width = Math.abs(localX) * 2;
       selectedAnnotation.height = Math.abs(localY) * 2;
+      
+      // Apply boundary check during resize
+      selectedAnnotation = boundaryCheck(selectedAnnotation);
+      
       drawCanvas();
-    } else if (currentMode === 'rotate' && selectedAnnotation) {
-      let angle = Math.atan2(mouseY - selectedAnnotation.cy, mouseX - selectedAnnotation.cx);
-      let deltaAngle = angle - originalMouseAngle;
-      selectedAnnotation.rotation = originalAnnotationRotation + deltaAngle;
+    } else if (currentAction === "rotate" && selectedAnnotation) {
+      let angle = Math.atan2(
+        mouseY - selectedAnnotation.cy,
+        mouseX - selectedAnnotation.cx
+      );
+      selectedAnnotation.rotation =
+        originalAnnotationRotation + (angle - originalMouseAngle);
+      
+      // Apply boundary check during rotation
+      selectedAnnotation = boundaryCheck(selectedAnnotation);
+      
       drawCanvas();
     }
   });
-  
-  canvas.addEventListener('mouseup', function (e) {
+
+  canvas.addEventListener("mouseup", function (e) {
     if (magnifierActive) return;
-    if (currentMode === 'draw' && currentDrawingAnnotation) {
-      annotations.push(currentDrawingAnnotation);
-      currentDrawingAnnotation = null;
-      startToDrawEnd = Date.now();
-      if (tAnnotationStart === 0) {
-        tAnnotationStart = Date.now();
+    
+    if (currentAction === "draw") {
+      if (currentAnnotationMode === "freehand" && currentDrawingAnnotation) {
+        // First simplify freehand points using RDP algorithm
+        const tolerance = 4; // adjust as needed
+        let simplified = rdp(freehandPoints, tolerance);
+        
+        // Auto-close shape: if last point is close to the first (within 10 pixels)
+        if (simplified.length > 2) {
+          const first = simplified[0];
+          const last = simplified[simplified.length - 1];
+          if (Math.hypot(last.x - first.x, last.y - first.y) < 10) {
+            simplified[simplified.length - 1] = { ...first };
+          } else {
+            simplified.push({ ...first });
+          }
+        }
+        
+        // Normalize to exactly 10 points if there are more than 10
+        if (simplified.length > 10) {
+          simplified = normalizeToTenPoints(simplified);
+        }
+        
+        currentDrawingAnnotation.points = simplified;
+        
+        // Apply boundary check before adding to annotations
+        currentDrawingAnnotation = boundaryCheck(currentDrawingAnnotation);
+        
+        annotations.push(currentDrawingAnnotation);
+        currentDrawingAnnotation = null;
+        if (tAnnotationStart === 0) tAnnotationStart = Date.now();
+      } else if (
+        currentAnnotationMode === "rectangle" &&
+        currentDrawingAnnotation
+      ) {
+        // Apply boundary check before adding to annotations
+        currentDrawingAnnotation = boundaryCheck(currentDrawingAnnotation);
+        
+        annotations.push(currentDrawingAnnotation);
+        currentDrawingAnnotation = null;
+        if (tAnnotationStart === 0) tAnnotationStart = Date.now();
       }
     }
-    currentMode = 'none';
-    activeHandle = null;
-    resizingFixedCorner = null;
+
+    currentAction = "none";
     drawCanvas();
     updateButtonState();
   });
-  
-  /***********************
-   * Draggable & Resizable Magnifier
-   ***********************/
+
+  // ====================================================
+  // Magnifier Section (Updated to match new button)
+  // ====================================================
   let magnifierActive = false;
-  let lens; // the magnifier lens element
-  let lensSize = 150;  // initial diameter in pixels (resizable)
-  const zoomFactor = 2;  // magnification factor
+  let lens;
+  let _lensSize = 150;
+  const _zoomFactor = 4;
   let draggingLens = false;
   let isResizingLens = false;
   let lensOffset = { x: 0, y: 0 };
   let initialLensSize = 150;
   let initialMousePos = { x: 0, y: 0 };
-  const resizeMargin = 20; // margin in pixels to trigger resizing
-  
+  const resizeMargin = 20;
   function updateLensCursor(e) {
     if (!lens) return;
     const lensRect = lens.getBoundingClientRect();
     const x = e.clientX - lensRect.left;
     const y = e.clientY - lensRect.top;
-    if (x < resizeMargin || x > lensRect.width - resizeMargin ||
-        y < resizeMargin || y > lensRect.height - resizeMargin) {
-      lens.style.cursor = 'nwse-resize';
-    } else {
-      lens.style.cursor = 'move';
-    }
+    lens.style.cursor =
+      x < resizeMargin ||
+      x > lensRect.width - resizeMargin ||
+      y < resizeMargin ||
+      y > lensRect.height - resizeMargin
+        ? "nwse-resize"
+        : "move";
   }
-  
-  magnifyToggle.addEventListener('click', function (e) {
-    if (magnifierActive) {
-      hideLens();
-    } else {
-      showLens();
-    }
-    e.stopPropagation();
-  });
   
   function showLens() {
-    if (!lens) {
-      lens = document.createElement('div');
-      lens.className = 'lens';
-      const lensCanvas = document.createElement('canvas');
-      lensCanvas.width = lensSize;
-      lensCanvas.height = lensSize;
-      lens.appendChild(lensCanvas);
-      lens.ctx = lensCanvas.getContext('2d');
-      const containerRect = container.getBoundingClientRect();
-      lens.style.left = (containerRect.left + canvas.width / 2 - lensSize / 2) + 'px';
-      lens.style.top = (containerRect.top + canvas.height / 2 - lensSize / 2) + 'px';
-      document.body.appendChild(lens);
-      
-      lens.addEventListener('mousemove', updateLensCursor);
-      
-      lens.addEventListener('mousedown', function (e) {
-        const lensRect = lens.getBoundingClientRect();
-        const x = e.clientX - lensRect.left;
-        const y = e.clientY - lensRect.top;
-        if (x < resizeMargin || x > lensRect.width - resizeMargin ||
-            y < resizeMargin || y > lensRect.height - resizeMargin) {
-          isResizingLens = true;
-          initialLensSize = lensSize;
-          initialMousePos = { x: e.clientX, y: e.clientY };
-        } else {
-          draggingLens = true;
-          lensOffset.x = e.clientX - lensRect.left;
-          lensOffset.y = e.clientY - lensRect.top;
-        }
-        e.stopPropagation();
-        e.preventDefault();
-      });
-      
-      document.addEventListener('mousemove', function (e) {
-        if (isResizingLens) {
-          const dx = e.clientX - initialMousePos.x;
-          const dy = e.clientY - initialMousePos.y;
-          const delta = (Math.abs(dx) + Math.abs(dy)) / 2;
-          const sign = (dx + dy) >= 0 ? 1 : -1;
-          let newSize = initialLensSize + sign * delta;
-          newSize = Math.max(50, Math.min(newSize, canvas.width));
-          lensSize = newSize;
-          lens.style.width = lensSize + 'px';
-          lens.style.height = lensSize + 'px';
-          const lensCanvas = lens.querySelector('canvas');
-          lensCanvas.width = lensSize;
-          lensCanvas.height = lensSize;
-          updateLens();
-        } else if (draggingLens) {
-          let newLeft = e.clientX - lensOffset.x;
-          let newTop = e.clientY - lensOffset.y;
-          const containerRect = container.getBoundingClientRect();
-          newLeft = clamp(newLeft, containerRect.left, containerRect.left + canvas.width - lensSize);
-          newTop = clamp(newTop, containerRect.top, containerRect.top + canvas.height - lensSize);
-          lens.style.left = newLeft + 'px';
-          lens.style.top = newTop + 'px';
-          updateLens();
-        }
-      });
-      
-      document.addEventListener('mouseup', function (e) {
-        draggingLens = false;
-        isResizingLens = false;
-      });
+    // Clean up any existing lens
+    if (lens) {
+      document.body.removeChild(lens);
+      lens = null;
     }
-    lens.style.display = 'block';
+    
+    // Create new lens
+    lens = document.createElement("div");
+    lens.className = "lens";
+    
+    // Create canvas for the lens
+    const lensCanvas = document.createElement("canvas");
+    lensCanvas.width = _lensSize;
+    lensCanvas.height = _lensSize;
+    lens.appendChild(lensCanvas);
+    lens.ctx = lensCanvas.getContext("2d");
+    
+    // Position lens in the center of the canvas initially
+    const canvasRect = canvas.getBoundingClientRect();
+    const lensLeft = canvasRect.left + (canvasRect.width / 2) - (_lensSize / 2);
+    const lensTop = canvasRect.top + (canvasRect.height / 2) - (_lensSize / 2);
+    
+    lens.style.width = _lensSize + "px";
+    lens.style.height = _lensSize + "px";
+    lens.style.left = lensLeft + "px";
+    lens.style.top = lensTop + "px";
+    document.body.appendChild(lens);
+    
+    // Set up mouse event listeners
+    lens.addEventListener("mousemove", updateLensCursor);
+    
+    lens.addEventListener("mousedown", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const lensRect = lens.getBoundingClientRect();
+      const x = e.clientX - lensRect.left;
+      const y = e.clientY - lensRect.top;
+      
+      // Check if we're resizing or moving
+      if (x < resizeMargin || x > lensRect.width - resizeMargin || 
+          y < resizeMargin || y > lensRect.height - resizeMargin) {
+        isResizingLens = true;
+        initialLensSize = _lensSize;
+        initialMousePos = { x: e.clientX, y: e.clientY };
+      } else {
+        draggingLens = true;
+        lensOffset = { 
+          x: e.clientX - lensRect.left, 
+          y: e.clientY - lensRect.top 
+        };
+      }
+    });
+    
+    // Global event handlers for mouseup and mousemove
+    const moveHandler = function(e) {
+      if (isResizingLens) {
+        // Handle resizing
+        const dx = e.clientX - initialMousePos.x;
+        const dy = e.clientY - initialMousePos.y;
+        const delta = Math.max(dx, dy);
+        let newSize = initialLensSize + delta;
+        
+        // Limit size
+        newSize = Math.max(75, Math.min(newSize, 200));
+        _lensSize = newSize;
+        
+        lens.style.width = _lensSize + "px";
+        lens.style.height = _lensSize + "px";
+        
+        const lensCanvas = lens.querySelector("canvas");
+        lensCanvas.width = _lensSize;
+        lensCanvas.height = _lensSize;
+        
+        updateLens();
+      } else if (draggingLens) {
+        // Handle dragging - constrain to canvas boundaries
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        let newLeft = e.clientX - lensOffset.x;
+        let newTop = e.clientY - lensOffset.y;
+        
+        // Keep lens within canvas bounds
+        newLeft = Math.max(
+          canvasRect.left, 
+          Math.min(newLeft, canvasRect.right - _lensSize)
+        );
+        
+        newTop = Math.max(
+          canvasRect.top, 
+          Math.min(newTop, canvasRect.bottom - _lensSize)
+        );
+        
+        lens.style.left = newLeft + "px";
+        lens.style.top = newTop + "px";
+        
+        updateLens();
+      }
+    };
+    
+    const upHandler = function() {
+      draggingLens = false;
+      isResizingLens = false;
+    };
+    
+    document.addEventListener("mousemove", moveHandler);
+    document.addEventListener("mouseup", upHandler);
+    
+    // Store event handlers to remove them later
+    lens.moveHandler = moveHandler;
+    lens.upHandler = upHandler;
+    
+    // Activate magnifier
     magnifierActive = true;
-    drawCanvas();
+    magnifyButton.classList.add("active");
     updateLens();
   }
-  
   function hideLens() {
     if (lens) {
-      lens.style.display = 'none';
+      // Remove event listeners
+      document.removeEventListener("mousemove", lens.moveHandler);
+      document.removeEventListener("mouseup", lens.upHandler);
+      
+      // Remove the lens from DOM
+      lens.style.display = "none";
+      document.body.removeChild(lens);
+      lens = null;
     }
+    
     magnifierActive = false;
+    magnifyButton.classList.remove("active");
   }
-  
   function updateLens() {
     if (!lens) return;
+    
+    // Get positions
     const lensRect = lens.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const lensCenterX = lensRect.left - containerRect.left + lensSize / 2;
-    const lensCenterY = lensRect.top - containerRect.top + lensSize / 2;
-    const regionWidth = lensSize / zoomFactor;
-    const regionHeight = lensSize / zoomFactor;
-    let sx = lensCenterX - regionWidth / 2;
-    let sy = lensCenterY - regionHeight / 2;
-    sx = Math.max(0, Math.min(sx, canvas.width - regionWidth));
-    sy = Math.max(0, Math.min(sy, canvas.height - regionHeight));
-    const lensCanvas = lens.querySelector('canvas');
-    const lensCtx = lensCanvas.getContext('2d');
-    lensCtx.clearRect(0, 0, lensSize, lensSize);
-    lensCtx.drawImage(canvas, sx, sy, regionWidth, regionHeight, 0, 0, lensSize, lensSize);
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    // Calculate center of lens relative to canvas
+    const relativeLensX = (lensRect.left + lensRect.width/2) - canvasRect.left;
+    const relativeLensY = (lensRect.top + lensRect.height/2) - canvasRect.top;
+    
+    // Check if lens is far outside canvas - don't update if too far
+    const buffer = _lensSize;
+    if (relativeLensX < -buffer || relativeLensX > canvasRect.width + buffer ||
+        relativeLensY < -buffer || relativeLensY > canvasRect.height + buffer) {
+      return;
+    }
+    
+    // Calculate source area on canvas to zoom
+    const scale = 1 / _zoomFactor;
+    const sourceWidth = _lensSize * scale;
+    const sourceHeight = _lensSize * scale;
+    
+    // Source coordinates on canvas
+    let sourceX = relativeLensX - sourceWidth/2;
+    let sourceY = relativeLensY - sourceHeight/2;
+    
+    // Clamp source area to canvas bounds
+    sourceX = Math.max(0, Math.min(sourceX, canvasRect.width - sourceWidth));
+    sourceY = Math.max(0, Math.min(sourceY, canvasRect.height - sourceHeight));
+    
+    // Get lens canvas and draw zoomed content
+    const lensCanvas = lens.querySelector("canvas");
+    const lensCtx = lensCanvas.getContext("2d");
+    
+    // Clear lens canvas
+    lensCtx.clearRect(0, 0, _lensSize, _lensSize);
+    
+    try {
+      // Draw zoomed image
+      lensCtx.drawImage(
+        canvas,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        _lensSize,
+        _lensSize
+      );
+      
+      // Add crosshair to center
+      const center = _lensSize / 2;
+      lensCtx.strokeStyle = "rgba(255,0,0,0.7)";
+      lensCtx.lineWidth = 1;
+      
+      // Horizontal line
+      lensCtx.beginPath();
+      lensCtx.moveTo(center - 10, center);
+      lensCtx.lineTo(center + 10, center);
+      lensCtx.stroke();
+      
+      // Vertical line
+      lensCtx.beginPath();
+      lensCtx.moveTo(center, center - 10);
+      lensCtx.lineTo(center, center + 10);
+      lensCtx.stroke();
+    } catch (e) {
+      console.error("Error updating lens:", e);
+    }
   }
-  
-  /***********************
-   * Button Logic & Sending Annotations
-   ***********************/
-  function updateButtonState() {
-    if (nextButton.textContent.trim() === "Next Image") {
-      nextButton.disabled = false;
+
+  // ====================================================
+  // Button Event Handlers & Sending Annotations
+  // ====================================================
+  nextButton.addEventListener("click", function () {
+    if (nextButton.textContent.trim() === "Save and Next Term") {
+      if (annotations.length > 0) {
+        // Set the flag to indicate annotations have been made
+        hasAnnotatedCurrentImage = true;
+        
+        // Use the current index to identify the current keyword
+        const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
+        
+        if (currentKeywordElement) {
+          // Step 1: Get all current state info and references
+          let medData = window.annotatedMedData;
+          let boxCoordinates = getAllAnnotationsJSON();
+          let t2 = Date.now() - tAnnotationStart;
+          let t1 = tAnnotationStart - tIdentifyStart;
+          let timestamps = `(${t1},${t2})`;
+          const commentValue = commentField.value.trim();
+          
+          // Find the next unannotated keyword (state 1)
+          let hasNext = false;
+          let nextIdx = -1;
+          
+          for (let i = 0; i < keywords.length; i++) {
+            if (i > currentIndex && keywordStates[i] === 1) {
+              hasNext = true;
+              nextIdx = i;
+              break;
+            }
+          }
+          
+          // Step 2: Prepare state change data (but don't apply yet)
+          let statesForAPI = [...keywordStates];
+          statesForAPI[currentIndex] = 2; // Mark current as annotated
+          
+          // For API prep: Set next keyword as current if it exists
+          if (hasNext) {
+            statesForAPI[nextIdx] = 3;
+          }
+          
+          // Create data object for API
+          const annotationData = {
+            Id: medData.id,
+            ImageUrl: medData.imageUrl,
+            ImageDescription: medData.imageDescription,
+            Sex: medData.sex,
+            Age: medData.age,
+            SkinTone: medData.skinTone,
+            BodyRegion: medData.bodyRegion,
+            Diagnosis: medData.diagnosis,
+            TreatmentName: medData.treatmentName,
+            Speciality: medData.speciality,
+            Modality: medData.modality,
+            BoxCoordinates: boxCoordinates,
+            ExtractedKeyword: currentKeywordElement.textContent,
+            Timestamps: timestamps,
+            PressedButton: "Save and Next Term",
+            Comment: commentValue,
+            KeywordStates: JSON.stringify(statesForAPI)
+          };
+          
+          // Step 3: Send to API
+          fetch(`/MedData/ProcessAnnotatedMedData`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(annotationData),
+          })
+          .then((response) => response.json())
+          .then((result) => {
+            if (result.success) {
+              // Step 4: After API success, apply state changes to UI
+              storeCurrentAnnotation("Save and Next Term");
+              
+              // Apply the same state changes we sent to API
+              keywordStates[currentIndex] = 2; // Mark current as annotated
+              
+              if (hasNext) {
+                keywordStates[nextIdx] = 3; // Set next as current
+                currentIndex = nextIdx; // Update the current index
+              } else {
+                nextButton.textContent = "Next Image";
+                skipButton.disabled = true;
+                notPresentButton.disabled = true;
+              }
+              
+              // Update UI with the new states
+              updateKeywordUI();
+              
+              // Reset for next term
+              resetAnnotation();
+              loadAnnotationForCurrentTerm();
+              commentField.value = "";
+              tIdentifyStart = Date.now();
+              tAnnotationStart = 0;
+            } else {
+              console.error("Failed to process annotation data.");
+            }
+          })
+          .catch((error) => console.error("Error:", error));
+        }
+      }
     } else {
-      nextButton.disabled = annotations.length > 0 ? false : true;
-    }
-  }
-  
-  function getAllAnnotationsJSON() {
-    const arr = annotations.map(ann => getAnnotationCornersOriginal(ann));
-    return JSON.stringify(arr);
-  }
-  
-  function getAnnotationCornersOriginal(ann) {
-    const hw = ann.width / 2, hh = ann.height / 2;
-    function transform(local) {
-      const xCanvas = ann.cx + local.x * Math.cos(ann.rotation) - local.y * Math.sin(ann.rotation);
-      const yCanvas = ann.cy + local.x * Math.sin(ann.rotation) + local.y * Math.cos(ann.rotation);
-      const scaleX = sourceImage.naturalWidth / canvas.width;
-      const scaleY = sourceImage.naturalHeight / canvas.height;
-      return [Math.round(xCanvas * scaleX), Math.round(yCanvas * scaleY)];
-    }
-    return [
-      transform({ x: -hw, y: -hh }), // topLeft
-      transform({ x: hw, y: -hh }),  // topRight
-      transform({ x: hw, y: hh }),   // bottomRight
-      transform({ x: -hw, y: hh })   // bottomLeft
-    ];
-  }
-  
-  endButton.addEventListener('click', function () {
-    const requestData = {
-      isAnnotationStarted: annotations.length > 0,
-      medDataId: window.annotatedMedData ? window.annotatedMedData.id : null
-    };
-  
-    fetch(`/Identity/Logout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestData)
-    })
-      .then(response => response.json())
-      .then(result => {
+      // This is the "Next Image" case
+      fetch(`/MedData/NextImage?MedDataId=${window.annotatedMedData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" }
+      })
+      .then((response) => response.json())
+      .then((result) => {
         if (result.success) {
-          window.location.href = '/Identity/Login';
+          location.reload();
         } else {
           console.error("Failed to process data.");
         }
       })
-      .catch(error => console.error('Error:', error));
+      .catch((error) => console.error("Error:", error));
+    }
   });
-  
-  // Helper: store current annotation data.
-  // For "Save and Next Term", compute timestamps and boxCoordinates.
-  // For other actions ("Uncertain/Skip" or "Not Visible/Abstract"), store them empty.
-  function storeCurrentAnnotation(pressedButton) {
-    const currentKeyword = document.querySelector('.current_keyword');
-    if (currentKeyword) {
+  skipButton.addEventListener("click", function () {
+    // Use the current index to identify the current keyword
+    const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
+    
+    if (currentKeywordElement) {
+      // Set the flag to indicate annotations have been made (even skip is an annotation action)
+      hasAnnotatedCurrentImage = true;
+      
+      // Step 1: Get all current state info and references
       let medData = window.annotatedMedData;
-      let boxCoordinates = "";
-      let timestamps = "";
-      // Read comment value from the textbox.
-      const commentField = document.getElementById("comments");
       const commentValue = commentField.value.trim();
-  
-      if (pressedButton === "Save and Next Term") {
-        boxCoordinates = getAllAnnotationsJSON();
-        let t2 = Date.now() - tAnnotationStart;
-        let t1 = tAnnotationStart - tIdentifyStart;
-        timestamps = `(${t1},${t2})`;
+      
+      // Find the next unannotated keyword (state 1)
+      let hasNext = false;
+      let nextIdx = -1;
+      
+      for (let i = 0; i < keywords.length; i++) {
+        if (i > currentIndex && keywordStates[i] === 1) {
+          hasNext = true;
+          nextIdx = i;
+          break;
+        }
       }
-      // Store the annotation data along with the comment.
-      allKeywordAnnotations.push({
+      
+      // Step 2: Prepare state change data (but don't apply yet)
+      let statesForAPI = [...keywordStates];
+      statesForAPI[currentIndex] = 4; // Mark current as skipped
+      
+      // For API prep: Set next keyword as current if it exists
+      if (hasNext) {
+        statesForAPI[nextIdx] = 3;
+      }
+      
+      // Create data object for API
+      const annotationData = {
         Id: medData.id,
-        ImageUrl: medData.imageUrl,              // adjust casing if needed
+        ImageUrl: medData.imageUrl,
         ImageDescription: medData.imageDescription,
         Sex: medData.sex,
         Age: medData.age,
@@ -570,118 +1125,294 @@ document.addEventListener('DOMContentLoaded', function () {
         TreatmentName: medData.treatmentName,
         Speciality: medData.speciality,
         Modality: medData.modality,
-        BoxCoordinates: boxCoordinates,
-        ExtractedKeyword: currentKeyword.textContent,
-        Timestamps: timestamps,
-        PressedButton: pressedButton,
-        Comment: commentValue  // new property for the comment
-      });
-  
-      // Clear the textbox after storing.
-      commentField.value = "";
-  
-      let currentIndex = Number(currentKeyword.id.split('-')[1]);
-      if (pressedButton === "Save and Next Term") {
-        currentKeyword.classList.remove('current_keyword');
-        currentKeyword.classList.add('annotated_keyword');
-        keywordStates[currentIndex] = 2;
-      } else {
-        currentKeyword.classList.remove('current_keyword');
-        currentKeyword.classList.add('skipped_keyword');
-        keywordStates[currentIndex] = 4;
-      }
-  
-      const nextKeyword = currentKeyword.nextElementSibling;
-      if (nextKeyword && nextKeyword.classList.contains('not_annotated_keyword')) {
-        nextKeyword.classList.remove('not_annotated_keyword');
-        nextKeyword.classList.add('current_keyword');
-        keywordStates[currentIndex + 1] = 3;
-        tIdentifyStart = Date.now();
-        tAnnotationStart = 0;
-      } else {
-        nextButton.textContent = "Next Image";
-        skipButton.disabled = true;
-        notPresentButton.disabled = true;
-      }
-    }
-  }
-  
-  nextButton.addEventListener('click', function () {
-    if (nextButton.textContent.trim() === "Save and Next Term") {
-      if (annotations.length > 0) {
-        storeCurrentAnnotation("Save and Next Term");
-        resetAnnotation();
-      }
-    } else {
-      // Next Image branch: send all accumulated keyword annotations.
-      const payload = { 
-        MedDataId: window.annotatedMedData.id, 
-        Items: allKeywordAnnotations 
+        BoxCoordinates: "",
+        ExtractedKeyword: currentKeywordElement.textContent,
+        Timestamps: "",
+        PressedButton: "Uncertain/Skip",
+        Comment: commentValue,
+        KeywordStates: JSON.stringify(statesForAPI)
       };
-      console.log(payload);
       
-      fetch(`/MedData/NextImage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      // Step 3: Send to API
+      fetch(`/MedData/ProcessAnnotatedMedData`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(annotationData),
       })
-        .then(response => response.json())
-        .then(result => {
-          if (result.success) {
-            allKeywordAnnotations = [];
-            resetAnnotation();
-            location.reload();
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success) {
+          // Step 4: After API success, apply state changes to UI
+          storeCurrentAnnotation("Uncertain/Skip");
+          
+          // Apply the same state changes we sent to API
+          keywordStates[currentIndex] = 4; // Mark current as skipped
+          
+          if (hasNext) {
+            keywordStates[nextIdx] = 3; // Set next as current
+            currentIndex = nextIdx; // Update the current index
           } else {
-            console.error("Failed to process data.");
+            nextButton.textContent = "Next Image";
+            skipButton.disabled = true;
+            notPresentButton.disabled = true;
           }
-        })
-        .catch(error => console.error('Error:', error));
+          
+          // Update UI with the new states
+          updateKeywordUI();
+          
+          // Reset for next term
+          resetAnnotation();
+          loadAnnotationForCurrentTerm();
+          commentField.value = "";
+          tIdentifyStart = Date.now();
+          tAnnotationStart = 0;
+        } else {
+          console.error("Failed to process annotation data.");
+        }
+      })
+      .catch((error) => console.error("Error:", error));
     }
   });
-  
-  function skipOrNotPresentHandler(event) {
-    storeCurrentAnnotation(event.target.id === 'skip-button' ? "Uncertain/Skip" : "Not Visible/Abstract");
-    resetAnnotation();
-    tIdentifyStart = Date.now();
-  }
-  
-  skipButton.addEventListener('click', skipOrNotPresentHandler);
-  notPresentButton.addEventListener('click', skipOrNotPresentHandler);
-  
-  function resetAnnotation() {
-    annotations = [];
-    selectedAnnotation = null;
-    currentMode = 'none';
-    drawCanvas();
-    updateButtonState();
-    isFirstDraw = true;
-    tAnnotationStart = 0;
-  }
-  
-  function updateButtonState() {
-    if (nextButton.textContent.trim() === "Next Image") {
-      nextButton.disabled = false;
-    } else {
-      nextButton.disabled = annotations.length > 0 ? false : true;
-    }
-  }
-  
-  // Update keyword UI and button states.
-  function updateKeywordUI() {
-    for (let i = 0; i < keywords.length; i++) {
-      let curr = keywords[i];
-      curr.classList.remove('current_keyword', 'annotated_keyword', 'not_annotated_keyword', 'skipped_keyword');
-      if (keywordStates[i] === 1) {
-        curr.classList.add('not_annotated_keyword');
-      } else if (keywordStates[i] === 2) {
-        curr.classList.add('annotated_keyword');
-      } else if (keywordStates[i] === 3) {
-        curr.classList.add('current_keyword');
-      } else if (keywordStates[i] === 4) {
-        curr.classList.add('skipped_keyword');
+  notPresentButton.addEventListener("click", function () {
+    // Use the current index to identify the current keyword
+    const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
+    
+    if (currentKeywordElement) {
+      // Set the flag to indicate annotations have been made (even not present is an annotation action)
+      hasAnnotatedCurrentImage = true;
+      
+      // Step 1: Get all current state info and references
+      let medData = window.annotatedMedData;
+      const commentValue = commentField.value.trim();
+      
+      // Find the next unannotated keyword (state 1)
+      let hasNext = false;
+      let nextIdx = -1;
+      
+      for (let i = 0; i < keywords.length; i++) {
+        if (i > currentIndex && keywordStates[i] === 1) {
+          hasNext = true;
+          nextIdx = i;
+          break;
+        }
       }
+      
+      // Step 2: Prepare state change data (but don't apply yet)
+      let statesForAPI = [...keywordStates];
+      statesForAPI[currentIndex] = 1; // Mark current as not annotated
+      
+      // For API prep: Set next keyword as current if it exists
+      if (hasNext) {
+        statesForAPI[nextIdx] = 3;
+      }
+      
+      // Create data object for API
+      const annotationData = {
+        Id: medData.id,
+        ImageUrl: medData.imageUrl,
+        ImageDescription: medData.imageDescription,
+        Sex: medData.sex,
+        Age: medData.age,
+        SkinTone: medData.skinTone,
+        BodyRegion: medData.bodyRegion,
+        Diagnosis: medData.diagnosis,
+        TreatmentName: medData.treatmentName,
+        Speciality: medData.speciality,
+        Modality: medData.modality,
+        BoxCoordinates: "",
+        ExtractedKeyword: currentKeywordElement.textContent,
+        Timestamps: "",
+        PressedButton: "Not Visible/Abstract",
+        Comment: commentValue,
+        KeywordStates: JSON.stringify(statesForAPI)
+      };
+      
+      // Step 3: Send to API
+      fetch(`/MedData/ProcessAnnotatedMedData`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(annotationData),
+      })
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success) {
+          // Step 4: After API success, apply state changes to UI
+          storeCurrentAnnotation("Not Visible/Abstract");
+          
+          // Apply the same state changes we sent to API
+          keywordStates[currentIndex] = 1; // Mark current as not annotated
+          
+          if (hasNext) {
+            keywordStates[nextIdx] = 3; // Set next as current
+            currentIndex = nextIdx; // Update the current index
+          } else {
+            nextButton.textContent = "Next Image";
+            skipButton.disabled = true;
+            notPresentButton.disabled = true;
+          }
+          
+          // Update UI with the new states
+          updateKeywordUI();
+          
+          // Reset for next term
+          resetAnnotation();
+          loadAnnotationForCurrentTerm();
+          commentField.value = "";
+          tIdentifyStart = Date.now();
+          tAnnotationStart = 0;
+        } else {
+          console.error("Failed to process annotation data.");
+        }
+      })
+      .catch((error) => console.error("Error:", error));
+    }
+  });
+  function storeCurrentAnnotation(pressedButton) {
+    const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
+    if (currentKeywordElement) {
+      let medData = window.annotatedMedData;
+      let boxCoordinates = "";
+      let timestamps = "";
+      const commentValue = commentField.value.trim();
+      if (pressedButton === "Save and Next Term") {
+        boxCoordinates = getAllAnnotationsJSON();
+        let t2 = Date.now() - tAnnotationStart;
+        let t1 = tAnnotationStart - tIdentifyStart;
+        timestamps = `(${t1},${t2})`;
+      }
+      storedAnnotations[currentIndex] = {
+        annotationState: annotations.map((a) => Object.assign({}, a)),
+        BoxCoordinates: boxCoordinates,
+        Timestamps: timestamps,
+        Id: medData.id,
+        ImageUrl: medData.imageUrl,
+        ImageDescription: medData.imageDescription,
+        Sex: medData.sex,
+        Age: medData.age,
+        SkinTone: medData.skinTone,
+        BodyRegion: medData.bodyRegion,
+        Diagnosis: medData.diagnosis,
+        TreatmentName: medData.treatmentName,
+        Speciality: medData.speciality,
+        Modality: medData.modality,
+        ExtractedKeyword: currentKeywordElement.textContent,
+        PressedButton: pressedButton,
+        Comment: commentValue,
+      };
     }
   }
-  updateKeywordUI();
-  updateKeywordButtonStates();
+  endButton.addEventListener("click", function () {
+    // Update keywordStatesJson with the current state before sending
+    keywordStatesJson = JSON.stringify(keywordStates);
+    
+    const requestData = {
+      // Use the flag instead of checking annotations.length
+      isAnnotationStarted: hasAnnotatedCurrentImage,
+      medDataId: window.annotatedMedData ? window.annotatedMedData.id : null,
+      keywordStates: keywordStatesJson,
+    };
+        
+    fetch(`/Identity/Logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestData),
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success) {
+          window.location.href = "/Identity/Login";
+        } else {
+          console.error("Failed to process data.");
+        }
+      })
+      .catch((error) => console.error("Error:", error));
+  });
+  updateNavigationButtons();
+
+  // ====================================================
+  // Add the normalizeToTenPoints function near the rdp function
+  // ====================================================
+  function normalizeToTenPoints(points) {
+    // If already has 10 points or fewer, return as is
+    if (points.length <= 10) {
+      return points;
+    }
+    
+    // Too many points, reduce to exactly 10
+    // Strategy: Keep first and last point, and select 8 evenly spaced points in between
+    const result = [points[0]];
+    const step = (points.length - 1) / 9;
+    
+    for (let i = 1; i < 9; i++) {
+      const index = Math.round(i * step);
+      result.push(points[index]);
+    }
+    
+    result.push(points[points.length - 1]);
+    return result;
+  }
+
+  // Add boundary checking for annotations
+  function boundaryCheck(annotation) {
+    if (annotation.type === "rectangle") {
+      // Ensure rectangle stays within canvas bounds
+      const hw = annotation.width / 2;
+      const hh = annotation.height / 2;
+      
+      // Check bounds and adjust center if needed
+      // Subtract 2 pixels from boundaries to keep fully inside canvas
+      annotation.cx = clamp(annotation.cx, hw + 1, canvas.width - hw - 1);
+      annotation.cy = clamp(annotation.cy, hh + 1, canvas.height - hh - 1);
+      
+      return annotation;
+    } else if (annotation.type === "freehand") {
+      // For freehand, check each point and constrain it to canvas
+      // Keep 2 pixels from the edge to ensure full visibility
+      annotation.points = annotation.points.map(point => ({
+        x: clamp(point.x, 2, canvas.width - 2), 
+        y: clamp(point.y, 2, canvas.height - 2)
+      }));
+      
+      return annotation;
+    }
+    
+    return annotation;
+  }
+
+  // Function to update the tools container position
+  function updateToolsPosition() {
+    // Get positions and dimensions
+    const canvasRect = canvas.getBoundingClientRect();
+    const imageContainerRect = imageContainer.getBoundingClientRect();
+    
+    // Position the tools container 5px to the right of the canvas (reduced from 10px)
+    toolsContainer.style.position = "fixed";
+    toolsContainer.style.left = (imageContainerRect.right + 5) + "px";
+    // Position a bit lower (changed from 0.4 to 0.5)
+    toolsContainer.style.top = (imageContainerRect.top + imageContainerRect.height * 0.5) + "px";
+  }
+
+  // Call the positioning function initially
+  updateToolsPosition();
+
+  // Update tools position whenever window is resized
+  window.addEventListener('resize', updateToolsPosition);
+
+  // Also update tools position when the image loads
+  sourceImage.addEventListener('load', function() {
+    // Wait for layout to complete
+    setTimeout(updateToolsPosition, 0);
+  });
+
+  // Update tools position on scroll as well
+  document.addEventListener('scroll', updateToolsPosition);
+
+  // Add a MutationObserver to detect DOM changes that might affect positioning
+  const observer = new MutationObserver(updateToolsPosition);
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'class']
+  });
 });

@@ -3,6 +3,7 @@ using System;
 using MedAnnotateApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MedAnnotateApp.Presentation.Migrations
 {
     [DbContext(typeof(MedDataDbContext))]
-    partial class MedDataDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250317150700_Add BodyRegion and ImageModality to Users")]
+    partial class AddBodyRegionandImageModalitytoUsers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -201,9 +204,6 @@ namespace MedAnnotateApp.Presentation.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
-
-                    b.Property<string>("KeywordStates")
-                        .HasColumnType("text");
 
                     b.Property<string>("LockedByUserId")
                         .HasColumnType("text");

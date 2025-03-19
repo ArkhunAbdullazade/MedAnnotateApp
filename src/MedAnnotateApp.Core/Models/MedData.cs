@@ -15,6 +15,7 @@ public class MedData
     public string? Modality { get; set; }
     public bool IsAnnotated { get; set; }
     public string? LockedByUserId  { get; set; }
+    public string? KeywordStates { get; set; }
 
     public ICollection<MedDataKeyword>? MedDataKeywords { get; set; }
 }

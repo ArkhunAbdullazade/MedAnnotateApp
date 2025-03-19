@@ -13,39 +13,27 @@ public class MedDataRepository : IMedDataRepository
         this.context = context;
     }
 
-    public async Task<MedData?> GetNthMedDataBySpecialityAndPositionAsync(string speciality, string position, string userId)
+    public async Task<(MedData?, string)> GetNthMedDataBySpecialityAndPositionAsync(string speciality, string position, string bodyRegion, string imageModality, string userId)
     {
         MedData? medData = null;
 
         var md = await context.MedDatas.FirstOrDefaultAsync(md => !md.IsAnnotated && md.LockedByUserId == userId);
 
-        if (md is not null) return md;
-
         var totalMedDataCount = context.MedDatas.Count();
         var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
+        var counter = $"{annotatedMedDataCount}/{totalMedDataCount}";
 
-        if (annotatedMedDataCount != totalMedDataCount && position.ToLower() == "clinician")
-        {
-            // if () {
+        if (md is not null) return (md, counter);
+
+        if (annotatedMedDataCount != totalMedDataCount && position.ToLower() != "medical student")
+        {   
+            // && (md.BodyRegion!.ToLower() == bodyRegion) && (md.Modality!.ToLower() == imageModality)
             medData = await context.MedDatas
                 .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
                 .OrderBy(md => md.Id)
                 .FirstOrDefaultAsync();
-            // }
-            // else {
-            //     medData = await context.MedDatas
-            //         .Where(md => md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-            //         .OrderBy(m => m.Id)
-            //         .FirstOrDefaultAsync();
-            // }
+
         }
-        // else
-        // {
-        //     medData = await context.MedDatas
-        //             .Where(md => !md.IsThirdStageAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-        //             .OrderBy(md => md.Id)
-        //             .FirstOrDefaultAsync();
-        // }
 
         if (medData != null)
         {
@@ -53,7 +41,7 @@ public class MedDataRepository : IMedDataRepository
             await context.SaveChangesAsync();
         }
 
-        return medData;
+        return (medData, counter);
     }
 
 
@@ -74,12 +62,9 @@ public class MedDataRepository : IMedDataRepository
         // var totalMedDataCount = context.MedDatas.Count();
         // var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
 
-        // if (totalMedDataCount == annotatedMedDataCount) medData!.IsThirdStageAnnotated = true;
-        // else medData!.IsAnnotated = true;
-
         medData!.IsAnnotated = true;
-
         medData.LockedByUserId = null;
+        medData.KeywordStates = null;
 
         context.MedDatas.Update(medData);
         await context.SaveChangesAsync();
@@ -87,14 +72,21 @@ public class MedDataRepository : IMedDataRepository
         return true;
     }
 
-    public async Task<bool> UpdateLock(int medDataId)
+    public async Task<bool> UpdateLock(int medDataId, string keywordStates, bool isAnnotationStarted)
     {
         var medData = await context.MedDatas.FindAsync(medDataId);
 
         if (medData == null) return false;
 
-        medData.LockedByUserId = null;
-
+        if (isAnnotationStarted)
+        {
+            medData.KeywordStates = keywordStates;
+        }
+        else
+        {
+            medData.KeywordStates = null;
+            medData.LockedByUserId = null;
+        }
         context.MedDatas.Update(medData);
         await context.SaveChangesAsync();
 

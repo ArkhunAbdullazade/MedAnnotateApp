@@ -32,21 +32,16 @@ public class IdentityController : Controller
     {
         ViewBag.Specialities = new[]
         {
-            "pulmonology", "oncology", "dermatology", "pathology",
-            "general surgery", "oral and maxillofacial surgery",
-            "pediatrics", "ophthalmology", "cardiology", "neurosurgery",
-            "cardiac surgery", "neurology", "infectious diseases", "radiology",
-            "orthopedics", "obstetrics and gynecology", "urology",
-            "thoracic surgery", "plastic surgery", "endocrinology",
-            "toxicology", "microbiology", "vascular surgery",
-            "gastroenterology", "internal medicine", "dentistry", "genetics",
-            "rheumatology", "otorhinolaryngology", "anatomy", "critical care",
-            "nephrology", "hematology", "anesthesiology",
-            "pediatric cardiology", "forensic medicine",
-            "rehabilitation medicine", "proctology", "psychiatry",
-            "sports medicine", "immunology", "parasitology", "allergy",
-            "radiotherapy", "neonatology", "emergency medicine",
-            "traditional medicine", "physiology", "hepatology", "podiatry"
+            "allergy", "anatomy", "anesthesiology", "cardiology", "critical care", 
+            "dentistry", "dermatology", "emergency medicine", "endocrinology", "forensic medicine", 
+            "gastroenterology", "general surgery", "genetics", "hematology", "hepatology", 
+            "immunology", "infectious diseases", "internal medicine", "microbiology", "neonatology", 
+            "nephrology", "neurology", "neurosurgery", "obstetrics and gynecology", "oncology", 
+            "ophthalmology", "oral and maxillofacial surgery", "orthopedics", "otorhinolaryngology", "parasitology", 
+            "pathology", "pediatric cardiology", "pediatrics", "physiology", "plastic surgery", 
+            "podiatry", "proctology", "psychiatry", "radiology", "radiotherapy", 
+            "rehabilitation medicine", "rheumatology", "sports medicine", "thoracic surgery", "toxicology", 
+            "traditional medicine", "urology", "vascular surgery","cardiac surgery","pulmonology"
         };
 
         if (User.Identity!.IsAuthenticated)
@@ -90,6 +85,8 @@ public class IdentityController : Controller
             University = signupDto.University,
             Position = signupDto.Position,
             Speciality = signupDto.Speciality,
+            BodyRegion = signupDto.BodyRegion != null ? string.Join(",", signupDto.BodyRegion) : null,
+            ImageModality = signupDto.ImageModality != null ? string.Join(",", signupDto.ImageModality) : null,
             ClinicalExperience = signupDto.ClinicalExperience,
             OrcidId = signupDto.OrcidId,
         };
@@ -214,7 +211,7 @@ public class IdentityController : Controller
 
         if (logoutDto.MedDataId != null)
         {
-            await medDataRepository.UpdateLock(logoutDto.MedDataId.Value);
+            await medDataRepository.UpdateLock(logoutDto.MedDataId.Value, logoutDto.KeywordStates!, logoutDto.IsAnnotationStarted);
         }
     
         return Json(new { success = true });

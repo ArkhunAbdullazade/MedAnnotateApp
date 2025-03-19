@@ -1,9 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using MedAnnotateApp.Presentation.Attributes;
 
 namespace MedAnnotateApp.Presentation.Dtos;
 public class SignupDto
 {
     [Required(ErrorMessage = "Email cannot be empty"), EmailAddress]
+    [RestrictEmailDomain]
     public string? Email { get; set; }
     [Required(ErrorMessage = "Password cannot be empty"), DataType(DataType.Password)]
     public string? Password { get; set; }
@@ -17,6 +19,10 @@ public class SignupDto
     public string? Position { get; set; }
     [Required(ErrorMessage = "Speciality cannot be empty")]
     public string? Speciality { get; set; }
+    [Required(ErrorMessage = "Body Region cannot be empty")]
+    public string[]? BodyRegion { get; set; }
+    [Required(ErrorMessage = "Image Modality cannot be empty")]
+    public string[]? ImageModality { get; set; }
     [Required(ErrorMessage = "Clinical Experience cannot be empty")]
     public int ClinicalExperience { get; set; }
     public string? OrcidId { get; set; }

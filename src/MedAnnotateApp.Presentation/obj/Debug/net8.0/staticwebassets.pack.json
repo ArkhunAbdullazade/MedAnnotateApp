@@ -29,6 +29,14 @@
       "PackagePath": "staticwebassets\\images\\magnifying-glass.png"
     },
     {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\images\\pen-icon.png",
+      "PackagePath": "staticwebassets\\images\\pen-icon.png"
+    },
+    {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\images\\rectangle-icon.png",
+      "PackagePath": "staticwebassets\\images\\rectangle-icon.png"
+    },
+    {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\images\\rotate-icon.png",
       "PackagePath": "staticwebassets\\images\\rotate-icon.png"
     },

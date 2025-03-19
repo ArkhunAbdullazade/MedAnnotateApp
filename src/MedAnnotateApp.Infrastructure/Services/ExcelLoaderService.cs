@@ -14,8 +14,8 @@ public class ExcelLoaderService : IExcelLoaderService
         {
             var worksheet = package.Workbook.Worksheets[0];
             int rowCount = worksheet.Dimension.Rows;
-
-            for (int row = 3; row <= rowCount; row++)
+            
+            for (int row = 3; row <= 14; row++)
             {
                 var medData = new MedData
                 {
@@ -37,6 +37,7 @@ public class ExcelLoaderService : IExcelLoaderService
                 medDataList.Add(medData);
             }
         }
+        System.Console.WriteLine($"count: {medDataList.Count}");
 
         return medDataList;
     }
@@ -51,7 +52,7 @@ public class ExcelLoaderService : IExcelLoaderService
             var worksheet = package.Workbook.Worksheets[0];
             int rowCount = worksheet.Dimension.Rows;
 
-            for (int row = 3; row <= rowCount; row++)
+            for (int row = 3; row <= 14; row++)
             {
                 var keywords = worksheet.Cells[row, 12].Value?.ToString()?.Split(',')!;
                 var medDataId = int.Parse(worksheet.Cells[row, 1].Value.ToString()!);

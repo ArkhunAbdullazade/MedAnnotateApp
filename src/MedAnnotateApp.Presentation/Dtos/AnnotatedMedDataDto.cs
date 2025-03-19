@@ -21,6 +21,8 @@ public class AnnotatedMedDataDto
     public string? Timestamps { get; set; }
     public string? Comment { get; set; }
 
+    // KeywordStates
+    public string? KeywordStates { get; set; }
 }
 
 public class AnnotatedMedDatasDto

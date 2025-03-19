@@ -5,78 +5,201 @@
 }
 
 <style>
+    /* Main layout and containers */
     .centered {
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 635px;
+        height: 680px; /* Account for navbar height */
+        padding: 10px 0;
     }
 
-    .centered-form {
+    .form-container {
+        padding: 15px !important;
+        height: 400px;
         display: flex;
+        flex-direction: column;
+        align-items: center;
         justify-content: center;
+    }
+
+    /* Form styling */
+    form {
+        width: 90%;
+        max-width: 450px;
+        display: flex;
+        flex-direction: column;
         align-items: center;
     }
 
-    .button:hover {
-        background-color: #8f000c;
+    /* Form controls styling */
+    .form-control,
+    .form-outline select,
+    .form-outline input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        font-size: 15px;
+        margin-bottom: 15px;
+    }
+    
+    /* Error summary styling */
+    .validation-summary-valid {
+        display: none !important;
+    }
+    
+    .text-danger:empty {
+        display: none !important;
+    }
+    
+    /* Additional style to ensure the validation summary is hidden */
+    div[asp-validation-summary="All"]:not(.validation-summary-errors) {
+        display: none !important;
+    }
+    
+    .text-danger {
+        max-height: 90px;
+        overflow-y: auto;
+        color: #dc3545 !important;
+        font-size: 13px;
+        margin-bottom: 10px;
+        padding: 8px;
+        border-radius: 6px;
+        background-color: rgba(220, 53, 69, 0.1);
+        width: 100%;
+        display: flex;
+        align-items: flex-start;
+        line-height: 1.4;
+    }
+    
+    .text-danger ul {
+        margin-bottom: 0;
+        padding-left: 20px;
+        width: 100%;
+    }
+    
+    /* Focus states */
+    input:focus,
+    select:focus {
+        border-color: #b96b74 !important;
+        box-shadow: 0 0 0 3px rgba(217, 107, 119, 0.2) !important;
+        outline: 0 none !important;
     }
 
-    input:focus {
-        border-color: #d78188 !important;
-        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px #d78188 !important;
-        outline: 0 none !important;
+    /* Submit button styling */
+    .btn-submit {
+        padding: 10px 20px;
+        border: none;
+        color: white;
+        background-color: #a9000e;
+        cursor: pointer;
+        width: auto;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        min-width: 150px;
+        margin-top: 3px;
+    }
+
+    .btn-submit:hover {
+        background-color: #8f000c;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .btn-submit:active {
+        transform: translateY(0);
+    }
+    
+    /* Card styling */
+    .welcome-card {
+        background: linear-gradient(145deg, #f8f9fa, #ffffff);
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        overflow: hidden;
+        height: 400px;
+    }
+    
+    .welcome-column {
+        background-color: #f8f9fa;
+        border-radius: 8px 0 0 8px;
+        height: 400px;
+        padding: 30px !important;
+        display: flex;
+        align-items: center;
+    }
+    
+    .form-column {
+        background-color: #ffffff;
+        height: 400px;
+    }
+    
+    /* App branding */
+    .brand-color {
+        color: #a9000e !important;
+    }
+    
+    .brand-title {
+        font-weight: 700;
+        letter-spacing: -1px;
+    }
+    
+    /* Welcome text */
+    .welcome-text {
+        line-height: 1.5;
+        font-size: 15px;
+        color: rgb(100, 100, 100);
+    }
+    
+    /* Register link */
+    .register-link {
+        font-size: 14px;
+        margin-top: 15px;
+        margin-bottom: 0;
     }
 </style>
 
 <section class="centered">
-    <div class="container mt-5">
+    <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-9">
-                <div class="card shadow-lg p-5" style="background-color: #f8f9fa;">
-                    <div class="row">
-                        <div class="col-md-6 d-flex align-items-center " style="height: 400px;">
+            <div class="col-md-11">
+                <div class="card shadow-lg p-0 welcome-card">
+                    <div class="row g-0 h-100">
+                        <div class="col-md-7 welcome-column">
                             <div>
-                                <h1 class="display-3 fw-bold ls-tight text-center" style="color: #a9000e;">
-                                    Welcome
+                                <h1 class="display-5 fw-bold ls-tight text-center brand-title brand-color">
+                                    Welcome Back
                                 </h1>
-                                <p class="mt-4" style="color:rgb(122, 122, 122)">
-                                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                                    Eveniet, itaque accusantium odio, soluta, corrupti aliquam
-                                    quibusdam tempora at cupiditate quis eum maiores libero
-                                    veritatis? Dicta facilis sint aliquid ipsum atque?
-                                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                                    Eveniet, itaque accusantium odio, soluta, corrupti aliquam
-                                    quibusdam tempora at cupiditate quis eum maiores libero
-                                    veritatis? Dicta facilis sint aliquid ipsum atque?
+                                <p class="mt-3 welcome-text">
+                                    Sign in to your account to continue your work on our medical annotation platform. 
+                                    Your contributions help improve healthcare technology and patient outcomes through 
+                                    accurate image annotation and collaborative research.
                                 </p>
                             </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <div class="card shadow-sm p-4" style="background-color: #ffffff;height: 400px;">
-                                <div class="card-body centered-form">
-                                    <form method="post" asp-action="PostLogin" asp-controller="Identity" style="width: 100%;">
-                                        <div class="text-danger" asp-validation-summary="All"></div>
+                        <div class="col-md-5 form-column">
+                            <div class="card-body form-container">
+                                <form method="post" asp-action="PostLogin" asp-controller="Identity" class="mb-0">
+                                    <div class="text-danger mb-3 validation-summary-valid" asp-validation-summary="All"></div>
 
-                                        <div data-mdb-input-init class="form-outline mb-4">
-                                            <input type="email" asp-for="Email" class="form-control" />
-                                            <span asp-validation-for="Email" class="form-label text-dark">Institutional Email</span>
-                                        </div>
+                                    <input type="email" asp-for="Email" class="form-control" placeholder="Institutional Email" />
 
-                                        <div data-mdb-input-init class="form-outline mb-4">
-                                            <input type="password" asp-for="Password" class="form-control" />
-                                            <span asp-validation-for="Password" class="form-label text-dark">Password</span>
-                                        </div>
+                                    <input type="password" asp-for="Password" class="form-control" placeholder="Password" />
 
-                                        <button type="submit" data-mdb-button-init data-mdb-ripple-init
-                                            class="btn btn-block mb-4" style="color: white; background-color: #a9000e;">
-                                            Sign In
+                                    <div class="text-center">
+                                        <button type="submit" class="btn-submit">
+                                            Login
                                         </button>
-
-                                        <p>Not a member? <a asp-controller="Identity" asp-action="Signup" style="color: #a9000e;">Sign Up</a></p>
-                                    </form>
-                                </div>
+                                        <p class="register-link">
+                                            Not a member? <a href="/Identity/Signup" class="brand-color" style="text-decoration: none; font-weight: 500;">Register</a>
+                                        </p>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MedAnnotateApp.Infrastructure")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3e6011fc015fdb144a7daaf59dd0f840e7a47851")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c01ba3155336ce625526dec236b3ef360652557b")]
 [assembly: System.Reflection.AssemblyProductAttribute("MedAnnotateApp.Infrastructure")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MedAnnotateApp.Infrastructure")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
