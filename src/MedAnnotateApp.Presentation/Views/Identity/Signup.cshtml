@@ -47,6 +47,7 @@
         transition: all 0.2s ease;
         font-size: 15px;
         margin-bottom: 12px;
+        height: 38px; /* Exact height for all form controls */
     }
     
     /* Row spacing for grouped inputs */
@@ -139,7 +140,9 @@
     
     .multiselect-dropdown-button {
         width: 100%;
-        padding: 6px 8px;
+        padding: 8px 12px; /* Match form-control padding */
+        height: 38px; /* Match form-control height exactly */
+        line-height: 20px; /* For vertical centering of text */
         text-align: left;
         background-color: #fff;
         border: 1px solid #ced4da;
@@ -153,6 +156,7 @@
         text-overflow: ellipsis;
         transition: all 0.2s ease;
         font-size: 15px;
+        box-sizing: border-box;
     }
     
     .multiselect-dropdown-button:after {

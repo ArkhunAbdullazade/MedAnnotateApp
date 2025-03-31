@@ -5,8 +5,7 @@ namespace MedAnnotateApp.Presentation.Dtos;
 public class LoginDto
 {
     [Required(ErrorMessage = "Email address is required"), 
-     EmailAddress(ErrorMessage = "Please enter a valid email address")]
-    // [RestrictEmailDomain(ErrorMessage = "Only institutional emails are allowed (stanford.edu or mountsinai.org)")]
+    EmailAddress(ErrorMessage = "Please enter a valid email address")]
     public string? Email { get; set; }
     
     [Required(ErrorMessage = "Password is required"), 

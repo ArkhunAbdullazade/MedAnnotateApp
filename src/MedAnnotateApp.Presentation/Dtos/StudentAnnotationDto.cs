@@ -25,6 +25,6 @@ namespace MedAnnotateApp.Presentation.Dtos
 
     public class StudentAnnotationList
     {
-        public IEnumerable<StudentAnnotationDto> Annotations { get; set; }
+        public IEnumerable<StudentAnnotationDto>? Annotations { get; set; }
     }
 } 
