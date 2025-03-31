@@ -1,7 +1,7 @@
 @model MedAnnotateApp.Presentation.Dtos.LoginDto
 
 @{
-    ViewBag.Title = $"Login";
+    ViewBag.Title = "Login";
 }
 
 <style>
@@ -15,17 +15,18 @@
     }
 
     .form-container {
-        padding: 15px !important;
+        padding: 12px 20px !important;
         height: 400px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        overflow-y: auto;
     }
 
     /* Form styling */
     form {
-        width: 90%;
+        width: 100%;
         max-width: 450px;
         display: flex;
         flex-direction: column;
@@ -38,20 +39,67 @@
     .form-outline input {
         box-sizing: border-box;
         width: 100%;
-        padding: 8px 10px;
+        padding: 8px 12px;
         border: 1px solid #ced4da;
         border-radius: 6px;
         transition: all 0.2s ease;
         font-size: 15px;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
+    }
+    
+    /* Row spacing for grouped inputs */
+    form .row {
+        margin-bottom: 0;
+        width: 100%;
+        display: flex;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    
+    form .row .form-control {
+        margin-bottom: 12px; /* Match single inputs */
+        width: 100%;
+    }
+    
+    /* Adjust spacing between columns in a row */
+    form .row .col-md-6 {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    
+    form .row .col-md-6:first-child {
+        padding-right: 6px;
+    }
+    
+    form .row .col-md-6:last-child {
+        padding-left: 6px;
     }
     
     /* Error summary styling */
-    .validation-summary-valid {
-        display: none !important;
+    .validation-summary-errors {
+        display: block !important;
+        max-height: 120px;
+        overflow-y: auto;
+        color: #dc3545 !important;
+        font-size: 14px;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 6px;
+        background-color: rgba(220, 53, 69, 0.15);
+        width: 100%;
+        border-left: 4px solid #dc3545;
     }
     
-    .text-danger:empty {
+    .validation-summary-errors ul {
+        margin-bottom: 0;
+        padding-left: 20px;
+    }
+    
+    .validation-summary-errors ul li {
+        margin-bottom: 4px;
+    }
+    
+    .validation-summary-valid {
         display: none !important;
     }
     
@@ -60,25 +108,8 @@
         display: none !important;
     }
     
-    .text-danger {
-        max-height: 90px;
-        overflow-y: auto;
-        color: #dc3545 !important;
-        font-size: 13px;
-        margin-bottom: 10px;
-        padding: 8px;
-        border-radius: 6px;
-        background-color: rgba(220, 53, 69, 0.1);
-        width: 100%;
-        display: flex;
-        align-items: flex-start;
-        line-height: 1.4;
-    }
-    
-    .text-danger ul {
-        margin-bottom: 0;
-        padding-left: 20px;
-        width: 100%;
+    .text-danger:empty {
+        display: none !important;
     }
     
     /* Focus states */
@@ -91,7 +122,7 @@
 
     /* Submit button styling */
     .btn-submit {
-        padding: 10px 20px;
+        padding: 8px 20px;
         border: none;
         color: white;
         background-color: #a9000e;
@@ -102,7 +133,7 @@
         font-weight: 500;
         transition: all 0.2s ease;
         min-width: 150px;
-        margin-top: 3px;
+        margin-top: 5px; /* Restore to 5px */
     }
 
     .btn-submit:hover {
@@ -133,9 +164,11 @@
         align-items: center;
     }
     
+    /* Form column */
     .form-column {
         background-color: #ffffff;
         height: 400px;
+        overflow-y: auto; /* Allow scrolling when needed */
     }
     
     /* App branding */
@@ -160,6 +193,13 @@
         font-size: 14px;
         margin-top: 15px;
         margin-bottom: 0;
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Field validation errors */
+    .field-validation-error {
+        display: none !important;
     }
 </style>
 
@@ -179,26 +219,39 @@
                                     Your contributions help improve healthcare technology and patient outcomes through 
                                     accurate image annotation and collaborative research.
                                 </p>
+                                
+                                <div class="text-center mt-4">
+                                    <a href="/Identity/Signup" class="btn btn-outline-secondary">
+                                        Create New Account
+                                    </a>
+                                </div>
                             </div>
                         </div>
 
                         <div class="col-md-5 form-column">
                             <div class="card-body form-container">
                                 <form method="post" asp-action="PostLogin" asp-controller="Identity" class="mb-0">
-                                    <div class="text-danger mb-3 validation-summary-valid" asp-validation-summary="All"></div>
-
-                                    <input type="email" asp-for="Email" class="form-control" placeholder="Institutional Email" />
-
-                                    <input type="password" asp-for="Password" class="form-control" placeholder="Password" />
-
-                                    <div class="text-center">
-                                        <button type="submit" class="btn-submit">
-                                            Login
-                                        </button>
-                                        <p class="register-link">
-                                            Not a member? <a href="/Identity/Signup" class="brand-color" style="text-decoration: none; font-weight: 500;">Register</a>
-                                        </p>
+                                    <h4 class="mb-3 text-center">Login</h4>
+                                    
+                                    <div class="mb-3 w-100">
+                                        <div asp-validation-summary="All" class="text-danger"></div>
                                     </div>
+
+                                    <div class="w-100">
+                                        <input type="email" asp-for="Email" class="form-control" placeholder="Institutional Email (stanford.edu or mountsinai.org)" required />
+                                    </div>
+
+                                    <div class="w-100">
+                                        <input type="password" asp-for="Password" class="form-control" placeholder="Password" required />
+                                    </div>
+
+                                    <button type="submit" class="btn-submit">
+                                        Login
+                                    </button>
+                                    
+                                    <p class="register-link">
+                                        Not a member? <a href="/Identity/Signup" class="brand-color" style="text-decoration: none; font-weight: 500;">Register</a>
+                                    </p>
                                 </form>
                             </div>
                         </div>
@@ -210,5 +263,5 @@
 </section>
 
 @section Scripts {
-    <partial name="_ValidationScriptsPartial">
+    <partial name="_ValidationScriptsPartial" />
 }

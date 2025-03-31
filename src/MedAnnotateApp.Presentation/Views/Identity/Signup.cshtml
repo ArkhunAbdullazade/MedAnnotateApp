@@ -17,21 +17,22 @@
     }
 
     .form-container {
-        padding: 15px !important;
-        height: 620px; /* Match exact card height */
+        padding: 12px 20px !important;
+        height: 620px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center; /* This centers content vertically */
+        justify-content: center;
+        overflow-y: auto;
     }
 
     /* Form styling */
     form {
-        width: 90%;
+        width: 100%;
         max-width: 450px;
         display: flex;
         flex-direction: column;
-        align-items: center; /* Center horizontally */
+        align-items: center;
     }
 
     /* Form controls styling */
@@ -40,24 +41,66 @@
     .form-outline input {
         box-sizing: border-box;
         width: 100%;
-        padding: 8px 10px;
+        padding: 8px 12px;
         border: 1px solid #ced4da;
         border-radius: 6px;
         transition: all 0.2s ease;
         font-size: 15px;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
     }
     
     /* Row spacing for grouped inputs */
     form .row {
         margin-bottom: 0;
+        width: 100%;
+        display: flex;
+        margin-left: 0;
+        margin-right: 0;
     }
     
     form .row .form-control {
-        margin-bottom: 15px;
+        margin-bottom: 12px; /* Match single inputs */
+        width: 100%;
+    }
+    
+    /* Adjust spacing between columns in a row */
+    form .row .col-md-6 {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    
+    form .row .col-md-6:first-child {
+        padding-right: 6px;
+    }
+    
+    form .row .col-md-6:last-child {
+        padding-left: 6px;
     }
     
     /* Error summary styling */
+    .validation-summary-errors {
+        display: block !important;
+        max-height: 120px;
+        overflow-y: auto;
+        color: #dc3545 !important;
+        font-size: 14px;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 6px;
+        background-color: rgba(220, 53, 69, 0.15);
+        width: 100%;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .validation-summary-errors ul {
+        margin-bottom: 0;
+        padding-left: 20px;
+    }
+    
+    .validation-summary-errors ul li {
+        margin-bottom: 4px;
+    }
+    
     .validation-summary-valid {
         display: none !important;
     }
@@ -70,29 +113,8 @@
     div[asp-validation-summary="All"]:not(.validation-summary-errors) {
         display: none !important;
     }
-    
-    .text-danger {
-        max-height: 90px;
-        overflow-y: auto;
-        color: #dc3545 !important;
-        font-size: 13px;
-        margin-bottom: 10px;
-        padding: 8px;
-        border-radius: 6px;
-        background-color: rgba(220, 53, 69, 0.1);
-        width: 100%;
-        display: flex;
-        align-items: flex-start;
-        line-height: 1.4;
-    }
-    
-    .text-danger ul {
-        margin-bottom: 0;
-        padding-left: 20px;
-        width: 100%;
-    }
-    
-    /* Hide individual field validation errors */
+
+    /* Field validation errors */
     .field-validation-error {
         display: none !important;
     }
@@ -112,12 +134,12 @@
     .multiselect-dropdown {
         position: relative;
         width: 100%;
-        margin-bottom: 15px; 
+        margin-bottom: 12px; /* Match other controls */
     }
     
     .multiselect-dropdown-button {
         width: 100%;
-        padding: 8px 10px;
+        padding: 6px 8px;
         text-align: left;
         background-color: #fff;
         border: 1px solid #ced4da;
@@ -150,7 +172,7 @@
         position: absolute;
         background-color: #fff;
         width: 100%;
-        max-height: 180px;
+        max-height: 150px;
         overflow-y: auto;
         border: 1px solid #ced4da;
         border-top: none;
@@ -160,7 +182,7 @@
     }
     
     .multiselect-option {
-        padding: 6px 10px;
+        padding: 4px 8px;
         display: flex;
         align-items: center;
         cursor: pointer;
@@ -200,7 +222,7 @@
 
     /* Submit button styling */
     .btn-submit {
-        padding: 10px 20px;
+        padding: 8px 20px;
         border: none;
         color: white;
         background-color: #a9000e;
@@ -245,6 +267,7 @@
     .form-column {
         background-color: #ffffff;
         height: 620px;
+        overflow-y: auto;
     }
     
     /* App branding */
@@ -270,6 +293,10 @@
         margin-top: 10px;
         margin-bottom: 0;
     }
+
+    .mb-3 {
+        margin-bottom: 1rem !important;
+    }
 </style>
 
 <section class="centered">
@@ -288,28 +315,38 @@
                                     diagnostic tools. Your expertise helps improve healthcare technology and patient outcomes
                                     through accurate image annotation and collaborative research.
                                 </p>
+                                
+                                <div class="text-center mt-4">
+                                    <a href="/Identity/Login" class="btn btn-secondary">Already registered? Log in</a>
+                                </div>
                             </div>
                         </div>
 
                         <div class="col-md-5 form-column">
                             <div class="card-body form-container">
                                 <form method="post" asp-action="PostSignup" asp-controller="Identity" class="mb-0">
-                                    <div class="text-danger mb-3 validation-summary-valid" asp-validation-summary="All"></div>
+                                    <div class="mb-3 w-100">
+                                        <div asp-validation-summary="All" class="text-danger"></div>
+                                    </div>
 
-                                    <input type="email" asp-for="Email" class="form-control" placeholder="Institutional Email" />
-                                    <span asp-validation-for="Email" class="field-validation-error"></span>
+                                    <div class="w-100">
+                                        <input type="email" asp-for="Email" class="form-control" placeholder="Institutional Email (stanford.edu or mountsinai.org)" />
+                                        <span asp-validation-for="Email" class="field-validation-error text-danger"></span>
+                                    </div>
 
-                                    <input type="text" asp-for="FullName" class="form-control" placeholder="Full Name" />
-                                    <span asp-validation-for="FullName" class="field-validation-error"></span>
+                                    <div class="w-100">
+                                        <input type="text" asp-for="FullName" class="form-control" placeholder="Full Name" />
+                                        <span asp-validation-for="FullName" class="field-validation-error text-danger"></span>
+                                    </div>
 
                                     <div class="row">
                                         <div class="col-md-6">
                                             <input type="password" asp-for="Password" class="form-control" placeholder="Password" />
-                                            <span asp-validation-for="Password" class="field-validation-error"></span>
+                                            <span asp-validation-for="Password" class="field-validation-error text-danger"></span>
                                         </div>
                                         <div class="col-md-6">
                                             <input type="password" asp-for="ConfirmPassword" class="form-control" placeholder="Confirm Password" />
-                                            <span asp-validation-for="ConfirmPassword" class="field-validation-error"></span>
+                                            <span asp-validation-for="ConfirmPassword" class="field-validation-error text-danger"></span>
                                         </div>
                                     </div>
 
@@ -322,7 +359,7 @@
                                                 <option value="resident/assistant">Resident/Assistant</option>
                                                 <option value="medical student">Medical Student</option>
                                             </select>
-                                            <span asp-validation-for="Position" class="field-validation-error"></span>
+                                            <span asp-validation-for="Position" class="field-validation-error text-danger"></span>
                                         </div>
                                         <div class="col-md-6">
                                             <select asp-for="Speciality" class="form-control">
@@ -332,97 +369,105 @@
                                                     <option value="@speciality">@speciality</option>
                                                 }
                                             </select>
-                                            <span asp-validation-for="Speciality" class="field-validation-error"></span>
+                                            <span asp-validation-for="Speciality" class="field-validation-error text-danger"></span>
                                         </div>
                                     </div>
 
                                     <div class="row">
                                         <div class="col-md-6">
                                             <input type="text" asp-for="University" class="form-control" placeholder="University" />
-                                            <span asp-validation-for="University" class="field-validation-error"></span>
+                                            <span asp-validation-for="University" class="field-validation-error text-danger"></span>
                                         </div>
                                         <div class="col-md-6">
                                             <input type="number" asp-for="ClinicalExperience" min="0" class="form-control" placeholder="Clinical Experience (years)" />
-                                            <span asp-validation-for="ClinicalExperience" class="field-validation-error"></span>
+                                            <span asp-validation-for="ClinicalExperience" class="field-validation-error text-danger"></span>
                                         </div>
                                     </div>
 
-                                    <div class="multiselect-dropdown">
-                                        <div class="multiselect-dropdown-button" id="bodyRegionButton">
-                                            Select Body Region
+                                    <!-- Multiselect Body Region -->
+                                    <div class="w-100">
+                                        <div class="multiselect-dropdown">
+                                            <div class="multiselect-dropdown-button" id="bodyRegionButton">
+                                                Select Body Region
+                                            </div>
+                                            <div class="multiselect-dropdown-content" id="bodyRegionDropdown">
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="region-abdomen" name="BodyRegion" value="abdomen">
+                                                    <label for="region-abdomen">Abdomen</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="region-head-neck" name="BodyRegion" value="head and neck">
+                                                    <label for="region-head-neck">Head and Neck</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="region-lower" name="BodyRegion" value="lower extremities">
+                                                    <label for="region-lower">Lower Extremities</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="region-multiple" name="BodyRegion" value="multiple">
+                                                    <label for="region-multiple">Multiple</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="region-thorax" name="BodyRegion" value="thorax">
+                                                    <label for="region-thorax">Thorax</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="region-upper" name="BodyRegion" value="upper extremities">
+                                                    <label for="region-upper">Upper Extremities</label>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="multiselect-dropdown-content" id="bodyRegionDropdown">
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="region-abdomen" name="BodyRegion" value="abdomen">
-                                                <label for="region-abdomen">Abdomen</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="region-head-neck" name="BodyRegion" value="head and neck">
-                                                <label for="region-head-neck">Head and Neck</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="region-lower" name="BodyRegion" value="lower extremities">
-                                                <label for="region-lower">Lower Extremities</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="region-multiple" name="BodyRegion" value="multiple">
-                                                <label for="region-multiple">Multiple</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="region-thorax" name="BodyRegion" value="thorax">
-                                                <label for="region-thorax">Thorax</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="region-upper" name="BodyRegion" value="upper extremities">
-                                                <label for="region-upper">Upper Extremities</label>
-                                            </div>
-                                        </div>
+                                        <span asp-validation-for="BodyRegion" class="field-validation-error text-danger"></span>
                                     </div>
-                                    <span asp-validation-for="BodyRegion" class="field-validation-error"></span>
 
-                                    <div class="multiselect-dropdown">
-                                        <div class="multiselect-dropdown-button" id="modalityButton">
-                                            Select Image Modality
+                                    <!-- Multiselect Image Modality -->
+                                    <div class="w-100">
+                                        <div class="multiselect-dropdown">
+                                            <div class="multiselect-dropdown-button" id="modalityButton">
+                                                Select Image Modality
+                                            </div>
+                                            <div class="multiselect-dropdown-content" id="modalityDropdown">
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-ce-xray" name="ImageModality" value="ce x-ray">
+                                                    <label for="modality-ce-xray">CE X-Ray</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-ct" name="ImageModality" value="ct">
+                                                    <label for="modality-ct">CT</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-endoscopy" name="ImageModality" value="endoscopy">
+                                                    <label for="modality-endoscopy">Endoscopy</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-microscopy" name="ImageModality" value="microscopy">
+                                                    <label for="modality-microscopy">Microscopy</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-mri" name="ImageModality" value="mri">
+                                                    <label for="modality-mri">MRI</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-photo" name="ImageModality" value="photo">
+                                                    <label for="modality-photo">Photo</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-ultrasound" name="ImageModality" value="ultrasound">
+                                                    <label for="modality-ultrasound">Ultrasound</label>
+                                                </div>
+                                                <div class="multiselect-option">
+                                                    <input type="checkbox" id="modality-xray" name="ImageModality" value="x-ray">
+                                                    <label for="modality-xray">X-Ray</label>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="multiselect-dropdown-content" id="modalityDropdown">
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-ce-xray" name="ImageModality" value="ce x-ray">
-                                                <label for="modality-ce-xray">CE X-Ray</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-ct" name="ImageModality" value="ct">
-                                                <label for="modality-ct">CT</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-endoscopy" name="ImageModality" value="endoscopy">
-                                                <label for="modality-endoscopy">Endoscopy</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-microscopy" name="ImageModality" value="microscopy">
-                                                <label for="modality-microscopy">Microscopy</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-mri" name="ImageModality" value="mri">
-                                                <label for="modality-mri">MRI</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-photo" name="ImageModality" value="photo">
-                                                <label for="modality-photo">Photo</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-ultrasound" name="ImageModality" value="ultrasound">
-                                                <label for="modality-ultrasound">Ultrasound</label>
-                                            </div>
-                                            <div class="multiselect-option">
-                                                <input type="checkbox" id="modality-xray" name="ImageModality" value="x-ray">
-                                                <label for="modality-xray">X-Ray</label>
-                                            </div>
-                                        </div>
+                                        <span asp-validation-for="ImageModality" class="field-validation-error text-danger"></span>
                                     </div>
-                                    <span asp-validation-for="ImageModality" class="field-validation-error"></span>
 
-                                    <input type="text" asp-for="OrcidId" class="form-control" placeholder="ORCID ID (optional)" />
-                                    <span asp-validation-for="OrcidId" class="field-validation-error"></span>
+                                    <div class="w-100">
+                                        <input type="text" asp-for="OrcidId" class="form-control" placeholder="ORCID ID (optional)" />
+                                        <span asp-validation-for="OrcidId" class="field-validation-error text-danger"></span>
+                                    </div>
 
                                     <div class="text-center">
                                         <button type="submit" class="btn-submit">
@@ -440,18 +485,33 @@
 </section>
 
 @section Scripts {
-    <partial name="_ValidationScriptsPartial">
+    <partial name="_ValidationScriptsPartial" />
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Set up Body Region dropdown
-            setupMultiSelect('bodyRegionButton', 'bodyRegionDropdown', 'Body Region');
+            setupMultiSelect('bodyRegionButton', 'bodyRegionDropdown', 'Body Region', '@(Model?.BodyRegion != null ? string.Join(",", Model.BodyRegion) : "")');
             
             // Set up Image Modality dropdown
-            setupMultiSelect('modalityButton', 'modalityDropdown', 'Image Modality');
+            setupMultiSelect('modalityButton', 'modalityDropdown', 'Image Modality', '@(Model?.ImageModality != null ? string.Join(",", Model.ImageModality) : "")');
             
-            function setupMultiSelect(buttonId, dropdownId, fieldName) {
+            function setupMultiSelect(buttonId, dropdownId, fieldName, preselectedValues) {
                 const button = document.getElementById(buttonId);
                 const dropdown = document.getElementById(dropdownId);
+                
+                // Pre-select values if they exist
+                if (preselectedValues) {
+                    const values = preselectedValues.split(',');
+                    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+                    
+                    checkboxes.forEach(checkbox => {
+                        if (values.includes(checkbox.value)) {
+                            checkbox.checked = true;
+                        }
+                    });
+                    
+                    // Update button text
+                    updateButtonText(checkboxes, button, fieldName);
+                }
                 
                 // Toggle dropdown when button is clicked
                 button.addEventListener('click', function() {

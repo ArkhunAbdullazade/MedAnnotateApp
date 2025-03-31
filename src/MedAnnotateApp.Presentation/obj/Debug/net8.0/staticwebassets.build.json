@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "ckQncXwloV6GmqC/XRcavMfHWjB4d30KiRfTSmHOW58=",
+  "Hash": "kjS1T48WCfDZcu9TFK6vt2ZTK6wZooHYO2QV4X0ijrg=",
   "Source": "MedAnnotateApp.Presentation",
   "BasePath": "_content/MedAnnotateApp.Presentation",
   "Mode": "Default",
@@ -74,6 +74,25 @@
       "OriginalItemSpec": "wwwroot\\css\\indexPage.css"
     },
     {
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\css\\professionalPage.css",
+      "SourceId": "MedAnnotateApp.Presentation",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
+      "BasePath": "_content/MedAnnotateApp.Presentation",
+      "RelativePath": "css/professionalPage.css",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\css\\professionalPage.css"
+    },
+    {
       "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\css\\site.css",
       "SourceId": "MedAnnotateApp.Presentation",
       "SourceType": "Discovered",
@@ -91,6 +110,25 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\css\\site.css"
+    },
+    {
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\css\\studentPage.css",
+      "SourceId": "MedAnnotateApp.Presentation",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
+      "BasePath": "_content/MedAnnotateApp.Presentation",
+      "RelativePath": "css/studentPage.css",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\css\\studentPage.css"
     },
     {
       "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\favicon.ico",
@@ -264,12 +302,12 @@
       "OriginalItemSpec": "wwwroot\\images\\stanford-university-logo.png"
     },
     {
-      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\indexPage.js",
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\canvas.js",
       "SourceId": "MedAnnotateApp.Presentation",
       "SourceType": "Discovered",
       "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
       "BasePath": "_content/MedAnnotateApp.Presentation",
-      "RelativePath": "js/indexPage.js",
+      "RelativePath": "js/canvas.js",
       "AssetKind": "All",
       "AssetMode": "All",
       "AssetRole": "Primary",
@@ -280,15 +318,15 @@
       "AssetTraitValue": "",
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
-      "OriginalItemSpec": "wwwroot\\js\\indexPage.js"
+      "OriginalItemSpec": "wwwroot\\js\\canvas.js"
     },
     {
-      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\signupPage.js",
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\professionalPage.js",
       "SourceId": "MedAnnotateApp.Presentation",
       "SourceType": "Discovered",
       "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
       "BasePath": "_content/MedAnnotateApp.Presentation",
-      "RelativePath": "js/signupPage.js",
+      "RelativePath": "js/professionalPage.js",
       "AssetKind": "All",
       "AssetMode": "All",
       "AssetRole": "Primary",
@@ -299,7 +337,26 @@
       "AssetTraitValue": "",
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
-      "OriginalItemSpec": "wwwroot\\js\\signupPage.js"
+      "OriginalItemSpec": "wwwroot\\js\\professionalPage.js"
+    },
+    {
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\studentPage.js",
+      "SourceId": "MedAnnotateApp.Presentation",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
+      "BasePath": "_content/MedAnnotateApp.Presentation",
+      "RelativePath": "js/studentPage.js",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\js\\studentPage.js"
     },
     {
       "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap-grid.css",

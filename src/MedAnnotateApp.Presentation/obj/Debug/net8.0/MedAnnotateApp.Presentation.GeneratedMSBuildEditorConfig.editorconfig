@@ -18,8 +18,16 @@ build_property.GenerateRazorMetadataSourceChecksumAttributes =
 build_property.MSBuildProjectDirectory = C:\Users\USER\Desktop\StandfordProject\MedAnnotateApp\src\MedAnnotateApp.Presentation
 build_property._RazorSourceGeneratorDebug = 
 
-[C:/Users/USER/Desktop/StandfordProject/MedAnnotateApp/src/MedAnnotateApp.Presentation/Views/Home/Index.cshtml]
-build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSG9tZVxJbmRleC5jc2h0bWw=
+[C:/Users/USER/Desktop/StandfordProject/MedAnnotateApp/src/MedAnnotateApp.Presentation/Views/Home/Professional.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSG9tZVxQcm9mZXNzaW9uYWwuY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/USER/Desktop/StandfordProject/MedAnnotateApp/src/MedAnnotateApp.Presentation/Views/Home/Student.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSG9tZVxTdHVkZW50LmNzaHRtbA==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/USER/Desktop/StandfordProject/MedAnnotateApp/src/MedAnnotateApp.Presentation/Views/Identity/AccessDenied.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSWRlbnRpdHlcQWNjZXNzRGVuaWVkLmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/USER/Desktop/StandfordProject/MedAnnotateApp/src/MedAnnotateApp.Presentation/Views/Identity/AuthorizationAccess.cshtml]

@@ -1,11 +1,15 @@
 using System.ComponentModel.DataAnnotations;
+using MedAnnotateApp.Presentation.Attributes;
 
 namespace MedAnnotateApp.Presentation.Dtos;
 public class LoginDto
 {
-    [Required(ErrorMessage = "Email cannot be empty")]
+    [Required(ErrorMessage = "Email address is required"), 
+     EmailAddress(ErrorMessage = "Please enter a valid email address")]
+    // [RestrictEmailDomain(ErrorMessage = "Only institutional emails are allowed (stanford.edu or mountsinai.org)")]
     public string? Email { get; set; }
     
-    [Required(ErrorMessage = "Password cannot be empty")]
+    [Required(ErrorMessage = "Password is required"), 
+     DataType(DataType.Password)]
     public string? Password { get; set; }
 }

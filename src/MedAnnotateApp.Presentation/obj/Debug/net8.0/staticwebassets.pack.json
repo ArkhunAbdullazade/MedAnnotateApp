@@ -9,8 +9,16 @@
       "PackagePath": "staticwebassets\\css\\indexPage.css"
     },
     {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\css\\professionalPage.css",
+      "PackagePath": "staticwebassets\\css\\professionalPage.css"
+    },
+    {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\css\\site.css",
       "PackagePath": "staticwebassets\\css\\site.css"
+    },
+    {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\css\\studentPage.css",
+      "PackagePath": "staticwebassets\\css\\studentPage.css"
     },
     {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\favicon.ico",
@@ -49,12 +57,16 @@
       "PackagePath": "staticwebassets\\images\\stanford-university-logo.png"
     },
     {
-      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\indexPage.js",
-      "PackagePath": "staticwebassets\\js\\indexPage.js"
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\canvas.js",
+      "PackagePath": "staticwebassets\\js\\canvas.js"
     },
     {
-      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\signupPage.js",
-      "PackagePath": "staticwebassets\\js\\signupPage.js"
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\professionalPage.js",
+      "PackagePath": "staticwebassets\\js\\professionalPage.js"
+    },
+    {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\studentPage.js",
+      "PackagePath": "staticwebassets\\js\\studentPage.js"
     },
     {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\lib\\bootstrap\\LICENSE",

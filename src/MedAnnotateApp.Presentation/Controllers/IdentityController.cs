@@ -3,7 +3,6 @@ using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Services;
-using MedAnnotateApp.Presentation.ActionFilters;
 using MedAnnotateApp.Presentation.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -11,25 +10,193 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MedAnnotateApp.Presentation.Controllers;
 
-[ServiceFilter(typeof(AuthorizationAccessFilter))]
 public class IdentityController : Controller
 {
-    private readonly IMedDataRepository medDataRepository;
-    private readonly IIdentityService identityService;
-    private readonly UserManager<User> userManager;
-    private readonly IConfiguration configuration;
+    private readonly IMedDataRepository _medDataRepository;
+    private readonly IIdentityService _identityService;
+    private readonly UserManager<User> _userManager;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<IdentityController> _logger;
 
-    public IdentityController(IMedDataRepository medDataRepository, IIdentityService identityService, UserManager<User> userManager, IConfiguration configuration)
+    public IdentityController(
+        IMedDataRepository medDataRepository, 
+        IIdentityService identityService, 
+        UserManager<User> userManager, 
+        IConfiguration configuration,
+        ILogger<IdentityController> logger)
     {
-        this.medDataRepository = medDataRepository;
-        this.identityService = identityService;
-        this.userManager = userManager;
-        this.configuration = configuration;
+        _medDataRepository = medDataRepository;
+        _identityService = identityService;
+        _userManager = userManager;
+        _configuration = configuration;
+        _logger = logger;
     }
 
+    #region Authorization Gate
+    
+    /// <summary>
+    /// Handles the initial authorization gate that protects the application
+    /// </summary>
+    [AllowAnonymous]
+    public IActionResult AuthorizationAccess()
+    {
+        // If user is already authenticated, redirect to role-specific page
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return RedirectToRoleBasedPage();
+        }
+        
+        // If already authorized via session, direct to login
+        if (HttpContext.Session.Keys.Contains("Authorized"))
+        {
+            return RedirectToAction(nameof(Login));
+        }
+
+        // Handle form errors from previous attempts
+        HandleTempDataErrors();
+
+        return View();
+    }
+
+    /// <summary>
+    /// Processes the authorization password form
+    /// </summary>
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public IActionResult PostAuthorizationAccess([FromForm] AuthorizationAccessDto authorizationAccessDto)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
+            return RedirectToAction(nameof(AuthorizationAccess));
+        }
+
+        var hashedPassword = _configuration["AuthorizationAccessPasswordHash"];
+        if (AuthorizationAccessPasswordService.VerifyPassword(authorizationAccessDto.Password!, hashedPassword!))
+        {
+            // Set a simple flag in session
+            HttpContext.Session.SetString("Authorized", "true");
+            return RedirectToAction(nameof(Login));
+        }
+
+        TempData["Errors"] = new List<string> { "Incorrect password." };
+        return RedirectToAction(nameof(AuthorizationAccess));
+    }
+    
+    #endregion
+    
+    #region Authentication
+    
+    /// <summary>
+    /// Displays the login page if user has passed authorization gate
+    /// </summary>
     [HttpGet]
+    [AllowAnonymous]
+    public IActionResult Login(string returnUrl = null)
+    {
+        // If already logged in, redirect to role-specific page
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return RedirectToRoleBasedPage();
+        }
+        
+        // Save valid return URL
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+        {
+            TempData["ReturnUrl"] = returnUrl;
+        }
+
+        // Handle errors from previous login attempts
+        HandleTempDataErrors();
+
+        return View();
+    }
+
+    /// <summary>
+    /// Processes login attempts
+    /// </summary>
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PostLogin([FromForm] LoginDto loginDto)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
+            return RedirectToAction(nameof(Login));
+        }
+
+        var (succeeded, errors) = await _identityService.LoginAsync(loginDto.Email!, loginDto.Password!);
+
+        if (succeeded)
+        {
+            // Check if we have a return URL
+            if (TempData["ReturnUrl"] is string returnUrl && !string.IsNullOrEmpty(returnUrl))
+            {
+                if (Url.IsLocalUrl(returnUrl))
+                {
+                    return Redirect(returnUrl);
+                }
+            }
+            
+            return RedirectToRoleBasedPage();
+        }
+
+        TempData["Errors"] = new List<string> { "Incorrect Email or Password." };
+        return RedirectToAction(nameof(Login));
+    }
+
+    /// <summary>
+    /// Handles user logout
+    /// </summary>
+    [HttpPost]
+    [Authorize]
+    public async Task<IActionResult> Logout([FromBody] LogoutDto logoutDto)
+    {
+        try
+        {
+            await _identityService.SignoutAsync();
+            HttpContext.Session.Clear();
+
+            _logger.LogInformation("LogoutDto: {LogoutDto}", logoutDto);
+
+            System.Console.WriteLine("User.IsInRole(Medical_Student): {0}", User.IsInRole("Medical_Student"));
+            System.Console.WriteLine("logoutDto.IsAnnotationStarted: {0}", logoutDto.IsAnnotationStarted);
+            System.Console.WriteLine("logoutDto.KeywordStates: {0}", logoutDto.KeywordStates);
+            System.Console.WriteLine("logoutDto.MedDataId: {0}", logoutDto.MedDataId.Value);
+            if (logoutDto.MedDataId != null)
+            {
+                await _medDataRepository.UpdateLock(logoutDto.MedDataId.Value, logoutDto.KeywordStates ?? "", logoutDto.IsAnnotationStarted, User.IsInRole("Medical_Student"));
+            }
+        
+            return Json(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during logout");
+            // Still return success to ensure the frontend redirects the user
+            return Json(new { success = true, error = ex.Message });
+        }
+    }
+    
+    #endregion
+    
+    #region Registration
+    
+    /// <summary>
+    /// Displays the signup page
+    /// </summary>
+    [HttpGet]
+    [AllowAnonymous]
     public IActionResult Signup()
     {
+        // If already logged in, redirect to role-specific page
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return RedirectToRoleBasedPage();
+        }
+
         ViewBag.Specialities = new[]
         {
             "allergy", "anatomy", "anesthesiology", "cardiology", "critical care", 
@@ -44,19 +211,8 @@ public class IdentityController : Controller
             "traditional medicine", "urology", "vascular surgery","cardiac surgery","pulmonology"
         };
 
-        if (User.Identity!.IsAuthenticated)
-        {
-            return RedirectToAction("Index", "Home");
-        }
-
-        // Populate ModelState with errors from TempData
-        if (TempData["Errors"] is List<string> errors)
-        {
-            foreach (var error in errors)
-            {
-                ModelState.AddModelError("", error);
-            }
-        }
+        // Handle form errors from previous attempts
+        HandleTempDataErrors();
 
         if (TempData["FormData"] is string formDataJson)
         {
@@ -67,101 +223,143 @@ public class IdentityController : Controller
         return View();
     }
 
-    [HttpPost]
-    public async Task<IActionResult> PostSignup([FromForm] SignupDto signupDto)
-    {
-        if (!ModelState.IsValid)
-        {
-            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            TempData["FormData"] = JsonSerializer.Serialize(signupDto);
-            return RedirectToAction(nameof(Signup));
-        }
-
-        var newUser = new User
-        {
-            Email = signupDto.Email,
-            FullName = signupDto.FullName,
-            UserName = signupDto.Email,
-            University = signupDto.University,
-            Position = signupDto.Position,
-            Speciality = signupDto.Speciality,
-            BodyRegion = signupDto.BodyRegion != null ? string.Join(",", signupDto.BodyRegion) : null,
-            ImageModality = signupDto.ImageModality != null ? string.Join(",", signupDto.ImageModality) : null,
-            ClinicalExperience = signupDto.ClinicalExperience,
-            OrcidId = signupDto.OrcidId,
-        };
-
-        var (succeeded, errors) = await identityService.SignupAsync(newUser, signupDto.Password!, null!);
-
-        if (succeeded)
-        {
-            return RedirectToAction(nameof(Login));
-        }
-
-        // Add errors to TempData and redirect to GET Signup
-        TempData["Errors"] = TempData["Errors"] = new List<string> { "This Email is Already in Use" };
-        TempData["FormData"] = JsonSerializer.Serialize(signupDto);
-
-        return RedirectToAction(nameof(Signup));
-    }
-
-    [HttpGet]
-    [AllowAnonymous]
-    public IActionResult AuthorizationAccess()
-    {
-        if (User.Identity!.IsAuthenticated)
-        {
-            return RedirectToAction("Index", "Home");
-        }
-
-        // Populate ModelState with errors from TempData
-        if (TempData["Errors"] is List<string> errors)
-        {
-            foreach (var error in errors)
-            {
-                ModelState.AddModelError("", error);
-            }
-        }
-
-        if (TempData["FormData"] is string formDataJson)
-        {
-            var formData = JsonSerializer.Deserialize<AuthorizationAccessDto>(formDataJson);
-            return View(formData);
-        }
-
-        return View();
-    }
-
+    /// <summary>
+    /// Processes user signup submissions
+    /// </summary>
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    public IActionResult PostAuthorizationAccess([FromForm] AuthorizationAccessDto authorizationAccessDto)
+    public async Task<IActionResult> PostSignup([FromForm] SignupDto signupDto)
     {
-        if (!ModelState.IsValid)
+        try
         {
-            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            return RedirectToAction(nameof(AuthorizationAccess));
-        }
+            _logger.LogInformation("Starting signup process for email: {Email}", signupDto.Email);
+            
+            if (!ModelState.IsValid)
+            {
+                var validationErrors = ModelState.Values
+                    .SelectMany(v => v.Errors.Select(e => e.ErrorMessage))
+                    .ToList();
+                
+                _logger.LogWarning("Model validation failed for signup: {Errors}", JsonSerializer.Serialize(validationErrors));
+                TempData["Errors"] = validationErrors;
+                TempData["FormData"] = JsonSerializer.Serialize(signupDto);
+                return RedirectToAction(nameof(Signup));
+            }
 
-        var hashedPassword = configuration["AuthorizationAccessPasswordHash"];
-        if (AuthorizationAccessPasswordService.VerifyPassword(authorizationAccessDto.Password!, hashedPassword!))
+            var newUser = new User
+            {
+                Email = signupDto.Email,
+                FullName = signupDto.FullName,
+                UserName = signupDto.Email,
+                University = signupDto.University,
+                Position = signupDto.Position,
+                Speciality = signupDto.Speciality,
+                BodyRegion = signupDto.BodyRegion != null ? string.Join(",", signupDto.BodyRegion) : null,
+                ImageModality = signupDto.ImageModality != null ? string.Join(",", signupDto.ImageModality) : null,
+                ClinicalExperience = signupDto.ClinicalExperience,
+                OrcidId = signupDto.OrcidId,
+            };
+
+            _logger.LogInformation("Attempting to create user: {User}", JsonSerializer.Serialize(new { 
+                newUser.Email, 
+                newUser.FullName, 
+                newUser.Position, 
+                newUser.Speciality 
+            }));
+            
+            var (succeeded, signupErrors) = await _identityService.SignupAsync(newUser, signupDto.Password!, null!);
+
+            if (succeeded)
+            {
+                // Assign role based on position
+                string roleName = signupDto.Position?.ToLower() == "medical student" 
+                    ? "Medical_Student" 
+                    : "Professional";
+
+                _logger.LogInformation("User created successfully. Assigning role: {Role}", roleName);
+                await _userManager.AddToRoleAsync(newUser, roleName);
+                
+                return RedirectToAction(nameof(Login));
+            }
+
+            // Add errors to TempData and redirect to GET Signup
+            _logger.LogWarning("User creation failed: {Errors}", signupErrors != null ? JsonSerializer.Serialize(signupErrors) : "No specific errors returned");
+            
+            var errorList = new List<string>();
+            if (signupErrors != null)
+            {
+                errorList.AddRange(signupErrors);
+            }
+            
+            if (errorList.Count == 0)
+            {
+                errorList.Add("This Email is Already in Use");
+            }
+            
+            TempData["Errors"] = errorList;
+            TempData["FormData"] = JsonSerializer.Serialize(signupDto);
+
+            return RedirectToAction(nameof(Signup));
+        }
+        catch (Exception ex)
         {
-            HttpContext.Session.SetString("Authorized", "true");
-            return RedirectToAction(nameof(Login));
+            _logger.LogError(ex, "Exception during signup process");
+            TempData["Errors"] = new List<string> { "An unexpected error occurred during registration. Please try again." };
+            TempData["FormData"] = JsonSerializer.Serialize(signupDto);
+            return RedirectToAction(nameof(Signup));
         }
-
-        TempData["Errors"] = new List<string> { "Incorrect password." };
-        return RedirectToAction(nameof(AuthorizationAccess));
     }
-
-    [HttpGet]
-    public IActionResult Login()
+    
+    #endregion
+    
+    #region Error Handling
+    
+    /// <summary>
+    /// Displays access denied page
+    /// </summary>
+    [AllowAnonymous]
+    public IActionResult AccessDenied()
     {
-        if (User.Identity!.IsAuthenticated)
+        return View();
+    }
+    
+    #endregion
+    
+    #region Helper Methods
+    
+    /// <summary>
+    /// Helper method to redirect to the appropriate role-based page
+    /// </summary>
+    private IActionResult RedirectToRoleBasedPage()
+    {
+        // Debug logging to track roles
+        _logger.LogInformation("RedirectToRoleBasedPage called. User: {User}, Authenticated: {Auth}",
+            User.Identity?.Name, User.Identity?.IsAuthenticated);
+        
+        if (User.IsInRole("Medical_Student"))
         {
-            return RedirectToAction("Index", "Home");
+            _logger.LogInformation("User is in Medical_Student role, redirecting to Student page");
+            return RedirectToAction("Student", "Home");
         }
-
+        
+        if (User.IsInRole("Professional"))
+        {
+            _logger.LogInformation("User is in Professional role, redirecting to Professional page");
+            return RedirectToAction("Professional", "Home");
+        }
+        
+        // If user has no role, show error
+        _logger.LogWarning("User has no role assigned: {User}", User.Identity?.Name);
+        TempData["Errors"] = new List<string> { "Your account doesn't have any assigned roles. Please contact the administrator." };
+        return RedirectToAction("AccessDenied", "Identity");
+    }
+    
+    /// <summary>
+    /// Helper method to handle errors stored in TempData
+    /// </summary>
+    private void HandleTempDataErrors()
+    {
         if (TempData["Errors"] is List<string> errors)
         {
             foreach (var error in errors)
@@ -169,51 +367,7 @@ public class IdentityController : Controller
                 ModelState.AddModelError("", error);
             }
         }
-
-        if (TempData["FormData"] is string formDataJson)
-        {
-            var formData = JsonSerializer.Deserialize<LoginDto>(formDataJson);
-            return View(formData);
-        }
-
-        return View();
     }
-
-    [HttpPost]
-    public async Task<IActionResult> PostLogin([FromForm] LoginDto loginDto)
-    {
-        if (!ModelState.IsValid)
-        {
-            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            TempData["FormData"] = JsonSerializer.Serialize(loginDto);
-            return RedirectToAction(nameof(Login));
-        }
-
-        var (succeeded, errors) = await this.identityService.LoginAsync(loginDto.Email!, loginDto.Password!);
-
-        if (succeeded)
-        {
-            return RedirectToAction("Index", "Home");
-        }
-
-        TempData["Errors"] = new List<string> { "Incorrect Email or Password." };
-        TempData["FormData"] = JsonSerializer.Serialize(loginDto);
-
-        return RedirectToAction(nameof(Login));
-    }
-
-    [HttpPost]
-    [Authorize]
-    public async Task<IActionResult> Logout([FromBody] LogoutDto logoutDto)
-    {
-        await this.identityService.SignoutAsync();
-        HttpContext.Session.Clear();
-
-        if (logoutDto.MedDataId != null)
-        {
-            await medDataRepository.UpdateLock(logoutDto.MedDataId.Value, logoutDto.KeywordStates!, logoutDto.IsAnnotationStarted);
-        }
     
-        return Json(new { success = true });
-    }
+    #endregion
 }

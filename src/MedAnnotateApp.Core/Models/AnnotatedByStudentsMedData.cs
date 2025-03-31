@@ -17,10 +17,8 @@ public class AnnotatedByStudentsMedData
     public string? Modality { get; set; }
 
     // AnnotationData
-    public string? BoxesCoordinates { get; set; }
-    public string? ExtractedKeyword { get; set; }
-    public string? PressedButton { get; set; }
-    public string? Timestamps { get; set; }
+    public string? Coordinates { get; set; }
+    public string? TextualAnnotation { get; set; }
 
     // UserData
     public string? Email { get; set; }

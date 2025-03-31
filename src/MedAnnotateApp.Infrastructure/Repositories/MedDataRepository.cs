@@ -15,29 +15,89 @@ public class MedDataRepository : IMedDataRepository
 
     public async Task<(MedData?, string)> GetNthMedDataBySpecialityAndPositionAsync(string speciality, string position, string bodyRegion, string imageModality, string userId)
     {
-        MedData? medData = null;
+        bool IsStudent = position.ToLower() == "medical student";
 
-        var md = await context.MedDatas.FirstOrDefaultAsync(md => !md.IsAnnotated && md.LockedByUserId == userId);
-
-        var totalMedDataCount = context.MedDatas.Count();
-        var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
+        // Get counting stats for progress indicator
+        var totalMedDataCount = await context.MedDatas.CountAsync();
+        var annotatedMedDataCount = IsStudent ? await context.MedDatas.CountAsync(md => md.IsAnnotatedByStudent) : await context.MedDatas.CountAsync(md => md.IsAnnotated);
         var counter = $"{annotatedMedDataCount}/{totalMedDataCount}";
 
-        if (md is not null) return (md, counter);
+        MedData? lockedMedData = null;
 
-        if (annotatedMedDataCount != totalMedDataCount && position.ToLower() != "medical student")
-        {   
-            // && (md.BodyRegion!.ToLower() == bodyRegion) && (md.Modality!.ToLower() == imageModality)
-            medData = await context.MedDatas
-                .Where(md => !md.IsAnnotated && (md.LockedByUserId == null) && (md.Speciality!.ToLower() == speciality))
-                .OrderBy(md => md.Id)
-                .FirstOrDefaultAsync();
-
+        if (IsStudent)
+        {
+            lockedMedData = await context.MedDatas
+                .FirstOrDefaultAsync(md => !md.IsAnnotatedByStudent && md.LockedByStudentUserId == userId);
+        }
+        else
+        {
+            lockedMedData = await context.MedDatas
+                .FirstOrDefaultAsync(md => !md.IsAnnotated && md.LockedByUserId == userId);
         }
 
-        if (medData != null)
+        if (lockedMedData != null)
+        {
+            return (lockedMedData, counter);
+        }
+
+        // If we have no more data to annotate, return null
+        if (annotatedMedDataCount >= totalMedDataCount)
+        {
+            return (null, counter);
+        }
+
+        // Parse body regions and modalities (assumes comma-separated strings)
+        var userBodyRegions = !string.IsNullOrEmpty(bodyRegion)
+            ? bodyRegion.ToLower().Split(',').Select(br => br.Trim()).ToList()
+            : new List<string>();
+
+        var userImageModalities = !string.IsNullOrEmpty(imageModality)
+            ? imageModality.ToLower().Split(',').Select(im => im.Trim()).ToList()
+            : new List<string>();
+
+        // Prepare the query based on position type
+        var query = context.MedDatas
+            .Where(md => IsStudent ? !md.IsAnnotatedByStudent : !md.IsAnnotated);
+
+        // Add speciality filter
+        query = query.Where(md => md.Speciality != null && md.Speciality.ToLower() == speciality.ToLower());
+
+        // For non-students, also check that it's not locked by another user
+        if (!IsStudent)
+        {
+            query = query.Where(md => md.LockedByUserId == null);
+        }
+        else
+        {
+            query = query.Where(md => md.LockedByStudentUserId == null);
+        }
+
+        // Apply body region filter if specified
+        if (userBodyRegions.Any())
+        {
+            query = query.Where(md => md.BodyRegion != null &&
+                userBodyRegions.Contains(md.BodyRegion.ToLower()));
+        }
+
+        // Apply image modality filter if specified
+        if (userImageModalities.Any())
+        {
+            query = query.Where(md => md.Modality != null &&
+                userImageModalities.Contains(md.Modality.ToLower()));
+        }
+
+        // Get the first available MedData
+        var medData = await query.OrderBy(md => md.Id).FirstOrDefaultAsync();
+
+        // If found, lock it for this user (except for students who may see locked data)
+        if (medData != null && !IsStudent)
         {
             medData.LockedByUserId = userId;
+            await context.SaveChangesAsync();
+        }
+        else if (medData != null && IsStudent)
+        {
+            medData.LockedByStudentUserId = userId;
             await context.SaveChangesAsync();
         }
 
@@ -53,18 +113,24 @@ public class MedDataRepository : IMedDataRepository
             .ToListAsync();
     }
 
-    public async Task<bool> UpdateIsAnnotated(int medDataId)
+    public async Task<bool> UpdateIsAnnotated(int medDataId, bool isAnnotatedByStudent)
     {
         var medData = await context.MedDatas.FindAsync(medDataId);
 
         if (medData == null) return false;
 
-        // var totalMedDataCount = context.MedDatas.Count();
-        // var annotatedMedDataCount = context.MedDatas.Count(md => md.IsAnnotated);
+        if (isAnnotatedByStudent)
+        {
+            medData.IsAnnotatedByStudent = true;
+            medData.LockedByStudentUserId = null;
+        }
+        else
+        {
+            medData.IsAnnotated = true;
+            medData.LockedByUserId = null;
+            medData.KeywordStates = null;
+        }
 
-        medData!.IsAnnotated = true;
-        medData.LockedByUserId = null;
-        medData.KeywordStates = null;
 
         context.MedDatas.Update(medData);
         await context.SaveChangesAsync();
@@ -72,21 +138,32 @@ public class MedDataRepository : IMedDataRepository
         return true;
     }
 
-    public async Task<bool> UpdateLock(int medDataId, string keywordStates, bool isAnnotationStarted)
+    public async Task<bool> UpdateLock(int medDataId, string keywordStates, bool isAnnotationStarted, bool isStudent)
     {
         var medData = await context.MedDatas.FindAsync(medDataId);
 
         if (medData == null) return false;
 
-        if (isAnnotationStarted)
+        if (isStudent)
         {
-            medData.KeywordStates = keywordStates;
+            medData.LockedByStudentUserId = null;
         }
         else
         {
-            medData.KeywordStates = null;
-            medData.LockedByUserId = null;
+            if (isAnnotationStarted)
+            {
+                // Save the current state of keywords
+                medData.KeywordStates = keywordStates;
+            }
+            else
+            {
+                // Release the lock entirely
+                medData.KeywordStates = null;
+                medData.LockedByUserId = null;
+            }
         }
+
+
         context.MedDatas.Update(medData);
         await context.SaveChangesAsync();
 
