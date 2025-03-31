@@ -42,13 +42,50 @@ public class IdentityService : IIdentityService
 
     public async Task<(bool Succeeded, IEnumerable<string>? Errors)> LoginAsync(string? email, string? password)
     {
-        var user = await userManager.FindByEmailAsync(email!);
+        // Validate that email is not null or empty
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return (false, ["Email address is required."]);
+        }
 
-        if (user == null) return (false, ["Invalid login attempt."]); 
+        // Validate that password is not null or empty
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return (false, ["Password is required."]);
+        }
 
-        var result = await signInManager.PasswordSignInAsync(user, password, false, false);
+        var user = await userManager.FindByEmailAsync(email);
 
-        return result.Succeeded ? (true, null) : (false, ["Invalid login attempt."]);
+        // Specific message when email is not found
+        if (user == null)
+        {
+            return (false, ["The email address you entered does not exist in our system."]);
+        }
+
+        // Check password but don't lock the account
+        var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: false, lockoutOnFailure: false);
+
+        if (result.Succeeded)
+        {
+            return (true, null);
+        }
+        else if (result.IsLockedOut)
+        {
+            return (false, ["This account has been locked due to too many failed login attempts. Please try again later."]);
+        }
+        else if (result.IsNotAllowed)
+        {
+            return (false, ["This account is not allowed to login. Please contact support."]);
+        }
+        else if (result.RequiresTwoFactor)
+        {
+            return (false, ["Two factor authentication is required but not supported by this application."]);
+        }
+        else
+        {
+            // This is typically a wrong password
+            return (false, ["The password you entered is incorrect. Please try again."]);
+        }
     }
 
     public async Task<bool> ConfirmEmailAsync(string? userId, string? token)

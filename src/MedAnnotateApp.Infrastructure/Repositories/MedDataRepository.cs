@@ -46,6 +46,11 @@ public class MedDataRepository : IMedDataRepository
             return (null, counter);
         }
 
+        // Parse user specialties (assumes comma-separated string)
+        var userSpecialties = !string.IsNullOrEmpty(speciality)
+            ? speciality.ToLower().Split(',').Select(s => s.Trim()).ToList()
+            : new List<string>();
+
         // Parse body regions and modalities (assumes comma-separated strings)
         var userBodyRegions = !string.IsNullOrEmpty(bodyRegion)
             ? bodyRegion.ToLower().Split(',').Select(br => br.Trim()).ToList()
@@ -59,8 +64,12 @@ public class MedDataRepository : IMedDataRepository
         var query = context.MedDatas
             .Where(md => IsStudent ? !md.IsAnnotatedByStudent : !md.IsAnnotated);
 
-        // Add speciality filter
-        query = query.Where(md => md.Speciality != null && md.Speciality.ToLower() == speciality.ToLower());
+        // Add speciality filter - match if any of the user's specialties match the medData's specialty
+        if (userSpecialties.Any())
+        {
+            query = query.Where(md => md.Speciality != null && 
+                userSpecialties.Contains(md.Speciality.ToLower()));
+        }
 
         // For non-students, also check that it's not locked by another user
         if (!IsStudent)

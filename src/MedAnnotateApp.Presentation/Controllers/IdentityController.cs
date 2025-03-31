@@ -52,6 +52,9 @@ public class IdentityController : Controller
             return RedirectToAction(nameof(Login));
         }
 
+        // Clear model state when displaying the authorization form
+        ModelState.Clear();
+        
         // Handle form errors from previous attempts
         HandleTempDataErrors();
 
@@ -64,24 +67,32 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    public IActionResult PostAuthorizationAccess([FromForm] AuthorizationAccessDto authorizationAccessDto)
+    public IActionResult PostAuthorizationAccess(AuthorizationAccessDto authDto)
     {
+        _logger.LogInformation("Authorization access attempt");
+        
         if (!ModelState.IsValid)
         {
-            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            return RedirectToAction(nameof(AuthorizationAccess));
+            _logger.LogWarning("Authorization access validation failed: {Errors}", 
+                string.Join(", ", ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)));
+                    
+            return View("AuthorizationAccess", authDto);
         }
 
         var hashedPassword = _configuration["AuthorizationAccessPasswordHash"];
-        if (AuthorizationAccessPasswordService.VerifyPassword(authorizationAccessDto.Password!, hashedPassword!))
+        if (AuthorizationAccessPasswordService.VerifyPassword(authDto.Password!, hashedPassword!))
         {
+            _logger.LogInformation("Authorization access granted");
             // Set a simple flag in session
             HttpContext.Session.SetString("Authorized", "true");
             return RedirectToAction(nameof(Login));
         }
 
-        TempData["Errors"] = new List<string> { "Incorrect password." };
-        return RedirectToAction(nameof(AuthorizationAccess));
+        _logger.LogWarning("Authorization access denied - incorrect password");
+        ModelState.AddModelError(string.Empty, "The password you entered is incorrect. Please try again.");
+        return View("AuthorizationAccess", authDto);
     }
     
     #endregion
@@ -107,6 +118,9 @@ public class IdentityController : Controller
             TempData["ReturnUrl"] = returnUrl;
         }
 
+        // Clear model state when displaying the login form
+        ModelState.Clear();
+        
         // Handle errors from previous login attempts
         HandleTempDataErrors();
 
@@ -119,18 +133,24 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> PostLogin([FromForm] LoginDto loginDto)
+    public async Task<IActionResult> PostLogin(LoginDto loginDto)
     {
+        _logger.LogInformation("Login attempt for email: {Email}", loginDto.Email);
+        
+        // Check model validity first
         if (!ModelState.IsValid)
         {
-            TempData["Errors"] = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage)).ToList();
-            return RedirectToAction(nameof(Login));
+            _logger.LogWarning("Login form validation failed");
+            return View("Login", loginDto);
         }
 
+        // Try to log in using the identity service
         var (succeeded, errors) = await _identityService.LoginAsync(loginDto.Email!, loginDto.Password!);
 
         if (succeeded)
         {
+            _logger.LogInformation("User logged in successfully: {Email}", loginDto.Email);
+            
             // Check if we have a return URL
             if (TempData["ReturnUrl"] is string returnUrl && !string.IsNullOrEmpty(returnUrl))
             {
@@ -143,8 +163,26 @@ public class IdentityController : Controller
             return RedirectToRoleBasedPage();
         }
 
-        TempData["Errors"] = new List<string> { "Incorrect Email or Password." };
-        return RedirectToAction(nameof(Login));
+        // If we get here, login failed
+        _logger.LogWarning("Login failed for {Email}: {Errors}", 
+            loginDto.Email, 
+            errors != null && errors.Any() ? string.Join(", ", errors) : "No specific errors returned");
+        
+        // Add errors directly to ModelState
+        if (errors != null && errors.Any())
+        {
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError(string.Empty, error);
+            }
+        }
+        else
+        {
+            ModelState.AddModelError(string.Empty, "Invalid email or password. Please try again.");
+        }
+        
+        // Return to the login view with the model and errors
+        return View("Login", loginDto);
     }
 
     /// <summary>
@@ -254,10 +292,10 @@ public class IdentityController : Controller
                 UserName = signupDto.Email,
                 University = signupDto.University,
                 Position = signupDto.Position,
-                Speciality = signupDto.Speciality,
+                Speciality = signupDto.Speciality != null ? string.Join(",", signupDto.Speciality) : null,
                 BodyRegion = signupDto.BodyRegion != null ? string.Join(",", signupDto.BodyRegion) : null,
                 ImageModality = signupDto.ImageModality != null ? string.Join(",", signupDto.ImageModality) : null,
-                ClinicalExperience = signupDto.ClinicalExperience,
+                ClinicalExperience = signupDto.ClinicalExperience ?? 0,
                 OrcidId = signupDto.OrcidId,
             };
 
@@ -360,12 +398,32 @@ public class IdentityController : Controller
     /// </summary>
     private void HandleTempDataErrors()
     {
-        if (TempData["Errors"] is List<string> errors)
+        try
         {
-            foreach (var error in errors)
+            // Debug information to trace error handling flow
+            _logger.LogDebug("HandleTempDataErrors called. TempData contains errors: {HasErrors}", 
+                TempData.ContainsKey("Errors"));
+                
+            if (TempData["Errors"] is List<string> errors && errors.Any())
             {
-                ModelState.AddModelError("", error);
+                _logger.LogDebug("Processing {Count} errors from TempData", errors.Count);
+                foreach (var error in errors)
+                {
+                    ModelState.AddModelError(string.Empty, error);
+                }
+                
+                // Instead of removing errors immediately, keep them in TempData but mark as 'peeked'
+                // This preserves them for the current request but allows them to be read in views
+                TempData.Keep("Errors");
             }
+            else
+            {
+                _logger.LogDebug("No errors found in TempData or errors collection was empty");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling TempData errors");
         }
     }
     

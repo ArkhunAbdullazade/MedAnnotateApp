@@ -18,7 +18,7 @@
 
     .form-container {
         padding: 12px 20px !important;
-        height: 620px;
+        height: 625px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -29,7 +29,7 @@
     /* Form styling */
     form {
         width: 100%;
-        max-width: 450px;
+        max-width: 460px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -80,7 +80,7 @@
     /* Error summary styling */
     .validation-summary-errors {
         display: block !important;
-        max-height: 120px;
+        max-height: 115px;
         overflow-y: auto;
         color: #dc3545 !important;
         font-size: 14px;
@@ -252,13 +252,13 @@
         border-radius: 12px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         overflow: hidden;
-        height: 620px;
+        height: 625px;
     }
     
     .welcome-column {
         background-color: #f8f9fa;
         border-radius: 8px 0 0 8px;
-        height: 620px;
+        height: 625px;
         padding: 30px !important;
         display: flex;
         align-items: center;
@@ -266,7 +266,7 @@
     
     .form-column {
         background-color: #ffffff;
-        height: 620px;
+        height: 635px;
         overflow-y: auto;
     }
     
@@ -362,13 +362,20 @@
                                             <span asp-validation-for="Position" class="field-validation-error text-danger"></span>
                                         </div>
                                         <div class="col-md-6">
-                                            <select asp-for="Speciality" class="form-control">
-                                                <option disabled selected value="">Select Specialty</option>
-                                                @foreach (var speciality in specialities)
-                                                {
-                                                    <option value="@speciality">@speciality</option>
-                                                }
-                                            </select>
+                                            <div class="multiselect-dropdown">
+                                                <div class="multiselect-dropdown-button" id="specialtyButton">
+                                                    Select Specialty
+                                                </div>
+                                                <div class="multiselect-dropdown-content" id="specialtyDropdown">
+                                                    @foreach (var speciality in specialities)
+                                                    {
+                                                        <div class="multiselect-option">
+                                                            <input type="checkbox" id="specialty-@speciality.Replace(" ", "-")" name="Speciality" value="@speciality">
+                                                            <label for="specialty-@speciality.Replace(" ", "-")">@speciality</label>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
                                             <span asp-validation-for="Speciality" class="field-validation-error text-danger"></span>
                                         </div>
                                     </div>
@@ -488,6 +495,9 @@
     <partial name="_ValidationScriptsPartial" />
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Set up Specialty dropdown
+            setupMultiSelect('specialtyButton', 'specialtyDropdown', 'Specialty', '@(Model?.Speciality != null ? string.Join(",", Model.Speciality) : "")');
+            
             // Set up Body Region dropdown
             setupMultiSelect('bodyRegionButton', 'bodyRegionDropdown', 'Body Region', '@(Model?.BodyRegion != null ? string.Join(",", Model.BodyRegion) : "")');
             
@@ -497,6 +507,8 @@
             function setupMultiSelect(buttonId, dropdownId, fieldName, preselectedValues) {
                 const button = document.getElementById(buttonId);
                 const dropdown = document.getElementById(dropdownId);
+                
+                if (!button || !dropdown) return;
                 
                 // Pre-select values if they exist
                 if (preselectedValues) {

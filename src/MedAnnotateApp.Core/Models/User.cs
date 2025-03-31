@@ -7,8 +7,8 @@ public class User : IdentityUser
     public string? University { get; set; }
     public string? Position { get; set; }
     public string? Speciality { get; set; }
-    public int ClinicalExperience { get; set; }
-    public string? OrcidId { get; set; }
     public string? BodyRegion { get; set; }
     public string? ImageModality { get; set; }
+    public int ClinicalExperience { get; set; }
+    public string? OrcidId { get; set; }
 }
