@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "kjS1T48WCfDZcu9TFK6vt2ZTK6wZooHYO2QV4X0ijrg=",
+  "Hash": "KmBOh7aHG/witAYNRnrvQXzAcQBSFQ62snHvBrO2EVo=",
   "Source": "MedAnnotateApp.Presentation",
   "BasePath": "_content/MedAnnotateApp.Presentation",
   "Mode": "Default",
@@ -338,6 +338,25 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\js\\professionalPage.js"
+    },
+    {
+      "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\studentCanvas.js",
+      "SourceId": "MedAnnotateApp.Presentation",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\",
+      "BasePath": "_content/MedAnnotateApp.Presentation",
+      "RelativePath": "js/studentCanvas.js",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\js\\studentCanvas.js"
     },
     {
       "Identity": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\studentPage.js",

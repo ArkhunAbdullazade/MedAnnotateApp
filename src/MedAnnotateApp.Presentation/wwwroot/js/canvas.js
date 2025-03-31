@@ -75,19 +75,36 @@ class CanvasManager {
       return num / den;
     }
   
-    normalizeToTenPoints(points) {
-      if (points.length <= 10) return points;
+    // Adaptive path simplification - replaces normalizeToTenPoints
+    adaptiveSimplification(points, minPoints = 8, maxPoints = 25) {
+      // If we already have fewer points than minPoints, return as is
+      if (points.length <= minPoints) return points;
       
-      const result = [points[0]];
-      const step = (points.length - 1) / 9;
-      
-      for (let i = 1; i < 9; i++) {
-        const index = Math.round(i * step);
-        result.push(points[index]);
+      // If we have more than maxPoints, use RDP with varying epsilon to get a good count
+      if (points.length > maxPoints) {
+        // Start with a small epsilon and gradually increase until we get a reasonable number of points
+        let epsilon = 1.5;  // Start with slightly higher epsilon for better simplification
+        let simplified = this.rdp(points, epsilon);
+        
+        // If we still have too many points, increase epsilon until we get a reasonable count
+        // but don't go below our minimum
+        while (simplified.length > maxPoints && simplified.length > minPoints) {
+          epsilon *= 1.5;  // Increase epsilon by 50% each time
+          simplified = this.rdp(points, epsilon);
+        }
+        
+        // If we have too few points, decrease epsilon until we get a reasonable count
+        while (simplified.length < minPoints && epsilon > 0.5) {
+          epsilon /= 1.5;  // Decrease epsilon
+          simplified = this.rdp(points, epsilon);
+        }
+        
+        console.log(`Simplified freehand annotation from ${points.length} to ${simplified.length} points (epsilon: ${epsilon.toFixed(2)})`);
+        return simplified;
       }
       
-      result.push(points[points.length - 1]);
-      return result;
+      // If number of points is already within our target range, just return them
+      return points;
     }
   
     boundaryCheck(annotation) {
@@ -1080,9 +1097,14 @@ class CanvasManager {
             }
           }
         } else if (this.currentMode === "freehand" && this.freehandPoints.length > 2) {
-          // Simplify points using RDP algorithm with smaller tolerance
+          // Simplify points using RDP algorithm with adaptive tolerance
           const tolerance = 2;
+          
+          // First simplify with RDP using a fixed tolerance
           let simplified = this.rdp(this.freehandPoints, tolerance);
+          
+          // Then apply adaptive simplification to get a reasonable number of points
+          simplified = this.adaptiveSimplification(simplified);
           
           // Auto-close shape if endpoints are close
           if (simplified.length > 2) {
@@ -1093,11 +1115,6 @@ class CanvasManager {
             } else {
               simplified.push({ ...first });
             }
-          }
-          
-          // Normalize to exactly 10 points if there are more
-          if (simplified.length > 10) {
-            simplified = this.normalizeToTenPoints(simplified);
           }
           
           const newAnnotation = {

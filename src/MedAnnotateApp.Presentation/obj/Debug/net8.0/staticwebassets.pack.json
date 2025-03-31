@@ -65,6 +65,10 @@
       "PackagePath": "staticwebassets\\js\\professionalPage.js"
     },
     {
+      "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\studentCanvas.js",
+      "PackagePath": "staticwebassets\\js\\studentCanvas.js"
+    },
+    {
       "Id": "C:\\Users\\USER\\Desktop\\StandfordProject\\MedAnnotateApp\\src\\MedAnnotateApp.Presentation\\wwwroot\\js\\studentPage.js",
       "PackagePath": "staticwebassets\\js\\studentPage.js"
     },

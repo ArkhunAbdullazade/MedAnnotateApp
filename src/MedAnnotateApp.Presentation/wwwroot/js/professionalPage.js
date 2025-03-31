@@ -59,6 +59,27 @@ function handleLogout() {
     }
   }
   
+  // Check if we have a canvasManager with annotations that might not be reflected in keywordStates yet
+  if (!isAnnotationStarted && window.canvasManager) {
+    try {
+      if (typeof window.canvasManager.getAnnotations === 'function') {
+        const annotations = window.canvasManager.getAnnotations();
+        if (annotations && annotations.length > 0) {
+          isAnnotationStarted = true;
+          console.log("Determined isAnnotationStarted = true from current annotations");
+        }
+      } else if (typeof window.canvasManager.getAnnotationGroups === 'function') {
+        const groups = window.canvasManager.getAnnotationGroups();
+        if (groups && groups.length > 0) {
+          isAnnotationStarted = true;
+          console.log("Determined isAnnotationStarted = true from current annotation groups");
+        }
+      }
+    } catch (e) {
+      console.error("Error checking for annotations:", e);
+    }
+  }
+  
   console.log("Final isAnnotationStarted value:", isAnnotationStarted);
   console.log("Final keywordStatesJson value:", window.keywordStatesJson);
   
@@ -129,6 +150,15 @@ function initializeAnnotationTools() {
       break;
     }
   }
+  
+  // CRITICAL: Create a function to sync keywordStates to window.keywordStatesJson
+  // This ensures the global variable is always up to date for logout
+  function syncKeywordStates() {
+    window.keywordStatesJson = JSON.stringify(keywordStates);
+    console.log("Synced keywordStates to global window.keywordStatesJson:", window.keywordStatesJson);
+  }
+  // Do initial sync
+  syncKeywordStates();
 
   // ====================================================
   // Timestamp Variables for Current Term
@@ -169,6 +199,9 @@ function initializeAnnotationTools() {
       else if (keywordStates[i] === 3) kw.classList.add("current_keyword");
       else if (keywordStates[i] === 4) kw.classList.add("skipped_keyword");
     });
+    
+    // CRITICAL: Sync keywordStates to global window.keywordStatesJson whenever UI is updated
+    syncKeywordStates();
   }
 
   function updateNavigationButtons() {
@@ -253,6 +286,8 @@ function initializeAnnotationTools() {
           
           // Update UI immediately to reflect changes
           updateKeywordUI();
+          // CRITICAL: Ensure keywordStates are synchronized after changes
+          syncKeywordStates();
           
           // Create a copy for API
           let statesForAPI = [...keywordStates];
@@ -356,6 +391,8 @@ function initializeAnnotationTools() {
       
       // Update UI immediately to reflect changes
       updateKeywordUI();
+      // CRITICAL: Ensure keywordStates are synchronized after changes
+      syncKeywordStates();
       
       // Create a copy for API
       let statesForAPI = [...keywordStates];
@@ -443,6 +480,8 @@ function initializeAnnotationTools() {
       
       // Update UI immediately to reflect changes
       updateKeywordUI();
+      // CRITICAL: Ensure keywordStates are synchronized after changes
+      syncKeywordStates();
       
       // Create a copy for API
       let statesForAPI = [...keywordStates];
@@ -522,6 +561,9 @@ function initializeAnnotationTools() {
         PressedButton: pressedButton,
         Comment: commentValue,
       };
+      
+      // CRITICAL: Ensure keywordStates are synchronized after storing annotation
+      syncKeywordStates();
     }
   }
 
