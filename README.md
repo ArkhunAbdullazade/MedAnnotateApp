@@ -4,6 +4,12 @@ MedAnnotateApp is an ASP.NET Core MVC application for collecting structured visu
 
 The app is designed for controlled annotation studies: users pass an authorization gate, sign up with an institutional email address, receive a role-based annotation screen, and are assigned images that match their specialty, body region, and image modality selections.
 
+## Video Demo
+
+> A partial walkthrough of MedAnnotateApp locally.
+
+[Watch the MedAnnotateApp video demo](https://drive.google.com/file/d/10KE4MSIjdLQpE0J9nxgl21jFsLJl3jjM/view?usp=sharing)
+
 ## Features
 
 - Authorization gate before login and signup, backed by a BCrypt password hash.
@@ -16,12 +22,6 @@ The app is designed for controlled annotation studies: users pass an authorizati
 - EF Core migrations that run on application startup.
 - Initial data seeding from `src/MedAnnotateApp.Presentation/mockPMCMIDdata7.xlsx` when the `MedDatas` table is empty.
 - Docker Compose setup for the web app, PostgreSQL, and Redis.
-
-## Video Demo
-
-> A partial walkthrough of MedAnnotateApp locally.
-
-[Watch the MedAnnotateApp video demo](https://drive.google.com/file/d/10KE4MSIjdLQpE0J9nxgl21jFsLJl3jjM/view?usp=sharing)
 
 ## Tech Stack
 
