@@ -17,6 +17,12 @@ The app is designed for controlled annotation studies: users pass an authorizati
 - Initial data seeding from `src/MedAnnotateApp.Presentation/mockPMCMIDdata7.xlsx` when the `MedDatas` table is empty.
 - Docker Compose setup for the web app, PostgreSQL, and Redis.
 
+## Video Demo
+
+> A partial walkthrough of MedAnnotateApp locally.
+
+[Watch the MedAnnotateApp video demo](https://drive.google.com/file/d/10KE4MSIjdLQpE0J9nxgl21jFsLJl3jjM/view?usp=sharing)
+
 ## Tech Stack
 
 - .NET 8
