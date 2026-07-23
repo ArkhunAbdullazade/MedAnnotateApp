@@ -6,7 +6,7 @@ The app is designed for controlled annotation studies: users pass an authorizati
 
 ## Video Demo
 
-> A partial walkthrough of MedAnnotateApp locally.
+> A partial development stage walkthrough of MedAnnotateApp locally.
 
 [Watch the MedAnnotateApp video demo](https://drive.google.com/file/d/10KE4MSIjdLQpE0J9nxgl21jFsLJl3jjM/view?usp=sharing)
 
