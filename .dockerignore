@@ -1,25 +1,35 @@
-# Ignore build directories
-bin/
-obj/
+# Build output
+**/bin/
+**/obj/
 out/
+publish/
+artifacts/
+TestResults/
 
-# Ignore user-specific files
-*.user
-*.vs
+# User and IDE state
+.vs/
 .vscode/
+.idea/
+*.user
+*.suo
 
-# Ignore temporary files and logs
-*.log
-*.tmp
+# Local configuration and secrets
+.env
+.env.*
+keys/
+*.pfx
+*.p12
+*.pem
+*.key
 
-# Ignore Git-related files
+# Git and OS state
 .git/
 .gitignore
-
-# Ignore Docker-related files
-Dockerfile
-docker-compose.yml
-
-# Ignore OS-generated files
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp

@@ -39,6 +39,9 @@ The app is designed for controlled annotation studies: users pass an authorizati
 ```text
 .
 |-- MedAnnotateApp.sln
+|-- Directory.Build.props
+|-- .env.example
+|-- .gitignore
 |-- Dockerfile
 |-- docker-compose.yml
 |-- src
@@ -78,12 +81,15 @@ For local development without Docker:
 
 The application reads configuration from `appsettings.json`, `appsettings.Development.json`, environment variables, or user secrets.
 
+No private credentials are committed. Use a local `.env` file for Docker Compose, environment variables, or .NET user secrets for development-only values.
+
 Important settings:
 
 | Setting | Purpose |
 | --- | --- |
 | `ConnectionStrings:MedDataDb` | PostgreSQL connection string used by EF Core. |
 | `ConnectionStrings:RedisConnection` | Redis connection string included for containerized environments. |
+| `DataProtection:KeysPath` | Optional path for persisted ASP.NET Core data-protection keys. Docker uses `/app/keys`. |
 | `AuthorizationAccessPasswordHash` | BCrypt hash for the first authorization gate. |
 | `SmtpSettings:Server` | SMTP host for email delivery. |
 | `SmtpSettings:Port` | SMTP port. |
@@ -106,6 +112,8 @@ $env:SmtpSettings__Password="<smtp-password>"
 From the repository root:
 
 ```powershell
+Copy-Item .env.example .env
+# Edit .env and set POSTGRES_PASSWORD plus AUTHORIZATION_ACCESS_PASSWORD_HASH.
 docker compose up --build
 ```
 
@@ -122,19 +130,27 @@ On startup, the app will:
 3. Create the `Medical_Student` and `Professional` roles if they do not exist.
 4. Load the bundled Excel data into the database if `MedDatas` is empty.
 
-The default Docker Compose database settings are intended for local development only. Change the PostgreSQL credentials and the matching application connection string before using this outside a local environment.
+The Compose file reads database, SMTP, and authorization-gate values from `.env` or your shell environment.
 
 ## Local Development
 
 Start PostgreSQL and create a database named `meddatadb`, or update the connection string to point at your own database.
 
-Run the app from the Presentation project directory so the relative Excel seed path resolves correctly:
+For user secrets:
 
 ```powershell
-Set-Location src\MedAnnotateApp.Presentation
-dotnet restore ..\..\MedAnnotateApp.sln
-dotnet build ..\..\MedAnnotateApp.sln
-dotnet run
+dotnet user-secrets init --project src\MedAnnotateApp.Presentation
+dotnet user-secrets set "ConnectionStrings:MedDataDb" "Host=localhost;Port=5432;Database=meddatadb;Username=postgres;Password=<password>" --project src\MedAnnotateApp.Presentation
+dotnet user-secrets set "AuthorizationAccessPasswordHash" "<bcrypt-hash>" --project src\MedAnnotateApp.Presentation
+dotnet user-secrets set "SmtpSettings:Password" "<smtp-password>" --project src\MedAnnotateApp.Presentation
+```
+
+Run the app from the solution root:
+
+```powershell
+dotnet restore MedAnnotateApp.sln
+dotnet build MedAnnotateApp.sln
+dotnet run --project src\MedAnnotateApp.Presentation
 ```
 
 The development profile serves the app at:
@@ -144,7 +160,7 @@ https://localhost:7243
 http://localhost:5210
 ```
 
-If you prefer running from the solution root, make sure `mockPMCMIDdata7.xlsx` is available at the process working directory or adjust the seed path in `Program.cs`.
+The seed loader now resolves `mockPMCMIDdata7.xlsx` from the Presentation project's content root, so `dotnet run --project src\MedAnnotateApp.Presentation` also works from the solution root.
 
 ## Application Flow
 
@@ -204,10 +220,14 @@ Check that:
 
 The authorization gate is stored in session state. A new browser session, cleared cookies, or server restart can require users to pass the gate again.
 
+### Authorization password is always rejected
+
+Check that `AuthorizationAccessPasswordHash` is configured and is a valid BCrypt hash.
+
 ## Development Notes
 
 - There is currently no test project in the solution.
-- `bin` and `obj` outputs are present in the repository; future cleanup may want to remove generated artifacts from source control.
+- Build output, IDE state, `.csproj.user` files, local `.env` files, and data-protection keys are ignored by git.
 - Email confirmation code exists but is currently not active during signup.
 - Redis is included in Docker Compose and configuration, but session state is currently configured with the default in-app session services.
 

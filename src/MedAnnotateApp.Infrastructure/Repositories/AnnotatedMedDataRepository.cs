@@ -3,6 +3,7 @@ using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Infrastructure.Data;
 
 namespace MedAnnotateApp.Infrastructure.Repositories;
+
 public class AnnotatedMedDataRepository : IAnnotatedMedDataRepository
 {
     private readonly MedDataDbContext context;
@@ -14,15 +15,15 @@ public class AnnotatedMedDataRepository : IAnnotatedMedDataRepository
 
     public async Task<bool> CreateAllAsync(IEnumerable<AnnotatedMedData> annotatedMedDatas)
     {
-        await this.context.AnnotatedMedDatas.AddRangeAsync(annotatedMedDatas);
-        await this.context.SaveChangesAsync();
+        await context.AnnotatedMedDatas.AddRangeAsync(annotatedMedDatas);
+        await context.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> CreateAsync(AnnotatedMedData annotatedMedData)
     {
-        await this.context.AnnotatedMedDatas.AddAsync(annotatedMedData);
-        await this.context.SaveChangesAsync();
+        await context.AnnotatedMedDatas.AddAsync(annotatedMedData);
+        await context.SaveChangesAsync();
         return true;
     }
 }

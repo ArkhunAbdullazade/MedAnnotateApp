@@ -3,68 +3,91 @@ using MedAnnotateApp.Core.Services;
 using OfficeOpenXml;
 
 namespace MedAnnotateApp.Infrastructure.Services;
+
 public class ExcelLoaderService : IExcelLoaderService
 {
+    private const int FirstDataRow = 3;
+
     public List<MedData> LoadMedDataFromExcel(string filePath)
     {
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+        using var package = new ExcelPackage(new FileInfo(filePath));
+        var worksheet = GetFirstWorksheet(package, filePath);
         var medDataList = new List<MedData>();
 
-        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-        using (var package = new ExcelPackage(new FileInfo(filePath)))
+        for (var row = FirstDataRow; row <= worksheet.Dimension.Rows; row++)
         {
-            var worksheet = package.Workbook.Worksheets[0];
-            int rowCount = worksheet.Dimension.Rows;
-            
-            for (int row = 3; row <= 14; row++)
+            if (!TryGetMedDataId(worksheet, row, out var medDataId))
             {
-                var medData = new MedData
-                {
-                    Id = int.Parse(worksheet.Cells[row, 1].Value.ToString()!),
-                    Pmcid = worksheet.Cells[row, 2].Value?.ToString(),
-                    ImageUrl = worksheet.Cells[row, 5].Value?.ToString(),
-                    ImageDescription = worksheet.Cells[row, 11].Value?.ToString(),
-                    Sex = worksheet.Cells[row, 19].Value?.ToString(),
-                    Age = worksheet.Cells[row, 20].Value?.ToString(),
-                    SkinTone = worksheet.Cells[row, 21].Value?.ToString(),
-                    BodyRegion = worksheet.Cells[row, 22].Value?.ToString(),
-                    Diagnosis = worksheet.Cells[row, 23].Value?.ToString(),
-                    TreatmentName = worksheet.Cells[row, 27].Value?.ToString(),
-                    Speciality = worksheet.Cells[row, 31].Value?.ToString(),
-                    Modality = worksheet.Cells[row, 32].Value?.ToString(),
-                    IsAnnotated = false,
-                };
-
-                medDataList.Add(medData);
+                continue;
             }
+
+            medDataList.Add(new MedData
+            {
+                Id = medDataId,
+                Pmcid = GetCellValue(worksheet, row, 2),
+                ImageUrl = GetCellValue(worksheet, row, 5),
+                ImageDescription = GetCellValue(worksheet, row, 11),
+                Sex = GetCellValue(worksheet, row, 19),
+                Age = GetCellValue(worksheet, row, 20),
+                SkinTone = GetCellValue(worksheet, row, 21),
+                BodyRegion = GetCellValue(worksheet, row, 22),
+                Diagnosis = GetCellValue(worksheet, row, 23),
+                TreatmentName = GetCellValue(worksheet, row, 27),
+                Speciality = GetCellValue(worksheet, row, 31),
+                Modality = GetCellValue(worksheet, row, 32),
+                IsAnnotated = false,
+            });
         }
-        System.Console.WriteLine($"count: {medDataList.Count}");
 
         return medDataList;
     }
 
-    public List<(int, string)> LoadMedKeywordsFromExcel(string filePath)
+    public List<(int MedDataId, string Keyword)> LoadMedKeywordsFromExcel(string filePath)
     {
-        var keywordList = new List<(int, string)>();
-
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-        using (var package = new ExcelPackage(new FileInfo(filePath)))
+
+        using var package = new ExcelPackage(new FileInfo(filePath));
+        var worksheet = GetFirstWorksheet(package, filePath);
+        var keywordList = new List<(int MedDataId, string Keyword)>();
+
+        for (var row = FirstDataRow; row <= worksheet.Dimension.Rows; row++)
         {
-            var worksheet = package.Workbook.Worksheets[0];
-            int rowCount = worksheet.Dimension.Rows;
-
-            for (int row = 3; row <= 14; row++)
+            if (!TryGetMedDataId(worksheet, row, out var medDataId))
             {
-                var keywords = worksheet.Cells[row, 12].Value?.ToString()?.Split(',')!;
-                var medDataId = int.Parse(worksheet.Cells[row, 1].Value.ToString()!);
+                continue;
+            }
 
-                foreach (var keyword in keywords)
-                {
-                    var trimmedKeyword = keyword.Trim();
-                    if (!string.IsNullOrWhiteSpace(trimmedKeyword)) keywordList.Add((medDataId, trimmedKeyword));
-                }
+            var keywords = GetCellValue(worksheet, row, 12);
+            if (string.IsNullOrWhiteSpace(keywords))
+            {
+                continue;
+            }
+
+            foreach (var keyword in keywords.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                keywordList.Add((medDataId, keyword));
             }
         }
 
         return keywordList;
+    }
+
+    private static ExcelWorksheet GetFirstWorksheet(ExcelPackage package, string filePath)
+    {
+        return package.Workbook.Worksheets.FirstOrDefault()
+            ?? throw new InvalidDataException($"Excel workbook '{filePath}' does not contain any worksheets.");
+    }
+
+    private static bool TryGetMedDataId(ExcelWorksheet worksheet, int row, out int medDataId)
+    {
+        var value = GetCellValue(worksheet, row, 1);
+        return int.TryParse(value, out medDataId);
+    }
+
+    private static string? GetCellValue(ExcelWorksheet worksheet, int row, int column)
+    {
+        return worksheet.Cells[row, column].Value?.ToString();
     }
 }

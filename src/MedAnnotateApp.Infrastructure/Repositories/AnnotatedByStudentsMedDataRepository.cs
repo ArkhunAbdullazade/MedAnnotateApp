@@ -2,66 +2,76 @@ using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MedAnnotateApp.Infrastructure.Repositories;
 
 public class AnnotatedByStudentsMedDataRepository : IAnnotatedByStudentsMedDataRepository
 {
-    private readonly MedDataDbContext _context;
+    private readonly MedDataDbContext context;
+    private readonly ILogger<AnnotatedByStudentsMedDataRepository> logger;
 
-    public AnnotatedByStudentsMedDataRepository(MedDataDbContext context)
+    public AnnotatedByStudentsMedDataRepository(
+        MedDataDbContext context,
+        ILogger<AnnotatedByStudentsMedDataRepository> logger)
     {
-        _context = context;
+        this.context = context;
+        this.logger = logger;
     }
 
     public async Task<bool> CreateAsync(AnnotatedByStudentsMedData entity)
     {
         try
         {
-            await _context.AnnotatedByStudentsMedDatas.AddAsync(entity);
-            await _context.SaveChangesAsync();
+            await context.AnnotatedByStudentsMedDatas.AddAsync(entity);
+            await context.SaveChangesAsync();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to create student annotation for MedDataId {MedDataId}.", entity.MedDataId);
             return false;
         }
     }
 
     public async Task<bool> CreateAllAsync(IEnumerable<AnnotatedByStudentsMedData> entities)
     {
+        var entityList = entities.ToList();
+
         try
         {
-            await _context.AnnotatedByStudentsMedDatas.AddRangeAsync(entities);
-            await _context.SaveChangesAsync();
+            await context.AnnotatedByStudentsMedDatas.AddRangeAsync(entityList);
+            await context.SaveChangesAsync();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to create {Count} student annotations.", entityList.Count);
             return false;
         }
     }
 
     public async Task<IEnumerable<AnnotatedByStudentsMedData>> GetAllAsync()
     {
-        return await _context.AnnotatedByStudentsMedDatas.ToListAsync();
+        return await context.AnnotatedByStudentsMedDatas.ToListAsync();
     }
 
     public async Task<AnnotatedByStudentsMedData?> GetByIdAsync(int id)
     {
-        return await _context.AnnotatedByStudentsMedDatas.FindAsync(id);
+        return await context.AnnotatedByStudentsMedDatas.FindAsync(id);
     }
 
     public async Task<bool> UpdateAsync(AnnotatedByStudentsMedData entity)
     {
         try
         {
-            _context.AnnotatedByStudentsMedDatas.Update(entity);
-            await _context.SaveChangesAsync();
+            context.AnnotatedByStudentsMedDatas.Update(entity);
+            await context.SaveChangesAsync();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to update student annotation {AnnotationId}.", entity.Id);
             return false;
         }
     }
@@ -71,14 +81,18 @@ public class AnnotatedByStudentsMedDataRepository : IAnnotatedByStudentsMedDataR
         try
         {
             var entity = await GetByIdAsync(id);
-            if (entity == null) return false;
-            
-            _context.AnnotatedByStudentsMedDatas.Remove(entity);
-            await _context.SaveChangesAsync();
+            if (entity == null)
+            {
+                return false;
+            }
+
+            context.AnnotatedByStudentsMedDatas.Remove(entity);
+            await context.SaveChangesAsync();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to delete student annotation {AnnotationId}.", id);
             return false;
         }
     }

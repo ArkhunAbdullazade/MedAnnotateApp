@@ -17,22 +17,28 @@ public class EmailService : IEmailService
 
     public async Task SendEmailAsync(string email, string subject, string message)
     {
-        using (var smtpClient = new SmtpClient(smtpSettings.Server, smtpSettings.Port))
+        if (string.IsNullOrWhiteSpace(smtpSettings.Server) ||
+            string.IsNullOrWhiteSpace(smtpSettings.SenderEmail) ||
+            string.IsNullOrWhiteSpace(smtpSettings.Password))
         {
-            smtpClient.UseDefaultCredentials = false;
-            smtpClient.DeliveryMethod = SmtpDeliveryMethod.Network;
-            smtpClient.Credentials = new NetworkCredential(smtpSettings.SenderEmail, smtpSettings.Password);
-            smtpClient.EnableSsl = smtpSettings.EnableSsl;
+            throw new InvalidOperationException("SMTP settings must be configured before sending email.");
+        }
 
-        var mailMessage = new MailMessage(smtpSettings.SenderEmail!, email)
-        {   
-            // From = new MailAddress(smtpSettings.SenderEmail!, smtpSettings.SenderName),
+        using var smtpClient = new SmtpClient(smtpSettings.Server, smtpSettings.Port)
+        {
+            UseDefaultCredentials = false,
+            DeliveryMethod = SmtpDeliveryMethod.Network,
+            Credentials = new NetworkCredential(smtpSettings.SenderEmail, smtpSettings.Password),
+            EnableSsl = smtpSettings.EnableSsl
+        };
+
+        using var mailMessage = new MailMessage(smtpSettings.SenderEmail, email)
+        {
             Subject = subject,
             Body = message,
             IsBodyHtml = true,
         };
 
         await smtpClient.SendMailAsync(mailMessage);
-        }
     }
 }

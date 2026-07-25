@@ -1,15 +1,9 @@
-using System.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
-using MedAnnotateApp.Presentation.Models;
-using Microsoft.AspNetCore.Authorization;
-using MedAnnotateApp.Core.Repositories;
-using Microsoft.AspNetCore.Identity;
 using MedAnnotateApp.Core.Models;
+using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Presentation.Dtos;
-using System.Collections.Generic;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Linq;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 
 namespace MedAnnotateApp.Presentation.Controllers;
 
@@ -20,22 +14,33 @@ public class MedDataController : Controller
     private readonly IAnnotatedByStudentsMedDataRepository annotatedByStudentsMedDataRepository;
     private readonly IMedDataRepository medDataRepository;
     private readonly UserManager<User> userManager;
+    private readonly ILogger<MedDataController> logger;
 
-    public MedDataController(IAnnotatedMedDataRepository annotatedMedDataRepository, IAnnotatedByStudentsMedDataRepository annotatedByStudentsMedDataRepository, IMedDataRepository medDataRepository, UserManager<User> userManager)
+    public MedDataController(
+        IAnnotatedMedDataRepository annotatedMedDataRepository,
+        IAnnotatedByStudentsMedDataRepository annotatedByStudentsMedDataRepository,
+        IMedDataRepository medDataRepository,
+        UserManager<User> userManager,
+        ILogger<MedDataController> logger)
     {
         this.annotatedMedDataRepository = annotatedMedDataRepository;
         this.annotatedByStudentsMedDataRepository = annotatedByStudentsMedDataRepository;
         this.medDataRepository = medDataRepository;
         this.userManager = userManager;
+        this.logger = logger;
     }
 
     [HttpPost]
     public async Task<IActionResult> ProcessAnnotatedMedData([FromBody] AnnotatedMedDataDto annotatedMedDataDto)
     {
         var user = await userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Unauthorized(new { success = false, message = "User not found." });
+        }
 
-        var newAnnotatedMedData = new AnnotatedMedData {
-            // MetaData
+        var newAnnotatedMedData = new AnnotatedMedData
+        {
             MedDataId = annotatedMedDataDto.Id,
             ImageUrl = annotatedMedDataDto.ImageUrl,
             ImageDescription = annotatedMedDataDto.ImageDescription,
@@ -47,70 +52,60 @@ public class MedDataController : Controller
             TreatmentName = annotatedMedDataDto.TreatmentName,
             Speciality = annotatedMedDataDto.Speciality,
             Modality = annotatedMedDataDto.Modality,
-
-            // AnnotationData
             BoxCoordinates = annotatedMedDataDto.BoxCoordinates,
             ExtractedKeyword = annotatedMedDataDto.ExtractedKeyword,
             Timestamps = annotatedMedDataDto.Timestamps,
             PressedButton = annotatedMedDataDto.PressedButton,
             Comment = annotatedMedDataDto.Comment,
-
-            // UserData
-            Email = user?.Email,
-            FullName = user?.FullName,
-            University = user?.University,
-            Position = user?.Position,
-            ClinicalExperience = user!.ClinicalExperience,
-            OrcidId = user?.OrcidId,
+            Email = user.Email,
+            FullName = user.FullName,
+            University = user.University,
+            Position = user.Position,
+            ClinicalExperience = user.ClinicalExperience,
+            OrcidId = user.OrcidId,
         };
 
         var succeeded = await annotatedMedDataRepository.CreateAsync(newAnnotatedMedData);
 
-        await medDataRepository.UpdateLock(annotatedMedDataDto.Id, annotatedMedDataDto.KeywordStates!, true, false);
+        await medDataRepository.UpdateLock(
+            annotatedMedDataDto.Id,
+            annotatedMedDataDto.KeywordStates ?? string.Empty,
+            isAnnotationStarted: true,
+            isStudent: false);
 
         return Json(new { success = succeeded });
     }
 
     [HttpPut]
-    public async Task<IActionResult> NextImage(int MedDataId)
+    public async Task<IActionResult> NextImage(int medDataId)
     {
-        var succeeded = await medDataRepository.UpdateIsAnnotated(MedDataId, false);
-        
+        var succeeded = await medDataRepository.UpdateIsAnnotated(medDataId, false);
+
         return Json(new { success = succeeded });
     }
-    
-    /// <summary>
-    /// Handles the submission of student annotations
-    /// </summary>
+
     [HttpPost]
     [Authorize(Roles = "Medical_Student")]
     public async Task<IActionResult> SubmitStudentAnnotations([FromBody] StudentAnnotationList annotationList)
     {
         if (annotationList?.Annotations == null || !annotationList.Annotations.Any())
         {
-            return Json(new { success = false, message = "No annotations provided" });
+            return Json(new { success = false, message = "No annotations provided." });
         }
 
         try
         {
-            // Get the current user
             var user = await userManager.GetUserAsync(User);
             if (user == null)
             {
-                return Json(new { success = false, message = "User not found" });
+                return Unauthorized(new { success = false, message = "User not found." });
             }
 
-            // Create entities for each annotation
             var entities = annotationList.Annotations.Select(dto => new AnnotatedByStudentsMedData
             {
-                Id = 0, // Auto-increment
                 MedDataId = dto.Id,
-                
-                // Store coordinates and textual annotations separately
                 Coordinates = dto.Coordinates,
                 TextualAnnotation = dto.TextualAnnotation,
-                
-                // Metadata from original image
                 ImageUrl = dto.ImageUrl,
                 ImageDescription = dto.ImageDescription,
                 Sex = dto.Sex,
@@ -120,8 +115,6 @@ public class MedDataController : Controller
                 TreatmentName = dto.TreatmentName,
                 Speciality = dto.Speciality,
                 Modality = dto.Modality,
-                
-                // User info for analytics
                 Email = user.Email,
                 FullName = user.FullName,
                 University = user.University,
@@ -129,24 +122,20 @@ public class MedDataController : Controller
                 ClinicalExperience = user.ClinicalExperience,
                 OrcidId = user.OrcidId
             }).ToList();
-            
-            // Save all annotations
+
             var succeeded = await annotatedByStudentsMedDataRepository.CreateAllAsync(entities);
-            
-            if (succeeded)
+            if (!succeeded)
             {
-                // Mark the MedData as processed
-                await medDataRepository.UpdateIsAnnotated(annotationList.Annotations.First().Id, true);
-                return Json(new { success = true, redirectUrl = "/Home/Student" });
+                return Json(new { success = false, message = "Failed to save annotations." });
             }
-            else
-            {
-                return Json(new { success = false, message = "Failed to save annotations" });
-            }
+
+            await medDataRepository.UpdateIsAnnotated(annotationList.Annotations.First().Id, true);
+            return Json(new { success = true, redirectUrl = "/Home/Student" });
         }
         catch (Exception ex)
         {
-            return Json(new { success = false, message = $"An error occurred: {ex.Message}" });
+            logger.LogError(ex, "Error while submitting student annotations.");
+            return Json(new { success = false, message = "An error occurred while saving annotations." });
         }
     }
 }

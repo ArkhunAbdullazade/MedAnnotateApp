@@ -7,28 +7,30 @@ namespace MedAnnotateApp.Infrastructure.Data;
 
 public class MedDataDbContext : IdentityDbContext<User, IdentityRole, string>
 {
-    public DbSet<MedData> MedDatas { get; set; }
-    public DbSet<MedDataKeyword> MedDataKeywords { get; set; }
-    public DbSet<AnnotatedMedData> AnnotatedMedDatas { get; set; }
-    public DbSet<AnnotatedByStudentsMedData> AnnotatedByStudentsMedDatas { get; set; }
+    public MedDataDbContext(DbContextOptions<MedDataDbContext> options) : base(options)
+    {
+    }
 
-    public MedDataDbContext(DbContextOptions<MedDataDbContext> options) : base(options) {}
+    public DbSet<MedData> MedDatas => Set<MedData>();
+    public DbSet<MedDataKeyword> MedDataKeywords => Set<MedDataKeyword>();
+    public DbSet<AnnotatedMedData> AnnotatedMedDatas => Set<AnnotatedMedData>();
+    public DbSet<AnnotatedByStudentsMedData> AnnotatedByStudentsMedDatas => Set<AnnotatedByStudentsMedData>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<MedData>()
-            .Property(m => m.Id)
+            .Property(medData => medData.Id)
             .ValueGeneratedNever();
-        
+
         modelBuilder.Entity<MedDataKeyword>()
-            .HasOne(md => md.MedData)
-            .WithMany(m => m.MedDataKeywords)
-            .HasForeignKey(md => md.MedDataId);
+            .HasOne(medDataKeyword => medDataKeyword.MedData)
+            .WithMany(medData => medData.MedDataKeywords)
+            .HasForeignKey(medDataKeyword => medDataKeyword.MedDataId);
 
         modelBuilder.Entity<MedData>()
-            .Property(u => u.IsAnnotated)
+            .Property(medData => medData.IsAnnotated)
             .HasDefaultValue(false);
     }
 }

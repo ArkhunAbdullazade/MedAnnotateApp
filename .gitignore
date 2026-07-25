@@ -1,0 +1,46 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+out/
+publish/
+artifacts/
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+# User and IDE state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+secrets.json
+keys/
+*.pfx
+*.p12
+*.pem
+*.key
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# NuGet
+packages/
+*.nupkg
