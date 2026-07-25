@@ -260,49 +260,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    
-    <script>
-        $(document).ready(function () {
-            // Configure jQuery validation to use only validation summary
-            $.validator.setDefaults({
-                errorElement: "span",
-                errorClass: "text-danger",
-                errorPlacement: function (error, element) {
-                    // Don't show errors next to fields
-                    return;
-                },
-                highlight: function (element, errorClass) {
-                    $(element).addClass("input-validation-error");
-                },
-                unhighlight: function (element, errorClass) {
-                    $(element).removeClass("input-validation-error");
-                },
-                showErrors: function (errorMap, errorList) {
-                    this.defaultShowErrors();
-                    
-                    // Find validation summary
-                    var $summary = $(".validation-summary-errors");
-                    
-                    // If no validation summary exists yet, create one
-                    if ($summary.length === 0) {
-                        $summary = $("<div class='validation-summary-errors'><ul></ul></div>");
-                        $(".mb-3.w-100").html($summary);
-                    }
-                    
-                    // Clear existing errors
-                    $summary.find("ul").empty();
-                    
-                    // Add each error to the validation summary
-                    if (errorList.length > 0) {
-                        $.each(errorList, function (index, error) {
-                            $summary.find("ul").append("<li>" + error.message + "</li>");
-                        });
-                        $summary.removeClass("validation-summary-valid").addClass("validation-summary-errors");
-                    } else {
-                        $summary.removeClass("validation-summary-errors").addClass("validation-summary-valid");
-                    }
-                }
-            });
-        });
-    </script>
+    <script src="~/js/validationSummary.js" asp-append-version="true"></script>
 }

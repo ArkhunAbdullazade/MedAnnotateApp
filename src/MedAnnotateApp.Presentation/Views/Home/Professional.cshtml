@@ -4,28 +4,70 @@
     var medDataKeywords = ViewBag.MedDataKeywords as IList<string?>;
     var counter = ViewBag.Counter as string;
 
-    string HighlightKeywords(string text, IList<string> keywords)
+    string HighlightKeywords(string? text, IList<string?>? keywords)
     {
-        for (int i = 0; i < keywords.Count(); i++)
+        if (string.IsNullOrEmpty(text))
         {
-            var kw = keywords[i];
-            var highlightStyle = i == 0 ? "current_keyword" : "not_annotated_keyword";
-            if (!string.IsNullOrEmpty(kw))
-            {
-                var replacement = $"<span id='keyword-{i}' class='{highlightStyle} keyword'>{kw}</span>";
-                text = text.Replace(kw, replacement);
-            }
+            return string.Empty;
         }
 
-        return text;
+        var keywordMatches = (keywords ?? [])
+            .Select((keyword, index) => new { Keyword = keyword, Index = index })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Keyword))
+            .ToList();
+
+        if (keywordMatches.Count == 0)
+        {
+            return System.Text.Encodings.Web.HtmlEncoder.Default.Encode(text);
+        }
+
+        var builder = new System.Text.StringBuilder();
+        var position = 0;
+        var highlightedKeywordIndexes = new HashSet<int>();
+
+        while (position < text.Length)
+        {
+            var nextMatch = keywordMatches
+                .Where(item => !highlightedKeywordIndexes.Contains(item.Index))
+                .Select(item => new
+                {
+                    item.Keyword,
+                    item.Index,
+                    MatchIndex = text.IndexOf(item.Keyword!, position, StringComparison.OrdinalIgnoreCase)
+                })
+                .Where(item => item.MatchIndex >= 0)
+                .OrderBy(item => item.MatchIndex)
+                .ThenByDescending(item => item.Keyword!.Length)
+                .FirstOrDefault();
+
+            if (nextMatch == null)
+            {
+                builder.Append(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(text[position..]));
+                break;
+            }
+
+            builder.Append(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(text[position..nextMatch.MatchIndex]));
+
+            var matchedText = text.Substring(nextMatch.MatchIndex, nextMatch.Keyword!.Length);
+            var highlightStyle = nextMatch.Index == 0 ? "current_keyword" : "not_annotated_keyword";
+            builder.Append("<span id=\"keyword-")
+                .Append(nextMatch.Index)
+                .Append("\" class=\"")
+                .Append(highlightStyle)
+                .Append(" keyword\">")
+                .Append(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(matchedText))
+                .Append("</span>");
+
+            highlightedKeywordIndexes.Add(nextMatch.Index);
+            position = nextMatch.MatchIndex + nextMatch.Keyword.Length;
+        }
+
+        return builder.ToString();
     }
 
-    string? transformedImageDescription = default;
-
-    if (Model != null)
-    {
-        transformedImageDescription = HighlightKeywords(Model.ImageDescription!, medDataKeywords!);
-    }
+    var transformedImageDescription = Model == null
+        ? string.Empty
+        : HighlightKeywords(Model.ImageDescription, medDataKeywords);
 }
 
 <link rel="stylesheet" href="~/css/professionalPage.css" asp-append-version="true" />
@@ -33,7 +75,7 @@
 
 @if (Model != null)
 {
-    <div class="container">
+    <div class="annotation-workspace">
         <div class="left-column">
             <div class="header-text">
                 <p style="color:grey;">@Html.Raw(transformedImageDescription)</p>
@@ -168,4 +210,4 @@ else
     });
 </script>
 <script src="~/js/canvas.js" asp-append-version="true"></script>
-<script src="~/js/professionalPage.js" asp-append-version="true" defer></script> 
+<script src="~/js/professionalPage.js" asp-append-version="true" defer></script>

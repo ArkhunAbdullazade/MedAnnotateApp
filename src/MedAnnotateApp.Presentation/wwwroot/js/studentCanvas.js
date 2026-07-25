@@ -574,7 +574,6 @@ class StudentCanvasManager {
   // Callback for when grouped annotations change
   onGroupedAnnotationsChange() {
     // This will be overridden by the student page
-    console.log('Grouped annotations changed:', this.groupedAnnotations);
   }
   
   // Get all annotation groups
@@ -674,4 +673,4 @@ class StudentCanvasManager {
   updateToolsPosition(imageContainer) {
     return this.baseManager.updateToolsPosition(imageContainer);
   }
-} 
+}

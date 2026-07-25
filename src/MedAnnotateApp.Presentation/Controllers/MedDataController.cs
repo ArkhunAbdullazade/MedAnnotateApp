@@ -31,8 +31,13 @@ public class MedDataController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> ProcessAnnotatedMedData([FromBody] AnnotatedMedDataDto annotatedMedDataDto)
+    public async Task<IActionResult> ProcessAnnotatedMedData([FromBody] AnnotatedMedDataDto? annotatedMedDataDto)
     {
+        if (annotatedMedDataDto == null || annotatedMedDataDto.Id <= 0)
+        {
+            return BadRequest(new { success = false, message = "Invalid annotation payload." });
+        }
+
         var user = await userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -77,8 +82,13 @@ public class MedDataController : Controller
     }
 
     [HttpPut]
-    public async Task<IActionResult> NextImage(int medDataId)
+    public async Task<IActionResult> NextImage([FromQuery] int medDataId)
     {
+        if (medDataId <= 0)
+        {
+            return BadRequest(new { success = false, message = "Invalid medical data id." });
+        }
+
         var succeeded = await medDataRepository.UpdateIsAnnotated(medDataId, false);
 
         return Json(new { success = succeeded });
@@ -95,13 +105,19 @@ public class MedDataController : Controller
 
         try
         {
+            var annotations = annotationList.Annotations.ToList();
+            if (annotations.Any(annotation => annotation.Id <= 0))
+            {
+                return BadRequest(new { success = false, message = "Invalid annotation payload." });
+            }
+
             var user = await userManager.GetUserAsync(User);
             if (user == null)
             {
                 return Unauthorized(new { success = false, message = "User not found." });
             }
 
-            var entities = annotationList.Annotations.Select(dto => new AnnotatedByStudentsMedData
+            var entities = annotations.Select(dto => new AnnotatedByStudentsMedData
             {
                 MedDataId = dto.Id,
                 Coordinates = dto.Coordinates,
@@ -129,7 +145,7 @@ public class MedDataController : Controller
                 return Json(new { success = false, message = "Failed to save annotations." });
             }
 
-            await medDataRepository.UpdateIsAnnotated(annotationList.Annotations.First().Id, true);
+            await medDataRepository.UpdateIsAnnotated(annotations.First().Id, true);
             return Json(new { success = true, redirectUrl = "/Home/Student" });
         }
         catch (Exception ex)

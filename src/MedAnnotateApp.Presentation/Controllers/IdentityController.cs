@@ -351,9 +351,5 @@ public class IdentityController : Controller
             ModelState.AddModelError(string.Empty, error);
         }
 
-        if (errors.Length > 0)
-        {
-            TempData.Keep("Errors");
-        }
     }
 }

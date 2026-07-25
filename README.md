@@ -1,49 +1,46 @@
 # MedAnnotateApp
 
-MedAnnotateApp is an ASP.NET Core MVC application for collecting structured visual annotations on medical publication images. It supports separate workflows for medical students and medical professionals, stores annotations in PostgreSQL, and seeds example medical image metadata from a bundled Excel workbook.
+MedAnnotateApp is an ASP.NET Core MVC application for collecting structured annotations on medical publication images. It supports separate professional and medical-student workflows, stores data in PostgreSQL, and can seed sample image metadata from the bundled Excel workbook.
 
-The app is designed for controlled annotation studies: users pass an authorization gate, sign up with an institutional email address, receive a role-based annotation screen, and are assigned images that match their specialty, body region, and image modality selections.
+The app is intended for controlled annotation studies: participants pass an authorization gate, register with an approved institutional email address, and receive images filtered by specialty, body region, modality, and role.
 
 ## Video Demo
 
-> A partial development stage walkthrough of MedAnnotateApp locally.
+The following walkthrough shows an older local development version of the project:
 
 [Watch the MedAnnotateApp video demo](https://drive.google.com/file/d/10KE4MSIjdLQpE0J9nxgl21jFsLJl3jjM/view?usp=sharing)
 
 ## Features
 
-- Authorization gate before login and signup, backed by a BCrypt password hash.
-- ASP.NET Core Identity accounts with `Medical_Student` and `Professional` roles.
-- Signup validation for `stanford.edu` and `mountsinai.org` email addresses.
-- Professional annotation workflow with highlighted clinical terms, rectangle/freehand drawing tools, magnifier support, skip/not-visible decisions, comments, and timing capture.
-- Medical student workflow with grouped visual annotations and free-text labels.
-- Image assignment filtered by user specialty, body region, image modality, and role.
-- Per-user locking so two users do not annotate the same active image at the same time.
-- EF Core migrations that run on application startup.
-- Initial data seeding from `src/MedAnnotateApp.Presentation/mockPMCMIDdata7.xlsx` when the `MedDatas` table is empty.
+- Shared authorization gate backed by a BCrypt password hash.
+- ASP.NET Core Identity users with `Medical_Student` and `Professional` roles.
+- Institutional email validation for `stanford.edu` and `mountsinai.org`.
+- Professional workflow with keyword highlighting, rectangle/freehand annotation, magnifier support, comments, skip/not-visible decisions, and timing capture.
+- Student workflow with grouped visual annotations and free-text labels.
+- Per-user image locking to reduce concurrent work on the same image.
+- Automatic EF Core migration and seed loading on startup.
 - Docker Compose setup for the web app, PostgreSQL, and Redis.
 
-## Tech Stack
+## Stack
 
 - .NET 8
 - ASP.NET Core MVC and Razor views
 - ASP.NET Core Identity
 - Entity Framework Core 8
 - PostgreSQL with Npgsql
-- EPPlus for Excel import
+- EPPlus
+- Bootstrap, jQuery, and custom canvas annotation tools
 - Docker and Docker Compose
-- Bootstrap, jQuery, and custom canvas-based annotation tools
 
-## Project Structure
+## Project Layout
 
 ```text
 .
 |-- MedAnnotateApp.sln
 |-- Directory.Build.props
-|-- .env.example
-|-- .gitignore
 |-- Dockerfile
 |-- docker-compose.yml
+|-- .env.example
 |-- src
 |   |-- MedAnnotateApp.Core
 |   |   |-- Models
@@ -64,40 +61,21 @@ The app is designed for controlled annotation studies: users pass an authorizati
 `-- LICENSE
 ```
 
-## Requirements
-
-For Docker:
-
-- Docker
-- Docker Compose
-
-For local development without Docker:
-
-- .NET 8 SDK
-- PostgreSQL
-- Optional: `dotnet-ef` for creating or applying migrations manually
-
 ## Configuration
 
-The application reads configuration from `appsettings.json`, `appsettings.Development.json`, environment variables, or user secrets.
+Private values are intentionally not committed. Configure them with Docker `.env`, environment variables, or .NET user secrets.
 
-No private credentials are committed. Use a local `.env` file for Docker Compose, environment variables, or .NET user secrets for development-only values.
-
-Important settings:
+Key settings:
 
 | Setting | Purpose |
 | --- | --- |
-| `ConnectionStrings:MedDataDb` | PostgreSQL connection string used by EF Core. |
-| `ConnectionStrings:RedisConnection` | Redis connection string included for containerized environments. |
-| `DataProtection:KeysPath` | Optional path for persisted ASP.NET Core data-protection keys. Docker uses `/app/keys`. |
-| `AuthorizationAccessPasswordHash` | BCrypt hash for the first authorization gate. |
-| `SmtpSettings:Server` | SMTP host for email delivery. |
-| `SmtpSettings:Port` | SMTP port. |
-| `SmtpSettings:SenderEmail` | Sender account email address. |
-| `SmtpSettings:Password` | Sender account password or app password. |
-| `SmtpSettings:EnableSsl` | Whether SMTP SSL is enabled. |
+| `ConnectionStrings:MedDataDb` | PostgreSQL connection string. |
+| `ConnectionStrings:RedisConnection` | Redis connection string for containerized environments. |
+| `AuthorizationAccessPasswordHash` | BCrypt hash for the authorization gate. |
+| `DataProtection:KeysPath` | Optional persisted ASP.NET Core data-protection key path. |
+| `SmtpSettings:*` | SMTP configuration for email delivery. |
 
-Do not commit production secrets. Prefer environment variables or .NET user secrets for private values. Environment variables use double underscores for nested keys:
+Environment variables use double underscores for nested keys:
 
 ```powershell
 $env:ConnectionStrings__MedDataDb="Host=localhost;Port=5432;Database=meddatadb;Username=postgres;Password=<password>"
@@ -105,38 +83,27 @@ $env:AuthorizationAccessPasswordHash="<bcrypt-hash>"
 $env:SmtpSettings__Password="<smtp-password>"
 ```
 
-`AuthorizationAccessPasswordHash` must be a BCrypt hash compatible with `BCrypt.Net-Next`.
-
-## Quick Start With Docker
-
-From the repository root:
+## Run With Docker
 
 ```powershell
 Copy-Item .env.example .env
-# Edit .env and set POSTGRES_PASSWORD plus AUTHORIZATION_ACCESS_PASSWORD_HASH.
+# Edit .env before starting the app.
 docker compose up --build
 ```
 
-Open:
+Open `http://localhost:8080`.
 
-```text
-http://localhost:8080
-```
+On startup, the app applies migrations, creates the `Medical_Student` and `Professional` roles if needed, and seeds `mockPMCMIDdata7.xlsx` when `MedDatas` is empty.
 
-On startup, the app will:
+## Run Locally
 
-1. Connect to PostgreSQL.
-2. Apply EF Core migrations.
-3. Create the `Medical_Student` and `Professional` roles if they do not exist.
-4. Load the bundled Excel data into the database if `MedDatas` is empty.
+Requirements:
 
-The Compose file reads database, SMTP, and authorization-gate values from `.env` or your shell environment.
+- .NET 8 SDK
+- PostgreSQL
+- Optional: `dotnet-ef` for manual migration work
 
-## Local Development
-
-Start PostgreSQL and create a database named `meddatadb`, or update the connection string to point at your own database.
-
-For user secrets:
+Set local secrets:
 
 ```powershell
 dotnet user-secrets init --project src\MedAnnotateApp.Presentation
@@ -145,7 +112,7 @@ dotnet user-secrets set "AuthorizationAccessPasswordHash" "<bcrypt-hash>" --proj
 dotnet user-secrets set "SmtpSettings:Password" "<smtp-password>" --project src\MedAnnotateApp.Presentation
 ```
 
-Run the app from the solution root:
+Build and run:
 
 ```powershell
 dotnet restore MedAnnotateApp.sln
@@ -153,83 +120,47 @@ dotnet build MedAnnotateApp.sln
 dotnet run --project src\MedAnnotateApp.Presentation
 ```
 
-The development profile serves the app at:
+Development launch profiles serve:
 
 ```text
 https://localhost:7243
 http://localhost:5210
 ```
 
-The seed loader now resolves `mockPMCMIDdata7.xlsx` from the Presentation project's content root, so `dotnet run --project src\MedAnnotateApp.Presentation` also works from the solution root.
-
 ## Application Flow
 
-1. A visitor lands on `/Identity/AuthorizationAccess`.
-2. The visitor enters the shared authorization password.
-3. After passing the gate, the visitor can log in or sign up.
-4. During signup, the selected `Position` determines the role:
-   - `medical student` becomes `Medical_Student`
-   - every other position becomes `Professional`
-5. Authenticated users are redirected to their role-specific page:
-   - `/Home/Student`
-   - `/Home/Professional`
-6. The app assigns the next available image that matches the user's specialty, body region, and modality selections.
-7. Submitted annotations are saved with the original image metadata and user profile metadata.
+1. A visitor starts at `/Identity/AuthorizationAccess`.
+2. After passing the gate, the visitor can log in or sign up.
+3. Signup assigns `Medical_Student` when the selected position is `medical student`; other positions receive `Professional`.
+4. Authenticated users land on `/Home/Student` or `/Home/Professional`.
+5. The app locks and serves the next matching unannotated image.
+6. Saved annotations include source image metadata and user profile metadata.
 
-## Annotation Data
+## Data
 
-Core tables managed by the app include:
+Main application tables:
 
-- `MedDatas`: source image metadata loaded from the Excel workbook.
-- `MedDataKeywords`: extracted keywords associated with each image.
-- `AnnotatedMedDatas`: professional annotations, including coordinates, keyword, button decision, timestamps, comments, and user metadata.
-- `AnnotatedByStudentsMedDatas`: student annotations, including grouped coordinates, textual labels, and user metadata.
-- ASP.NET Core Identity tables for users, roles, claims, and logins.
+- `MedDatas`: source image metadata.
+- `MedDataKeywords`: extracted terms attached to images.
+- `AnnotatedMedDatas`: professional annotations.
+- `AnnotatedByStudentsMedDatas`: student annotation groups.
+- ASP.NET Core Identity tables.
 
 ## Migrations
 
-The application applies migrations automatically during startup. To create a new migration manually:
+The app applies migrations automatically on startup. Manual commands:
 
 ```powershell
 dotnet ef migrations add <MigrationName> --project src\MedAnnotateApp.Presentation --startup-project src\MedAnnotateApp.Presentation
-```
-
-To apply migrations manually:
-
-```powershell
 dotnet ef database update --project src\MedAnnotateApp.Presentation --startup-project src\MedAnnotateApp.Presentation
 ```
 
-## Common Issues
+## Notes
 
-### Database connection fails
-
-Use `Host=localhost` when running the app directly on your machine. Use the Compose service/container host configured for Docker when running inside Docker.
-
-### No data appears for annotation
-
-Check that:
-
-- The database is reachable.
-- Migrations completed successfully.
-- `mockPMCMIDdata7.xlsx` exists in the app working directory.
-- The `MedDatas` table is not already fully annotated.
-- The user's specialty, body region, and image modality selections match seeded records.
-
-### Users keep returning to the authorization page
-
-The authorization gate is stored in session state. A new browser session, cleared cookies, or server restart can require users to pass the gate again.
-
-### Authorization password is always rejected
-
-Check that `AuthorizationAccessPasswordHash` is configured and is a valid BCrypt hash.
-
-## Development Notes
-
-- There is currently no test project in the solution.
-- Build output, IDE state, `.csproj.user` files, local `.env` files, and data-protection keys are ignored by git.
-- Email confirmation code exists but is currently not active during signup.
-- Redis is included in Docker Compose and configuration, but session state is currently configured with the default in-app session services.
+- Build outputs, IDE state, `.csproj.user`, local `.env`, and data-protection keys are ignored by git.
+- Email confirmation support exists in the codebase but is not active during signup.
+- Redis is available in Docker Compose, while session state currently uses the default in-app session services.
+- There is no automated test project yet.
 
 ## License
 

@@ -8,76 +8,94 @@
 <link rel="stylesheet" href="~/css/studentPage.css" asp-append-version="true" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
 
-<div class="container">
-    <div class="left-column">
-        <div id="image-container">
-            <img id="sourceImage"
-                src="@Model?.ImageUrl"
-                alt="Medical Image" style="display:none; max-width: 100%; max-height: 100%; object-fit: contain;">
-            <div id="canvasContainer">
-                <canvas id="mainCanvas"></canvas>
+@if (Model != null)
+{
+    <div class="annotation-workspace">
+        <div class="left-column">
+            <div id="image-container">
+                <img id="sourceImage"
+                    src="@Model.ImageUrl"
+                    alt="Medical Image" style="display:none; max-width: 100%; max-height: 100%; object-fit: contain;">
+                <div id="canvasContainer">
+                    <canvas id="mainCanvas"></canvas>
+                </div>
             </div>
-        </div>
-        
-        <div class="buttons-section">
-            <button id="submit-button" class="primary-button" disabled>Submit Annotations</button>
-        </div>
-    </div>
-    
-    <div class="right-column student-mode">
-        <div class="metadata">
-            <div class="metadata-inner">
-                <div class="metadata-item">
-                    <span class="label">Specialty:</span>
-                    <span class="value">@Model?.Speciality</span>
-                </div>
-                <div class="metadata-item">
-                    <span class="label">Body Region:</span>
-                    <span class="value">@Model?.BodyRegion</span>
-                </div>
-                <div class="metadata-item">
-                    <span class="label">Image Modality:</span>
-                    <span class="value">@Model?.Modality</span>
-                </div>
-                @if (!string.IsNullOrEmpty(Model?.Diagnosis) && Model?.Diagnosis != "u" && Model?.Diagnosis != "na")
-                {
-                    <div class="metadata-item">
-                        <span class="label">Diagnosis:</span>
-                        <span class="value">@Model?.Diagnosis</span>
-                    </div>
-                }
-                @if (!string.IsNullOrEmpty(Model?.Sex) && Model?.Sex != "u" && Model?.Sex != "na")
-                {
-                    <div class="metadata-item">
-                        <span class="label">Sex:</span>
-                        <span class="value">@Model?.Sex</span>
-                    </div>
-                }
-                @if (!string.IsNullOrEmpty(Model?.Age) && Model?.Age != "u" && Model?.Age != "na")
-                {
-                    <div class="metadata-item">
-                        <span class="label">Age:</span>
-                        <span class="value">@Model?.Age</span>
-                    </div>
-                }
+
+            <div class="buttons-section">
+                <button id="submit-button" class="primary-button" disabled>Submit Annotations</button>
             </div>
         </div>
 
-        <div class="annotation-section">
-            <div class="annotations-header">
-                <h4>Annotation Groups</h4>
-                <div class="annotations-info">
-                    Click on an annotation to edit it
+        <div class="right-column student-mode">
+            <div class="metadata">
+                <div class="metadata-inner">
+                    <div class="metadata-item">
+                        <span class="label">Specialty:</span>
+                        <span class="value">@Model.Speciality</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Body Region:</span>
+                        <span class="value">@Model.BodyRegion</span>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="label">Image Modality:</span>
+                        <span class="value">@Model.Modality</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(Model.Diagnosis) && Model.Diagnosis != "u" && Model.Diagnosis != "na")
+                    {
+                        <div class="metadata-item">
+                            <span class="label">Diagnosis:</span>
+                            <span class="value">@Model.Diagnosis</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Sex) && Model.Sex != "u" && Model.Sex != "na")
+                    {
+                        <div class="metadata-item">
+                            <span class="label">Sex:</span>
+                            <span class="value">@Model.Sex</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Age) && Model.Age != "u" && Model.Age != "na")
+                    {
+                        <div class="metadata-item">
+                            <span class="label">Age:</span>
+                            <span class="value">@Model.Age</span>
+                        </div>
+                    }
                 </div>
             </div>
-            <div id="annotations-list" class="annotations-list">
-                <div class="empty-annotations-message">
-                    No annotations yet. Use the tools to annotate the image.
+
+            <div class="annotation-section">
+                <div class="annotations-header">
+                    <h4>Annotation Groups</h4>
+                    <div class="annotations-info">
+                        Click on an annotation to edit it
+                    </div>
+                </div>
+                <div id="annotations-list" class="annotations-list">
+                    <div class="empty-annotations-message">
+                        No annotations yet. Use the tools to annotate the image.
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+}
+else
+{
+    <div class="centered-container">
+        <div class="no-data-message">
+            <div class="no-data-icon">
+                <i class="bi bi-file-earmark-x"></i>
+            </div>
+            <h3>No more data is available for annotation in this specialty.</h3>
+            <p>Thank you for your contributions.</p>
+            <button id="end-button-center" type="button" class="button mt-4">
+                Log Out
+            </button>
+        </div>
+    </div>
+}
 
 <div class="logout-section">
     <div class="counter">@counter</div>
@@ -94,4 +112,4 @@
 
 <script src="~/js/canvas.js" asp-append-version="true"></script>
 <script src="~/js/studentCanvas.js" asp-append-version="true"></script>
-<script src="~/js/studentPage.js" asp-append-version="true"></script> 
+<script src="~/js/studentPage.js" asp-append-version="true"></script>

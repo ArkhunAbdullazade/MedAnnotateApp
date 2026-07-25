@@ -36,13 +36,11 @@ function handleLogout() {
     }
   }, 2000);
   
-  // CRITICAL: Properly check keywordStates before sending the request
   let isAnnotationStarted = false;
   
   // If window.hasAnnotatedCurrentImage is set to true anywhere in the code, use that
   if (window.hasAnnotatedCurrentImage === true) {
     isAnnotationStarted = true;
-    console.log("Using window.hasAnnotatedCurrentImage =", isAnnotationStarted);
   } 
   // Otherwise check keywordStates to see if any annotations were made
   else if (window.keywordStatesJson) {
@@ -52,7 +50,6 @@ function handleLogout() {
       if (Array.isArray(parsedStates) && 
           (parsedStates.includes(2) || parsedStates.includes(4))) {
         isAnnotationStarted = true;
-        console.log("Determined isAnnotationStarted = true from keywordStates:", parsedStates);
       }
     } catch (e) {
       console.error("Error parsing keywordStates:", e);
@@ -66,22 +63,17 @@ function handleLogout() {
         const annotations = window.canvasManager.getAnnotations();
         if (annotations && annotations.length > 0) {
           isAnnotationStarted = true;
-          console.log("Determined isAnnotationStarted = true from current annotations");
         }
       } else if (typeof window.canvasManager.getAnnotationGroups === 'function') {
         const groups = window.canvasManager.getAnnotationGroups();
         if (groups && groups.length > 0) {
           isAnnotationStarted = true;
-          console.log("Determined isAnnotationStarted = true from current annotation groups");
         }
       }
     } catch (e) {
       console.error("Error checking for annotations:", e);
     }
   }
-  
-  console.log("Final isAnnotationStarted value:", isAnnotationStarted);
-  console.log("Final keywordStatesJson value:", window.keywordStatesJson);
   
   const requestData = {
     isAnnotationStarted: isAnnotationStarted,
@@ -139,25 +131,37 @@ function initializeAnnotationTools() {
   // ====================================================
   let currentIndex = 0;
   window.keywordStatesJson = window.annotatedMedData.keywordStates;
-  let storedAnnotations = new Array(keywords.length).fill(null);
   window.hasAnnotatedCurrentImage = false;
-  let keywordStates = JSON.parse(window.keywordStatesJson) || Array.from({ length: keywords.length }, (_, i) => i === 0 ? 3 : 1);
-  
-  // Initialize currentIndex
-  for (let i = 0; i < keywordStates.length; i++) {
-    if (keywordStates[i] === 3) {
-      currentIndex = i;
-      break;
+
+  function createInitialKeywordStates(serializedStates, keywordCount) {
+    if (serializedStates) {
+      try {
+        const parsedStates = JSON.parse(serializedStates);
+        if (Array.isArray(parsedStates) && parsedStates.length === keywordCount) {
+          return parsedStates;
+        }
+      } catch (error) {
+        console.error("Error parsing keywordStates:", error);
+      }
     }
+
+    return Array.from({ length: keywordCount }, (_, index) => index === 0 ? 3 : 1);
   }
-  
-  // CRITICAL: Create a function to sync keywordStates to window.keywordStatesJson
-  // This ensures the global variable is always up to date for logout
+
+  let keywordStates = createInitialKeywordStates(window.keywordStatesJson, keywords.length);
+  currentIndex = keywordStates.findIndex((state) => state === 3);
+  if (currentIndex === -1 && keywordStates.length > 0) {
+    currentIndex = Math.max(0, keywordStates.findIndex((state) => state === 1));
+    keywordStates[currentIndex] = 3;
+  }
+  if (currentIndex === -1) {
+    currentIndex = 0;
+  }
+
   function syncKeywordStates() {
     window.keywordStatesJson = JSON.stringify(keywordStates);
-    console.log("Synced keywordStates to global window.keywordStatesJson:", window.keywordStatesJson);
   }
-  // Do initial sync
+
   syncKeywordStates();
 
   // ====================================================
@@ -200,7 +204,6 @@ function initializeAnnotationTools() {
       else if (keywordStates[i] === 4) kw.classList.add("skipped_keyword");
     });
     
-    // CRITICAL: Sync keywordStates to global window.keywordStatesJson whenever UI is updated
     syncKeywordStates();
   }
 
@@ -233,12 +236,10 @@ function initializeAnnotationTools() {
     }
   }
 
-  function loadAnnotationForCurrentTerm() {
-    if (storedAnnotations[currentIndex] && storedAnnotations[currentIndex].annotationState) {
-      canvasManager.setAnnotations(storedAnnotations[currentIndex].annotationState.map(obj => ({ ...obj })));
-    } else {
-      canvasManager.resetAnnotation();
-    }
+  function resetTermState() {
+    commentField.value = "";
+    window.tIdentifyStart = Date.now();
+    window.tAnnotationStart = 0;
     updateButtonState();
   }
 
@@ -271,12 +272,9 @@ function initializeAnnotationTools() {
           // Update the current keyword to be annotated (2)
           keywordStates[currentIndex] = 2;
           
-          // If there's a next keyword, mark it as current (3)
           if (hasNext) {
             keywordStates[nextIdx] = 3;
-            currentIndex = nextIdx; // Update current index immediately
-            
-            // Clear the canvas immediately for the next term
+            currentIndex = nextIdx;
             canvasManager.resetAnnotation();
           } else {
             nextButton.textContent = "Next Image";
@@ -284,9 +282,7 @@ function initializeAnnotationTools() {
             notPresentButton.disabled = true;
           }
           
-          // Update UI immediately to reflect changes
           updateKeywordUI();
-          // CRITICAL: Ensure keywordStates are synchronized after changes
           syncKeywordStates();
           
           // Create a copy for API
@@ -320,15 +316,7 @@ function initializeAnnotationTools() {
           .then((response) => response.json())
           .then((result) => {
             if (result.success) {
-              storeCurrentAnnotation("Save and Next Term");
-              
-              // Reset for the next term (ensure canvas is cleared)
-              commentField.value = "";
-              window.tIdentifyStart = Date.now();
-              window.tAnnotationStart = 0;
-              
-              // Ensure annotations are loaded for the new current term (or empty if none exist)
-              loadAnnotationForCurrentTerm();
+              resetTermState();
             } else {
               console.error("Failed to process annotation data.");
             }
@@ -337,7 +325,7 @@ function initializeAnnotationTools() {
         }
       }
     } else {
-      fetch(`/MedData/NextImage?MedDataId=${window.annotatedMedData.id}`, {
+      fetch(`/MedData/NextImage?medDataId=${encodeURIComponent(window.annotatedMedData.id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" }
       })
@@ -376,12 +364,9 @@ function initializeAnnotationTools() {
       // Update the current keyword to be skipped (4)
       keywordStates[currentIndex] = 4;
       
-      // If there's a next keyword, mark it as current (3)
       if (hasNext) {
         keywordStates[nextIdx] = 3;
-        currentIndex = nextIdx; // Update current index immediately
-        
-        // Clear the canvas immediately for the next term
+        currentIndex = nextIdx;
         canvasManager.resetAnnotation();
       } else {
         nextButton.textContent = "Next Image";
@@ -389,9 +374,7 @@ function initializeAnnotationTools() {
         notPresentButton.disabled = true;
       }
       
-      // Update UI immediately to reflect changes
       updateKeywordUI();
-      // CRITICAL: Ensure keywordStates are synchronized after changes
       syncKeywordStates();
       
       // Create a copy for API
@@ -425,15 +408,7 @@ function initializeAnnotationTools() {
       .then((response) => response.json())
       .then((result) => {
         if (result.success) {
-          storeCurrentAnnotation("Uncertain/Skip");
-          
-          // Reset for the next term (ensure canvas is cleared)
-          commentField.value = "";
-          window.tIdentifyStart = Date.now();
-          window.tAnnotationStart = 0;
-          
-          // Ensure annotations are loaded for the new current term (or empty if none exist)
-          loadAnnotationForCurrentTerm();
+          resetTermState();
         } else {
           console.error("Failed to process annotation data.");
         }
@@ -465,12 +440,9 @@ function initializeAnnotationTools() {
       // Mark current keyword as not present (1)
       keywordStates[currentIndex] = 1;
       
-      // If there's a next keyword, mark it as current (3)
       if (hasNext) {
         keywordStates[nextIdx] = 3;
-        currentIndex = nextIdx; // Update current index immediately
-        
-        // Clear the canvas immediately for the next term
+        currentIndex = nextIdx;
         canvasManager.resetAnnotation();
       } else {
         nextButton.textContent = "Next Image";
@@ -478,9 +450,7 @@ function initializeAnnotationTools() {
         notPresentButton.disabled = true;
       }
       
-      // Update UI immediately to reflect changes
       updateKeywordUI();
-      // CRITICAL: Ensure keywordStates are synchronized after changes
       syncKeywordStates();
       
       // Create a copy for API
@@ -514,15 +484,7 @@ function initializeAnnotationTools() {
       .then((response) => response.json())
       .then((result) => {
         if (result.success) {
-          storeCurrentAnnotation("Not Visible/Abstract");
-          
-          // Reset for the next term (ensure canvas is cleared)
-          commentField.value = "";
-          window.tIdentifyStart = Date.now();
-          window.tAnnotationStart = 0;
-          
-          // Ensure annotations are loaded for the new current term (or empty if none exist)
-          loadAnnotationForCurrentTerm();
+          resetTermState();
         } else {
           console.error("Failed to process annotation data.");
         }
@@ -530,42 +492,6 @@ function initializeAnnotationTools() {
       .catch((error) => console.error("Error:", error));
     }
   });
-
-  function storeCurrentAnnotation(pressedButton) {
-    const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
-    if (currentKeywordElement) {
-      let medData = window.annotatedMedData;
-      let boxCoordinates = "";
-      let timestamps = "";
-      const commentValue = commentField.value.trim();
-      if (pressedButton === "Save and Next Term") {
-        boxCoordinates = canvasManager.getAllAnnotationsJSON();
-        timestamps = calculateTimestamps();
-      }
-      storedAnnotations[currentIndex] = {
-        annotationState: canvasManager.getAnnotations().map((a) => Object.assign({}, a)),
-        BoxCoordinates: boxCoordinates,
-        Timestamps: timestamps,
-        Id: medData.id,
-        ImageUrl: medData.imageUrl,
-        ImageDescription: medData.imageDescription,
-        Sex: medData.sex,
-        Age: medData.age,
-        SkinTone: medData.skinTone,
-        BodyRegion: medData.bodyRegion,
-        Diagnosis: medData.diagnosis,
-        TreatmentName: medData.treatmentName,
-        Speciality: medData.speciality,
-        Modality: medData.modality,
-        ExtractedKeyword: currentKeywordElement.textContent,
-        PressedButton: pressedButton,
-        Comment: commentValue,
-      };
-      
-      // CRITICAL: Ensure keywordStates are synchronized after storing annotation
-      syncKeywordStates();
-    }
-  }
 
   // Initialize UI
   updateKeywordUI();

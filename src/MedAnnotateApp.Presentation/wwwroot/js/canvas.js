@@ -99,7 +99,6 @@ class CanvasManager {
           simplified = this.rdp(points, epsilon);
         }
         
-        console.log(`Simplified freehand annotation from ${points.length} to ${simplified.length} points (epsilon: ${epsilon.toFixed(2)})`);
         return simplified;
       }
       
@@ -507,12 +506,6 @@ class CanvasManager {
         this.lens = null;
       }
   
-      // Remove specific event listeners for lens functionality
-      if (this.canvas) {
-        // Use bind to ensure correct this context
-        this.canvas.removeEventListener('mousemove', this.handleLensFollowMouse.bind(this));
-      }
-      
       // Reset flags
       this.usingLens = false;
       this.draggingLens = false;
@@ -1343,4 +1336,3 @@ class CanvasManager {
   
   // Export the CanvasManager class
   window.CanvasManager = CanvasManager;
-  

@@ -9,7 +9,7 @@ body {
 }
 
 /* Account for the navbar height to ensure no scrolling */
-.container {
+.annotation-workspace {
   display: flex;
   flex-direction: row;
   width: 100%;
@@ -488,14 +488,14 @@ html, body {
 }
 
 /* Remove the extra container styles that were causing issues */
-.container {
+.annotation-workspace {
   max-width: 100%;
   overflow: visible;
 }
 
 /* Add responsive styling matching student page */
 @media (max-width: 1200px) {
-  .container {
+  .annotation-workspace {
     flex-direction: column;
     height: auto;
     gap: 20px;
