@@ -2,6 +2,8 @@
 
 A web application for collecting structured annotations on medical publication images. Medical specialists mark regions associated with terms in the source text; medical students identify visible findings and supply their own labels. Both workflows preserve annotation data for research and future AI evaluation.
 
+MedAnnotateApp was used to collect structured medical image annotations for the evaluation of **OpenMedSeg**, an explainable AI research project for medical imaging involving researchers from **Stanford Medicine, Mount Sinai, the Hasso Plattner Institute, and Charité**.
+
 Built with **ASP.NET Core MVC, .NET 8, and PostgreSQL**, with custom canvas tools for rectangle and freehand annotation.
 
 [Full walkthrough](https://drive.google.com/file/d/1WtMTApfPg1Q_AMeK0-lMWVt-EKZZpWtu/view?usp=sharing)
