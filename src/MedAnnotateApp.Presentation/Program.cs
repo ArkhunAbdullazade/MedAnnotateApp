@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Net;
+using System.Threading.RateLimiting;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
@@ -8,33 +10,77 @@ using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Infrastructure.Settings;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 const string SeedDataFileName = "mockPMCMIDdata7.xlsx";
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsDevelopment())
+{
+    // Keep workstation database credentials outside tracked configuration files.
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true)
+        .AddEnvironmentVariables().AddCommandLine(args);
+}
 
 var medDataConnectionString = builder.Configuration.GetConnectionString("MedDataDb");
 if (string.IsNullOrWhiteSpace(medDataConnectionString))
 {
     throw new InvalidOperationException("ConnectionStrings:MedDataDb must be configured before the application starts.");
 }
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Configuration["AuthorizationAccessPasswordHash"]))
+{
+    throw new InvalidOperationException("Configure AuthorizationAccessPasswordHash before deploying the research access gate.");
+}
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    throw new InvalidOperationException("Configure persistent DataProtection:KeysPath before deploying.");
+}
 if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
     var keyDirectory = Directory.CreateDirectory(dataProtectionKeysPath);
     builder.Services.AddDataProtection().PersistKeysToFileSystem(keyDirectory);
 }
 
+builder.Services.AddDistributedMemoryCache(); // One web instance; session loss requires entering the shared gate again.
 builder.Services.AddSession(options =>
 {
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
     options.IdleTimeout = TimeSpan.FromHours(12);
 });
 
-builder.Services.AddControllersWithViews().AddSessionStateTempDataProvider();
+builder.Services.AddControllersWithViews(options => options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute()))
+    .AddSessionStateTempDataProvider();
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+});
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    foreach (var address in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
+        options.KnownProxies.Add(IPAddress.Parse(address));
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("research-access", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30, Window = TimeSpan.FromMinutes(10), QueueLimit = 0, AutoReplenishment = true
+        }));
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+        await context.HttpContext.Response.WriteAsync("Too many access attempts. Wait ten minutes and try again.", token);
+});
 
 builder.Services.AddDbContext<MedDataDbContext>(options =>
 {
@@ -46,6 +92,8 @@ builder.Services.AddDbContext<MedDataDbContext>(options =>
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
     options.SignIn.RequireConfirmedAccount = false;
+    options.SignIn.RequireConfirmedEmail = false;
+    options.User.RequireUniqueEmail = true;
     options.Password.RequireNonAlphanumeric = true;
     options.Password.RequiredLength = 8;
 })
@@ -60,10 +108,30 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     options.Cookie.Name = "MedAnnotateAuth";
     options.SlidingExpiration = true;
     options.ExpireTimeSpan = TimeSpan.FromHours(12);
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/MedData"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return context.Response.WriteAsJsonAsync(new { success = false, message = "Your session has ended. Sign in again before retrying the save." });
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/MedData"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return context.Response.WriteAsJsonAsync(new { success = false, message = "Your account is not allowed to perform this action." });
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
 });
 
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
@@ -79,6 +147,7 @@ var app = builder.Build();
 
 await InitializeDatabaseAsync(app);
 
+app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -86,8 +155,16 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.XContentTypeOptions = "nosniff";
+    context.Response.Headers.XFrameOptions = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "same-origin";
+    await next();
+});
 app.UseStaticFiles();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -139,6 +216,10 @@ app.Use(async (context, next) =>
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Identity}/{action=AuthorizationAccess}/{id?}");
+app.MapGet("/health/ready", async (MedDataDbContext context, CancellationToken cancellationToken) =>
+    await context.Database.CanConnectAsync(cancellationToken)
+        ? Results.Ok(new { status = "ready" })
+        : Results.StatusCode(StatusCodes.Status503ServiceUnavailable)).AllowAnonymous();
 
 app.Run();
 
@@ -151,11 +232,15 @@ async Task InitializeDatabaseAsync(WebApplication application)
     try
     {
         var context = services.GetRequiredService<MedDataDbContext>();
-        await context.Database.MigrateAsync();
+        var applyMigrations = application.Configuration.GetValue<bool?>("Database:ApplyMigrations")
+            ?? application.Environment.IsDevelopment();
+        if (applyMigrations) await context.Database.MigrateAsync();
+        else if ((await context.Database.GetPendingMigrationsAsync()).Any())
+            throw new InvalidOperationException("Database migrations are pending. Back up the database and apply the reviewed migration script before starting production.");
 
         await EnsureRolesAsync(services, logger);
 
-        if (await context.MedDatas.AnyAsync())
+        if (!application.Configuration.GetValue<bool>("Database:SeedExcel") || await context.MedDatas.AnyAsync())
         {
             return;
         }
@@ -186,6 +271,7 @@ async Task InitializeDatabaseAsync(WebApplication application)
     catch (Exception ex)
     {
         logger.LogError(ex, "An error occurred during database migration or seed data loading.");
+        throw;
     }
 }
 
@@ -204,10 +290,7 @@ static async Task EnsureRolesAsync(IServiceProvider services, ILogger logger)
         var result = await roleManager.CreateAsync(new IdentityRole(roleName));
         if (!result.Succeeded)
         {
-            logger.LogWarning(
-                "Could not create role {Role}: {Errors}",
-                roleName,
-                string.Join(", ", result.Errors.Select(error => error.Description)));
+            throw new InvalidOperationException($"Could not initialize role {roleName}.");
         }
     }
 }
@@ -233,6 +316,7 @@ static bool ShouldAllowPath(string path)
         "/identity/authorizationaccess",
         "/identity/postauthorizationaccess",
         "/identity/accessdenied",
+        "/health/ready",
         "/home/error"
     ];
 

@@ -8,150 +8,110 @@ using Microsoft.AspNetCore.Mvc;
 namespace MedAnnotateApp.Presentation.Controllers;
 
 [Authorize]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class MedDataController : Controller
 {
-    private readonly IAnnotatedMedDataRepository annotatedMedDataRepository;
-    private readonly IAnnotatedByStudentsMedDataRepository annotatedByStudentsMedDataRepository;
     private readonly IMedDataRepository medDataRepository;
     private readonly UserManager<User> userManager;
     private readonly ILogger<MedDataController> logger;
 
-    public MedDataController(
-        IAnnotatedMedDataRepository annotatedMedDataRepository,
-        IAnnotatedByStudentsMedDataRepository annotatedByStudentsMedDataRepository,
-        IMedDataRepository medDataRepository,
-        UserManager<User> userManager,
-        ILogger<MedDataController> logger)
+    public MedDataController(IMedDataRepository medDataRepository, UserManager<User> userManager, ILogger<MedDataController> logger)
     {
-        this.annotatedMedDataRepository = annotatedMedDataRepository;
-        this.annotatedByStudentsMedDataRepository = annotatedByStudentsMedDataRepository;
         this.medDataRepository = medDataRepository;
         this.userManager = userManager;
         this.logger = logger;
     }
 
     [HttpPost]
-    public async Task<IActionResult> ProcessAnnotatedMedData([FromBody] AnnotatedMedDataDto? annotatedMedDataDto)
+    [Authorize(Roles = "Professional")]
+    [RequestSizeLimit(2_000_000)]
+    public async Task<IActionResult> ProcessAnnotatedMedData([FromBody] AnnotatedMedDataDto? dto)
     {
-        if (annotatedMedDataDto == null || annotatedMedDataDto.Id <= 0)
-        {
+        if (!ModelState.IsValid || dto == null || dto.Id <= 0)
             return BadRequest(new { success = false, message = "Invalid annotation payload." });
-        }
-
         var user = await userManager.GetUserAsync(User);
-        if (user == null)
+        if (user == null) return Unauthorized(new { success = false, message = "Your session has ended. Sign in again." });
+
+        try
         {
-            return Unauthorized(new { success = false, message = "User not found." });
+            // Image and researcher metadata always come from the database, never the browser.
+            var result = await medDataRepository.SaveProfessionalAsync(user, new AnnotatedMedData
+            {
+                MedDataId = dto.Id,
+                BoxCoordinates = dto.BoxCoordinates,
+                ExtractedKeyword = dto.ExtractedKeyword,
+                Timestamps = dto.Timestamps,
+                PressedButton = dto.PressedButton,
+                Comment = dto.Comment
+            });
+            return SaveResult(result);
         }
-
-        var newAnnotatedMedData = new AnnotatedMedData
+        catch (Exception exception)
         {
-            MedDataId = annotatedMedDataDto.Id,
-            ImageUrl = annotatedMedDataDto.ImageUrl,
-            ImageDescription = annotatedMedDataDto.ImageDescription,
-            Sex = annotatedMedDataDto.Sex,
-            Age = annotatedMedDataDto.Age,
-            SkinTone = annotatedMedDataDto.SkinTone,
-            BodyRegion = annotatedMedDataDto.BodyRegion,
-            Diagnosis = annotatedMedDataDto.Diagnosis,
-            TreatmentName = annotatedMedDataDto.TreatmentName,
-            Speciality = annotatedMedDataDto.Speciality,
-            Modality = annotatedMedDataDto.Modality,
-            BoxCoordinates = annotatedMedDataDto.BoxCoordinates,
-            ExtractedKeyword = annotatedMedDataDto.ExtractedKeyword,
-            Timestamps = annotatedMedDataDto.Timestamps,
-            PressedButton = annotatedMedDataDto.PressedButton,
-            Comment = annotatedMedDataDto.Comment,
-            Email = user.Email,
-            FullName = user.FullName,
-            University = user.University,
-            Position = user.Position,
-            ClinicalExperience = user.ClinicalExperience,
-            OrcidId = user.OrcidId,
-        };
-
-        var succeeded = await annotatedMedDataRepository.CreateAsync(newAnnotatedMedData);
-
-        await medDataRepository.UpdateLock(
-            annotatedMedDataDto.Id,
-            annotatedMedDataDto.KeywordStates ?? string.Empty,
-            isAnnotationStarted: true,
-            isStudent: false);
-
-        return Json(new { success = succeeded });
+            logger.LogError(exception, "Annotation save failed for image {MedDataId} and user {UserId}.", dto.Id, user.Id);
+            return StatusCode(503, new { success = false, message = "The annotation could not be saved. Keep this page open and retry." });
+        }
     }
 
     [HttpPut]
+    [Authorize(Roles = "Professional")]
     public async Task<IActionResult> NextImage([FromQuery] int medDataId)
     {
-        if (medDataId <= 0)
+        if (medDataId <= 0) return BadRequest(new { success = false, message = "Invalid image id." });
+        var user = await userManager.GetUserAsync(User);
+        if (user == null) return Unauthorized(new { success = false, message = "Your session has ended. Sign in again." });
+        try { return SaveResult(await medDataRepository.CompleteProfessionalAsync(medDataId, user)); }
+        catch (Exception exception)
         {
-            return BadRequest(new { success = false, message = "Invalid medical data id." });
+            logger.LogError(exception, "Completing image {MedDataId} failed for user {UserId}.", medDataId, user.Id);
+            return StatusCode(503, new { success = false, message = "Completion could not be confirmed. Keep this page open and retry." });
         }
+    }
 
-        var succeeded = await medDataRepository.UpdateIsAnnotated(medDataId, false);
-
-        return Json(new { success = succeeded });
+    [HttpGet]
+    [Authorize(Roles = "Professional")]
+    public async Task<IActionResult> CurrentAnnotations([FromQuery] int medDataId)
+    {
+        if (medDataId <= 0) return BadRequest(new { success = false, message = "Invalid image id." });
+        var user = await userManager.GetUserAsync(User);
+        if (user == null) return Unauthorized(new { success = false });
+        var annotations = await medDataRepository.GetProfessionalAnnotationsAsync(medDataId, user);
+        if (annotations == null) return StatusCode(403, new { success = false, message = "This image is not assigned to you." });
+        return Json(new
+        {
+            success = true,
+            annotations = annotations.Select(item => new { item.ExtractedKeyword, item.PressedButton, item.BoxCoordinates, item.Comment })
+        });
     }
 
     [HttpPost]
     [Authorize(Roles = "Medical_Student")]
-    public async Task<IActionResult> SubmitStudentAnnotations([FromBody] StudentAnnotationList annotationList)
+    [RequestSizeLimit(2_000_000)]
+    public async Task<IActionResult> SubmitStudentAnnotations([FromBody] StudentAnnotationList? annotationList)
     {
-        if (annotationList?.Annotations == null || !annotationList.Annotations.Any())
-        {
-            return Json(new { success = false, message = "No annotations provided." });
-        }
-
+        if (!ModelState.IsValid || annotationList?.Annotations == null)
+            return BadRequest(new { success = false, message = "Invalid annotation payload." });
+        var annotations = annotationList.Annotations.ToList();
+        if (annotations.Count == 0 || annotations.Any(item => item == null || item.Id <= 0))
+            return BadRequest(new { success = false, message = "Add at least one valid annotation." });
+        var user = await userManager.GetUserAsync(User);
+        if (user == null) return Unauthorized(new { success = false, message = "Your session has ended. Sign in again." });
         try
         {
-            var annotations = annotationList.Annotations.ToList();
-            if (annotations.Any(annotation => annotation.Id <= 0))
+            var result = await medDataRepository.SaveStudentAsync(user, annotations.Select(dto => new AnnotatedByStudentsMedData
             {
-                return BadRequest(new { success = false, message = "Invalid annotation payload." });
-            }
-
-            var user = await userManager.GetUserAsync(User);
-            if (user == null)
-            {
-                return Unauthorized(new { success = false, message = "User not found." });
-            }
-
-            var entities = annotations.Select(dto => new AnnotatedByStudentsMedData
-            {
-                MedDataId = dto.Id,
-                Coordinates = dto.Coordinates,
-                TextualAnnotation = dto.TextualAnnotation,
-                ImageUrl = dto.ImageUrl,
-                ImageDescription = dto.ImageDescription,
-                Sex = dto.Sex,
-                Age = dto.Age,
-                BodyRegion = dto.BodyRegion,
-                Diagnosis = dto.Diagnosis,
-                TreatmentName = dto.TreatmentName,
-                Speciality = dto.Speciality,
-                Modality = dto.Modality,
-                Email = user.Email,
-                FullName = user.FullName,
-                University = user.University,
-                Position = user.Position,
-                ClinicalExperience = user.ClinicalExperience,
-                OrcidId = user.OrcidId
-            }).ToList();
-
-            var succeeded = await annotatedByStudentsMedDataRepository.CreateAllAsync(entities);
-            if (!succeeded)
-            {
-                return Json(new { success = false, message = "Failed to save annotations." });
-            }
-
-            await medDataRepository.UpdateIsAnnotated(annotations.First().Id, true);
-            return Json(new { success = true, redirectUrl = "/Home/Student" });
+                MedDataId = dto.Id, Coordinates = dto.Coordinates, TextualAnnotation = dto.TextualAnnotation
+            }).ToList());
+            return result.Success ? Json(new { success = true, redirectUrl = "/Home/Student" }) : SaveResult(result);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            logger.LogError(ex, "Error while submitting student annotations.");
-            return Json(new { success = false, message = "An error occurred while saving annotations." });
+            logger.LogError(exception, "Student annotation save failed for user {UserId}.", user.Id);
+            return StatusCode(503, new { success = false, message = "The annotations could not be saved. Keep this page open and retry." });
         }
     }
+
+    private IActionResult SaveResult(AnnotationSaveResult result) => result.Success
+        ? Json(new { success = true })
+        : StatusCode(result.Conflict ? 409 : 400, new { success = false, message = result.Message });
 }

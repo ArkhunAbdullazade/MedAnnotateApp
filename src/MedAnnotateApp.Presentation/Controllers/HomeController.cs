@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MedAnnotateApp.Presentation.Controllers;
 
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class HomeController : Controller
 {
     private readonly IMedDataRepository medDataRepository;
@@ -71,9 +72,12 @@ public class HomeController : Controller
                 return RedirectToAction("Login", "Identity");
             }
 
+            if (!ImageSelectionFilters.Parse(user.Speciality, user.BodyRegion, user.ImageModality).IsComplete)
+                return RedirectToAction("Filters", "Identity");
+
             var (medData, counter) = await medDataRepository.GetNthMedDataBySpecialityAndPositionAsync(
                 user.Speciality,
-                user.Position,
+                "professional",
                 user.BodyRegion,
                 user.ImageModality,
                 user.Id);
@@ -104,9 +108,12 @@ public class HomeController : Controller
                 return RedirectToAction("Login", "Identity");
             }
 
+            if (!ImageSelectionFilters.Parse(user.Speciality, user.BodyRegion, user.ImageModality).IsComplete)
+                return RedirectToAction("Filters", "Identity");
+
             var (medData, counter) = await medDataRepository.GetNthMedDataBySpecialityAndPositionAsync(
                 user.Speciality,
-                user.Position,
+                "medical student",
                 user.BodyRegion,
                 user.ImageModality,
                 user.Id);

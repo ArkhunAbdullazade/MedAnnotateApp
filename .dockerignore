@@ -4,6 +4,7 @@
 out/
 publish/
 artifacts/
+**/.artifacts/
 TestResults/
 
 # User and IDE state
@@ -16,6 +17,8 @@ TestResults/
 # Local configuration and secrets
 .env
 .env.*
+**/appsettings.Local.json
+**/secrets.json
 keys/
 *.pfx
 *.p12

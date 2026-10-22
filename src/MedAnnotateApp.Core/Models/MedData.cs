@@ -5,6 +5,7 @@ public class MedData
     public string? Pmcid { get; set; }
     public string? ImageUrl { get; set; }
     public string? ImageDescription { get; set; }
+    public string? SourceUrl { get; set; }
     public string? Sex { get; set; }
     public string? Age { get; set; }
     public string? SkinTone { get; set; }

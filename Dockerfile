@@ -7,17 +7,18 @@ COPY Directory.Build.props ./
 COPY src/MedAnnotateApp.Core/*.csproj ./src/MedAnnotateApp.Core/
 COPY src/MedAnnotateApp.Infrastructure/*.csproj ./src/MedAnnotateApp.Infrastructure/
 COPY src/MedAnnotateApp.Presentation/*.csproj ./src/MedAnnotateApp.Presentation/
-RUN dotnet restore MedAnnotateApp.sln
+RUN dotnet restore src/MedAnnotateApp.Presentation/MedAnnotateApp.Presentation.csproj
 
 COPY src/ ./src/
 RUN dotnet publish src/MedAnnotateApp.Presentation/MedAnnotateApp.Presentation.csproj -c Release -o /app/out --no-restore
-COPY src/MedAnnotateApp.Presentation/mockPMCMIDdata7.xlsx /app/out/
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0.32
 WORKDIR /app
 COPY --from=build-env /app/out .
+RUN mkdir -p /app/keys && chown app:app /app/keys
 
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+USER app
 
 ENTRYPOINT ["dotnet", "MedAnnotateApp.Presentation.dll"]

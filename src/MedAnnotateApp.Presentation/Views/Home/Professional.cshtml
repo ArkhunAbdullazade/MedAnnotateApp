@@ -1,88 +1,30 @@
 @model MedData
 
 @{
-    var medDataKeywords = ViewBag.MedDataKeywords as IList<string?>;
+    var medDataKeywords = (ViewBag.MedDataKeywords as IList<string?>)?.Where(keyword => !string.IsNullOrWhiteSpace(keyword)).Distinct().ToList();
     var counter = ViewBag.Counter as string;
 
-    string HighlightKeywords(string? text, IList<string?>? keywords)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return string.Empty;
-        }
-
-        var keywordMatches = (keywords ?? [])
-            .Select((keyword, index) => new { Keyword = keyword, Index = index })
-            .Where(item => !string.IsNullOrWhiteSpace(item.Keyword))
-            .ToList();
-
-        if (keywordMatches.Count == 0)
-        {
-            return System.Text.Encodings.Web.HtmlEncoder.Default.Encode(text);
-        }
-
-        var builder = new System.Text.StringBuilder();
-        var position = 0;
-        var highlightedKeywordIndexes = new HashSet<int>();
-
-        while (position < text.Length)
-        {
-            var nextMatch = keywordMatches
-                .Where(item => !highlightedKeywordIndexes.Contains(item.Index))
-                .Select(item => new
-                {
-                    item.Keyword,
-                    item.Index,
-                    MatchIndex = text.IndexOf(item.Keyword!, position, StringComparison.OrdinalIgnoreCase)
-                })
-                .Where(item => item.MatchIndex >= 0)
-                .OrderBy(item => item.MatchIndex)
-                .ThenByDescending(item => item.Keyword!.Length)
-                .FirstOrDefault();
-
-            if (nextMatch == null)
-            {
-                builder.Append(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(text[position..]));
-                break;
-            }
-
-            builder.Append(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(text[position..nextMatch.MatchIndex]));
-
-            var matchedText = text.Substring(nextMatch.MatchIndex, nextMatch.Keyword!.Length);
-            var highlightStyle = nextMatch.Index == 0 ? "current_keyword" : "not_annotated_keyword";
-            builder.Append("<span id=\"keyword-")
-                .Append(nextMatch.Index)
-                .Append("\" class=\"")
-                .Append(highlightStyle)
-                .Append(" keyword\">")
-                .Append(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(matchedText))
-                .Append("</span>");
-
-            highlightedKeywordIndexes.Add(nextMatch.Index);
-            position = nextMatch.MatchIndex + nextMatch.Keyword.Length;
-        }
-
-        return builder.ToString();
-    }
-
-    var transformedImageDescription = Model == null
-        ? string.Empty
-        : HighlightKeywords(Model.ImageDescription, medDataKeywords);
 }
 
 <link rel="stylesheet" href="~/css/professionalPage.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/annotationWorkspace.css" asp-append-version="true" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+@Html.AntiForgeryToken()
 
 @if (Model != null)
 {
     <div class="annotation-workspace">
         <div class="left-column">
-            <div class="header-text">
-                <p style="color:grey;">@Html.Raw(transformedImageDescription)</p>
+            <div class="header-text" data-keyword-count="@(medDataKeywords?.Count ?? 0)">
+                <p style="color:grey;">@DescriptionKeywords.Highlight(Model.ImageDescription, medDataKeywords)@if (!string.IsNullOrWhiteSpace(Model.Diagnosis) && Model.Diagnosis != "u" && Model.Diagnosis != "na")
+                    {<text>@("\n\nDiagnosis: " + Model.Diagnosis)</text>}</p>
             </div>
+            <div class="annotation-instructions">Draw a rectangle or closed freehand outline around the current term. Drag a shape to move it; use its corner handles to resize, the round handle to rotate, and X to delete. Saved terms can be selected for review.</div>
+            <div id="annotation-status" class="annotation-status" role="status" aria-live="polite">Loading image and saved responses…</div>
 
             <div class="main-content">
                 <div class="annotation-section">
+                    <div class="image-viewport">
                     <div id="image-container">
                         <img id="sourceImage"
                             src="@Model.ImageUrl"
@@ -90,6 +32,7 @@
                         <div id="canvasContainer">
                             <canvas id="mainCanvas"></canvas>
                         </div>
+                    </div>
                     </div>
                     <div class="buttons-section">
                         <button
@@ -113,34 +56,34 @@
         <div class="right-column">
             <div class="metadata">
                 <div class="metadata-inner">
-                    <p><a href="@($"https://www.ncbi.nlm.nih.gov/pmc/articles/{Model.Pmcid}")">Original Publication (optional)</a></p>
-                    @if (Model.Diagnosis != "u" && Model.Diagnosis != "na")
-                    {
-                        <p><strong>Diagnosis: </strong>@Model.Diagnosis</p>
-                    }
-                    @if (Model.Speciality != "u" && Model.Speciality != "na")
+                    @if (!string.IsNullOrWhiteSpace(Model.Speciality) && Model.Speciality != "u" && Model.Speciality != "na")
                     {
                         <p><strong>Speciality: </strong>@Model.Speciality</p>
                     }
-                    @if (Model.Sex != "u" && Model.Sex != "na")
+                    @if (!string.IsNullOrWhiteSpace(Model.Modality) && Model.Modality != "u" && Model.Modality != "na")
+                    {
+                        <p><strong>Image Modality: </strong>@Model.Modality</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Sex) && Model.Sex != "u" && Model.Sex != "na")
                     {
                         <p><strong>Sex: </strong>@Model.Sex</p>
                     }
-                    @if (Model.Age != "u" && Model.Age != "na")
+                    @if (!string.IsNullOrWhiteSpace(Model.Age) && Model.Age != "u" && Model.Age != "na")
                     {
                         <p><strong>Age: </strong>@Model.Age</p>
                     }
-                    @if (Model.SkinTone != "u" && Model.SkinTone != "na")
+                    @if (!string.IsNullOrWhiteSpace(Model.SkinTone) && Model.SkinTone != "u" && Model.SkinTone != "na")
                     {
                         <p><strong>Skin Tone: </strong>@Model.SkinTone</p>
                     }
-                    @if (Model.BodyRegion != "u" && Model.BodyRegion != "na")
+                    @if (!string.IsNullOrWhiteSpace(Model.BodyRegion) && Model.BodyRegion != "u" && Model.BodyRegion != "na")
                     {
                         <p><strong>Body Region: </strong>@Model.BodyRegion</p>
                     }
                 </div>
             </div>
             <div class="comments-section">
+                <label for="comments" class="comments-label">Comments</label>
                 <textarea class="form-control" id="comments" placeholder="Leave your comments here..."></textarea>
             </div>
         </div>
@@ -154,9 +97,10 @@ else
                 <i class="bi bi-file-earmark-x"></i>
             </div>
             <h3 class="mb-4" style="color: #a9000e;">
-                No more data is available for annotation in this specialty.
+                @(AnnotationProgress.IsComplete(counter) ? "All matching images have been completed." : "No available images match all of your selected filters.")
             </h3>
-            <p>Thank you for your contributions!</p>
+            <p>@(AnnotationProgress.IsComplete(counter) ? "Saved annotations remain in the database for research evaluation." : "Images may be completed, assigned to another specialist, or missing the selected metadata. Choose different filters or ask the research team to refine the image metadata.")</p>
+            <a asp-controller="Identity" asp-action="Filters" class="button">Change filters</a>
             <button id="end-button-center" type="button" class="button mt-4">
                 Log Out
             </button>
@@ -164,7 +108,9 @@ else
     </div>
 }
 <div class="logout-section">
+    <a asp-controller="Identity" asp-action="Filters" class="btn btn-outline-secondary">Change filters</a>
     <div class="counter-display">
+        <span>Team progress in selected filters: </span>
         <span id="counter-value">@counter</span>
     </div>
     <button id="end-button" type="button">
@@ -173,41 +119,35 @@ else
 </div>
 
 <script type="text/javascript" defer>
-    window.annotatedMedData = @Html.Raw(Json.Serialize(Model));
+    window.annotatedMedData = @Html.Raw(Json.Serialize(AnnotationImage.From(Model)));
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Handle text overflow with fixed font sizes
         function handleTextScaling() {
             const headerText = document.querySelector('.header-text');
             if (!headerText) return; // Skip if not found (no data page)
             
             const textParagraph = headerText.querySelector('p');
             
-            // Reset any existing state
             headerText.classList.remove('text-scale');
-            headerText.style.overflowY = 'hidden';
+            headerText.style.overflowY = 'auto';
             
             if (textParagraph) {
-                // Check if content overflows with normal font size
                 if (textParagraph.scrollHeight > headerText.clientHeight) {
-                    // Apply smaller font size
                     headerText.classList.add('text-scale');
                 }
             }
         }
         
-        // Run on page load
         handleTextScaling();
         
-        // Run on window resize
         window.addEventListener('resize', handleTextScaling);
         
-        // Check text scaling when image loads (may affect layout)
         const sourceImage = document.getElementById('sourceImage');
         if (sourceImage && !sourceImage.complete) {
-            sourceImage.onload = handleTextScaling;
+            sourceImage.addEventListener('load', handleTextScaling);
         }
     });
 </script>
+<script src="~/js/annotationGeometry.js" asp-append-version="true"></script>
 <script src="~/js/canvas.js" asp-append-version="true"></script>
 <script src="~/js/professionalPage.js" asp-append-version="true" defer></script>

@@ -1,13 +1,11 @@
 using System.ComponentModel.DataAnnotations;
-using MedAnnotateApp.Presentation.Attributes;
 
 namespace MedAnnotateApp.Presentation.Dtos;
 
-public class SignupDto
+public class SignupDto : ImageFiltersDto
 {
     [Required(ErrorMessage = "Email is required")]
     [EmailAddress(ErrorMessage = "Invalid email format")]
-    [RestrictEmailDomain]
     public string? Email { get; set; }
 
     [Required(ErrorMessage = "Full name is required")]
@@ -24,23 +22,15 @@ public class SignupDto
     public string? ConfirmPassword { get; set; }
 
     [Required(ErrorMessage = "Position is required")]
+    [RegularExpression("^(specialist|general practitioner|resident/assistant|medical student)$", ErrorMessage = "Choose a position from the list.")]
     public string? Position { get; set; }
 
-    [Required(ErrorMessage = "At least one specialty is required")]
-    public string[]? Speciality { get; set; }
-
-    [Required(ErrorMessage = "University is required")]
+    [Required(ErrorMessage = "Enter your university or institution.")]
     public string? University { get; set; }
 
     [Required(ErrorMessage = "Clinical experience is required")]
     [Range(0, 80, ErrorMessage = "Clinical experience must be between 0 and 80 years")]
     public int? ClinicalExperience { get; set; }
-
-    [Required(ErrorMessage = "At least one body region is required")]
-    public string[]? BodyRegion { get; set; }
-
-    [Required(ErrorMessage = "At least one image modality is required")]
-    public string[]? ImageModality { get; set; }
 
     public string? OrcidId { get; set; }
 }

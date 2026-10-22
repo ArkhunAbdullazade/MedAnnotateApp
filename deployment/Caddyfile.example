@@ -1,0 +1,4 @@
+# Replace the hostname. Run Caddy on the same host as Docker.
+research.example.org {
+    reverse_proxy 127.0.0.1:8080
+}

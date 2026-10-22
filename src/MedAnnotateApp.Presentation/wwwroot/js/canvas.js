@@ -20,6 +20,9 @@ class CanvasManager {
       this.freehandPoints = [];
       this.currentDrawingAnnotation = null;
       this.isFirstDraw = true;
+      this.ready = false;
+      this.readOnly = false;
+      this.imageIdentity = this.sourceImage.currentSrc || this.sourceImage.src;
       
       // Callback for annotation changes
       this.onAnnotationsChange = null;
@@ -72,10 +75,9 @@ class CanvasManager {
         (p2.y - p1.y) * p.x - (p2.x - p1.x) * p.y + p2.x * p1.y - p2.y * p1.x
       );
       const den = Math.hypot(p2.y - p1.y, p2.x - p1.x);
-      return num / den;
+      return den === 0 ? Math.hypot(p.x - p1.x, p.y - p1.y) : num / den;
     }
   
-    // Adaptive path simplification - replaces normalizeToTenPoints
     adaptiveSimplification(points, minPoints = 8, maxPoints = 25) {
       // If we already have fewer points than minPoints, return as is
       if (points.length <= minPoints) return points;
@@ -108,13 +110,12 @@ class CanvasManager {
   
     boundaryCheck(annotation) {
       if (annotation.type === "rectangle") {
-        // Get rectangle corners in screen space
+        // Rectangle corners use original-image pixels.
         const hw = annotation.width / 2;
         const hh = annotation.height / 2;
         const cos = Math.cos(annotation.rotation);
         const sin = Math.sin(annotation.rotation);
         
-        // Calculate all four corners in screen space
         const corners = [
           { x: annotation.cx + (-hw * cos - hh * sin), y: annotation.cy + (-hw * sin + hh * cos) }, // top-left
           { x: annotation.cx + (hw * cos - hh * sin), y: annotation.cy + (hw * sin + hh * cos) },   // top-right
@@ -129,7 +130,13 @@ class CanvasManager {
         let maxY = Math.max(...corners.map(c => c.y));
         
         // Calculate boundary margins
-        const margin = 2;
+        const margin = 0;
+        const fit = Math.min(1, this.canvas.width / Math.max(1, maxX - minX), this.canvas.height / Math.max(1, maxY - minY));
+        if (fit < 1) {
+          annotation.width *= fit;
+          annotation.height *= fit;
+          return this.boundaryCheck(annotation);
+        }
         
         // Calculate how much to move the rectangle to stay within bounds
         let moveX = 0;
@@ -154,7 +161,7 @@ class CanvasManager {
         return annotation;
       } else if (annotation.type === "freehand") {
         // Keep freehand points within canvas bounds
-        const margin = 2;
+        const margin = 0;
         annotation.points = annotation.points.map(point => ({
           x: this.clamp(point.x, margin, this.canvas.width - margin),
           y: this.clamp(point.y, margin, this.canvas.height - margin)
@@ -171,13 +178,10 @@ class CanvasManager {
       toolsContainer.className = "tools-container";
       toolsContainer.style.position = "fixed";
       
-      // Create rectangle button
       const rectButton = this.createToolButton("rectangle", "../images/rectangle-icon.png", "Rectangle Mode", true);
       
-      // Create freehand button
       const freehandButton = this.createToolButton("freehand", "../images/pen-icon.png", "Freehand Mode", false);
       
-      // Create magnify button
       const magnifyButton = this.createToolButton("magnify", "../images/magnifying-glass.png", "Magnifier Tool", false);
       
       toolsContainer.appendChild(rectButton);
@@ -187,7 +191,6 @@ class CanvasManager {
       document.body.appendChild(toolsContainer);
       this.toolsContainer = toolsContainer;
   
-      // Store buttons for later use
       this.rectButton = rectButton;
       this.freehandButton = freehandButton;
       this.magnifyButton = magnifyButton;
@@ -197,7 +200,9 @@ class CanvasManager {
     }
   
     createToolButton(type, iconSrc, title, isActive) {
-      const button = document.createElement("div");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-label", title);
       button.className = `tool-button${isActive ? " active" : ""}`;
       button.id = `${type}ModeButton`;
       button.title = title;
@@ -213,15 +218,14 @@ class CanvasManager {
     updateToolsPosition(imageContainer) {
       if (!this.toolsContainer) return;
       
-      // Get positions and dimensions
       const canvasRect = this.canvas.getBoundingClientRect();
       const imageContainerRect = imageContainer.getBoundingClientRect();
       
       // Position the tools container with a larger margin of 15px
       // and vertically centered with the canvas
       this.toolsContainer.style.position = "fixed";
-      this.toolsContainer.style.left = (canvasRect.right + 5) + "px";
-      this.toolsContainer.style.top = (canvasRect.top + (canvasRect.height / 2) - (this.toolsContainer.offsetHeight / 2)) + "px";
+      this.toolsContainer.style.left = Math.min(canvasRect.right + 5, window.innerWidth - this.toolsContainer.offsetWidth - 6) + "px";
+      this.toolsContainer.style.top = Math.max(6, canvasRect.top + (canvasRect.height / 2) - (this.toolsContainer.offsetHeight / 2)) + "px";
     }
   
     // Mode switching
@@ -295,13 +299,11 @@ class CanvasManager {
   
     // Canvas drawing and manipulation
     drawCanvas() {
-      // Clear the canvas
+      if (!this.ready) return;
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       
-      // Draw the image
       this.ctx.drawImage(this.sourceImage, 0, 0, this.canvas.width, this.canvas.height);
       
-      // Draw all annotations
       this.annotations.forEach(ann => this.drawAnnotation(ann, ann === this.selectedAnnotation));
       if (this.currentAction === "draw" && this.currentDrawingAnnotation) {
         this.drawAnnotation(this.currentDrawingAnnotation, true);
@@ -324,7 +326,7 @@ class CanvasManager {
       this.ctx.save();
       this.ctx.translate(ann.cx, ann.cy);
       this.ctx.rotate(ann.rotation);
-      this.ctx.lineWidth = 2;
+      this.ctx.lineWidth = this.screenPixels(2);
       this.ctx.strokeStyle = isSelected ? "red" : "blue";
       this.ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
       
@@ -334,8 +336,8 @@ class CanvasManager {
       
       // Add second border for better visibility
       this.ctx.strokeStyle = 'white';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(-ann.width / 2 - 1, -ann.height / 2 - 1, ann.width + 2, ann.height + 2);
+      this.ctx.lineWidth = this.screenPixels(1);
+      this.ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
       
       this.ctx.restore();
     }
@@ -358,12 +360,12 @@ class CanvasManager {
       
       // Add white border first
       this.ctx.strokeStyle = 'white';
-      this.ctx.lineWidth = 3;
+      this.ctx.lineWidth = this.screenPixels(4);
       this.ctx.stroke();
       
       // Then add colored border
       this.ctx.strokeStyle = isSelected ? "red" : "blue";
-      this.ctx.lineWidth = 2;
+      this.ctx.lineWidth = this.screenPixels(2);
       this.ctx.stroke();
       
       // Add fill with transparency
@@ -381,9 +383,9 @@ class CanvasManager {
     }
   
     drawRectangleHandles(handles) {
-      const size = 8;
+      const size = this.screenPixels(8);
       this.ctx.fillStyle = "white";
-      this.ctx.lineWidth = 1;
+      this.ctx.lineWidth = this.screenPixels(1);
       this.ctx.strokeStyle = "black";
       
       // Draw resize handles
@@ -396,44 +398,44 @@ class CanvasManager {
       // Draw rotation handle
       const rHandle = handles.rotate;
       this.ctx.beginPath();
-      this.ctx.arc(rHandle.x, rHandle.y, 5, 0, 2 * Math.PI);
+      this.ctx.arc(rHandle.x, rHandle.y, this.screenPixels(5), 0, 2 * Math.PI);
       this.ctx.fillStyle = "red";
       this.ctx.fill();
-      this.ctx.lineWidth = 1;
+      this.ctx.lineWidth = this.screenPixels(1);
       this.ctx.strokeStyle = "black";
       this.ctx.stroke();
       
       // Draw delete handle with X
       const dHandle = handles.delete;
       this.ctx.fillStyle = "white";
-      this.ctx.fillRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
-      this.ctx.lineWidth = 1;
+      const half = this.screenPixels(6), full = half * 2;
+      this.ctx.fillRect(dHandle.x - half, dHandle.y - half, full, full);
+      this.ctx.lineWidth = this.screenPixels(1);
       this.ctx.strokeStyle = "black";
-      this.ctx.strokeRect(dHandle.x - 6, dHandle.y - 6, 12, 12);
+      this.ctx.strokeRect(dHandle.x - half, dHandle.y - half, full, full);
       this.ctx.fillStyle = "black";
-      this.ctx.font = "10px sans-serif";
+      this.ctx.font = `${this.screenPixels(10)}px sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText("X", dHandle.x, dHandle.y);
     }
   
     drawFreehandHandles(ann) {
-      // For freehand shapes, compute the bounding box and draw a delete handle
-      const bbox = this.getBoundingBox(ann.points);
-      const handleX = bbox.maxX + 5;
-      const handleY = bbox.minY - 5;
+      const handle = this.getFreehandDeleteHandle(ann);
+      const size = this.screenPixels(12);
+      const handleX = handle.x, handleY = handle.y;
       
       // Draw delete handle with X
       this.ctx.fillStyle = "white";
-      this.ctx.fillRect(handleX, handleY, 12, 12);
-      this.ctx.lineWidth = 1;
+      this.ctx.fillRect(handleX, handleY, size, size);
+      this.ctx.lineWidth = this.screenPixels(1);
       this.ctx.strokeStyle = "black";
-      this.ctx.strokeRect(handleX, handleY, 12, 12);
+      this.ctx.strokeRect(handleX, handleY, size, size);
       this.ctx.fillStyle = "black";
-      this.ctx.font = "10px sans-serif";
+      this.ctx.font = `${this.screenPixels(10)}px sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
-      this.ctx.fillText("X", handleX + 6, handleY + 6);
+      this.ctx.fillText("X", handleX + size/2, handleY + size/2);
     }
   
     // Magnifier functions
@@ -531,11 +533,11 @@ class CanvasManager {
       }
       
       const scale = 1 / this._zoomFactor;
-      const sourceWidth = this._lensSize * scale;
-      const sourceHeight = this._lensSize * scale;
+      const sourceWidth = this.screenPixels(this._lensSize * scale);
+      const sourceHeight = this.screenPixels(this._lensSize * scale);
       
-      let sourceX = relativeLensX - sourceWidth/2;
-      let sourceY = relativeLensY - sourceHeight/2;
+      let sourceX = relativeLensX * this.canvas.width / canvasRect.width - sourceWidth/2;
+      let sourceY = relativeLensY * this.canvas.height / canvasRect.height - sourceHeight/2;
       
       sourceX = Math.max(0, Math.min(sourceX, this.canvas.width - sourceWidth));
       sourceY = Math.max(0, Math.min(sourceY, this.canvas.height - sourceHeight));
@@ -614,8 +616,8 @@ class CanvasManager {
         tr: { x: hw, y: -hh },
         bl: { x: -hw, y: hh },
         br: { x: hw, y: hh },
-        rotate: { x: 0, y: -hh - 30 },
-        delete: { x: hw + 10, y: -hh - 10 },
+        rotate: { x: 0, y: -hh - this.screenPixels(30) },
+        delete: { x: hw + this.screenPixels(10), y: -hh - this.screenPixels(10) },
       };
       
       const handles = {};
@@ -627,6 +629,11 @@ class CanvasManager {
           x: ann.cx + local.x * cos - local.y * sin,
           y: ann.cy + local.x * sin + local.y * cos,
         };
+        if (key === "delete" || key === "rotate") {
+          const margin = this.screenPixels(7);
+          handles[key].x = this.clamp(handles[key].x, margin, this.canvas.width - margin);
+          handles[key].y = this.clamp(handles[key].y, margin, this.canvas.height - margin);
+        }
       }
       return handles;
     }
@@ -655,7 +662,7 @@ class CanvasManager {
         return Math.abs(localX) <= ann.width / 2 && Math.abs(localY) <= ann.height / 2;
       } else if (ann.type === "freehand") {
         for (let i = 0; i < ann.points.length - 1; i++) {
-          if (this.distanceToSegment({ x, y }, ann.points[i], ann.points[i + 1]) < 5) {
+          if (this.distanceToSegment({ x, y }, ann.points[i], ann.points[i + 1]) < this.screenPixels(5)) {
             return true;
           }
         }
@@ -678,7 +685,7 @@ class CanvasManager {
     isPointNearHandle(point, handle, radius = 8) {
       const dx = point.x - handle.x,
             dy = point.y - handle.y;
-      return Math.hypot(dx, dy) < radius;
+      return Math.hypot(dx, dy) < this.screenPixels(radius);
     }
   
     // State management
@@ -702,116 +709,124 @@ class CanvasManager {
   
     // Event handlers setup
     setupEventListeners() {
-      this.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
-      this.canvas.addEventListener("mousemove", this.handleMouseMove.bind(this));
-      this.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
+      this.canvas.tabIndex = 0;
+      this.canvas.setAttribute("aria-label", "Medical image annotation canvas. Draw with the pointer. Delete removes the selected shape.");
+      this.canvas.addEventListener("keydown", e => {
+        if (this.readOnly || !this.selectedAnnotation || !["Delete", "Backspace"].includes(e.key)) return;
+        e.preventDefault();
+        this.annotations = this.annotations.filter(annotation => annotation !== this.selectedAnnotation);
+        this.selectedAnnotation = null;
+        this.resetDrawingState(); this.drawCanvas();
+        if (this.onAnnotationsChange) this.onAnnotationsChange();
+      });
+      this.canvas.addEventListener("pointerdown", e => {
+        if (e.button !== 0 || !this.ready || this.readOnly) return;
+        e.preventDefault();
+        this.canvas.focus({preventScroll:true});
+        this.canvas.setPointerCapture(e.pointerId);
+        this.handleMouseDown(e);
+      });
+      this.canvas.addEventListener("pointermove", e => this.handleMouseMove(e));
+      this.canvas.addEventListener("pointerup", e => {
+        this.handleMouseUp(e);
+        if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
+      });
+      this.canvas.addEventListener("pointercancel", () => {
+        // Interrupted gestures must never become saveable partial shapes.
+        if (this.originalAnnotation && this.selectedAnnotation) Object.assign(this.selectedAnnotation, this.originalAnnotation);
+        this.resetDrawingState(); this.drawCanvas();
+      });
     }
   
     setupImageLoad() {
-      this.sourceImage.onload = () => {
-        const imgRatio = this.sourceImage.naturalWidth / this.sourceImage.naturalHeight;
-        const imageContainer = document.getElementById("image-container");
-        const canvasContainer = document.getElementById("canvasContainer");
-        
-        // Fixed height for professional page
-        const fixedHeight = 430;
-        
-        // Calculate width based on image aspect ratio
-        const calculatedWidth = Math.round(fixedHeight * imgRatio);
-        
-        // Set canvas dimensions to match the calculated size
-        this.canvas.width = calculatedWidth;
-        this.canvas.height = fixedHeight;
-        
-        // Now initialize canvas styles to ensure proper sizing
-        if (imageContainer && canvasContainer) {
-          // Size the containers to the exact dimensions
-          imageContainer.style.width = calculatedWidth + 'px';
-          imageContainer.style.height = fixedHeight + 'px';
-          
-          // Make sure the width doesn't cause overlap with the right column
-          const containerWidth = calculatedWidth;
-          const windowWidth = window.innerWidth;
-          
-          // If on student page (which has a different layout), ensure the image fits
-          if (window.isStudentPage && containerWidth > (windowWidth - 450)) {
-            // Scale down proportionally if needed
-            const maxAllowedWidth = windowWidth - 450;
-            if (maxAllowedWidth > 200) {
-              const scale = maxAllowedWidth / containerWidth;
-              const newWidth = Math.floor(containerWidth * scale);
-              const newHeight = Math.floor(fixedHeight * scale);
-              
-              // Update container dimensions
-              imageContainer.style.width = newWidth + 'px';
-              imageContainer.style.height = newHeight + 'px';
-              
-              // Update canvas container as well
-              canvasContainer.style.width = newWidth + 'px';
-              canvasContainer.style.height = newHeight + 'px';
-              
-              // Update canvas dimensions to match the scaled size
-              this.canvas.width = newWidth;
-              this.canvas.height = newHeight;
-              this.canvas.style.width = newWidth + 'px';
-              this.canvas.style.height = newHeight + 'px';
-            }
-          } else {
-            // Normal sizing when there's enough room
-            canvasContainer.style.width = calculatedWidth + 'px';
-            canvasContainer.style.height = fixedHeight + 'px';
-            
-            // Set exact canvas dimensions
-            this.canvas.width = calculatedWidth;
-            this.canvas.height = fixedHeight;
-            this.canvas.style.width = calculatedWidth + 'px';
-            this.canvas.style.height = fixedHeight + 'px';
-          }
-          
-          // Draw the image on the canvas
-        this.drawCanvas();
-          
-          // Update tools position now that canvas is sized
-          this.updateToolsPosition(imageContainer);
+      const loaded = () => {
+        if (!this.sourceImage.naturalWidth || !this.sourceImage.naturalHeight) return;
+        const identity = this.sourceImage.currentSrc || this.sourceImage.src;
+        if (identity !== this.imageIdentity) {
+          this.ready = false;
+          this.reportImageError("The source image changed. Reload this assignment before annotating.");
+          return;
         }
+        // The backing store always has the original dimensions. Device pixel ratio
+        // therefore does not change geometry, and CSS resizing cannot change it.
+        this.canvas.width = this.sourceImage.naturalWidth;
+        this.canvas.height = this.sourceImage.naturalHeight;
+        this.ready = true;
+        this.resizeDisplay();
+        this.canvas.dispatchEvent(new CustomEvent("annotationimageready"));
       };
-      
-      // Trigger the onload handler if image is already loaded
+      this.sourceImage.addEventListener("load", loaded);
+      this.sourceImage.addEventListener("error", () => {
+        this.ready = false;
+        this.reportImageError("This image could not be loaded. Annotations cannot be saved. Reload the page or report the image ID.");
+      });
       if (this.sourceImage.complete) {
-        this.sourceImage.onload();
+        if (this.sourceImage.naturalWidth) loaded();
+        else this.reportImageError("This image could not be loaded. Reload the page or report the image ID.");
       }
-      
-      // Re-initialize on window resize
-      window.addEventListener('resize', () => {
-        if (this.sourceImage.complete) {
-          this.sourceImage.onload();
-        }
+      window.addEventListener("resize", () => this.resizeDisplay());
+      if (typeof ResizeObserver !== "undefined") {
+        this.resizeObserver = new ResizeObserver(() => this.resizeDisplay());
+        this.resizeObserver.observe(this.container.closest(".image-viewport") || this.container.closest(".left-column") || this.container.parentElement);
+      }
+      document.addEventListener("scroll", () => {
         this.updateToolsPosition(document.getElementById("image-container"));
-      });
-      
-      // Also update on scroll
-      document.addEventListener('scroll', () => {
-        this.updateToolsPosition(document.getElementById("image-container"));
-      });
+        if (this.usingLens) this.updateLens();
+      }, true);
+    }
+
+    resizeDisplay() {
+      if (!this.ready) return;
+      const imageContainer = this.container.parentElement;
+      const column = imageContainer.closest(".left-column");
+      const viewport = imageContainer.closest(".image-viewport");
+      const availableWidth = Math.max(1, (viewport ? viewport.clientWidth : column ? column.clientWidth : window.innerWidth - 80) - 8);
+      const availableHeight = viewport ? Math.max(1, viewport.clientHeight - 8) : 520;
+      const scale = Math.min(1, availableWidth / this.canvas.width, availableHeight / this.canvas.height);
+      const width = this.canvas.width * scale, height = this.canvas.height * scale;
+      this.canvas.style.width = `${width}px`;
+      this.canvas.style.height = `${height}px`;
+      this.container.style.width = `${width}px`;
+      this.container.style.height = `${height}px`;
+      imageContainer.style.width = `${width}px`;
+      imageContainer.style.height = `${height}px`;
+      this.drawCanvas();
+      this.updateToolsPosition(imageContainer);
+    }
+
+    reportImageError(message) {
+      const status = document.getElementById("annotation-status");
+      if (status) { status.textContent = message; status.dataset.state = "error"; }
+      this.canvas.dispatchEvent(new CustomEvent("annotationimageerror"));
+    }
+
+    screenPixels(value) {
+      const width = this.canvas.getBoundingClientRect().width;
+      return width > 0 ? value * this.canvas.width / width : value;
+    }
+
+    eventPoint(e) {
+      return AnnotationGeometry.clientToImage(e.clientX, e.clientY, this.canvas.getBoundingClientRect(), this.canvas.width, this.canvas.height);
+    }
+
+    getFreehandDeleteHandle(annotation) {
+      const bounds = this.getBoundingBox(annotation.points), gap = this.screenPixels(5), size = this.screenPixels(12);
+      return { x: this.clamp(bounds.maxX + gap, 0, this.canvas.width - size), y: this.clamp(bounds.minY - gap, 0, this.canvas.height - size) };
     }
   
     // Mouse event handlers
     handleMouseDown(e) {
       // Don't allow drawing when magnifier is active
-      if (this.usingLens) return;
-      
-      const rect = this.canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      if (this.usingLens || !this.ready || this.readOnly) return;
+      const { x: mouseX, y: mouseY } = this.eventPoint(e);
       
       // Check for freehand delete button first
       if (this.selectedAnnotation && this.selectedAnnotation.type === "freehand") {
-        const bbox = this.getBoundingBox(this.selectedAnnotation.points);
-        const handleX = bbox.maxX + 5;
-        const handleY = bbox.minY - 5;
+        const handle = this.getFreehandDeleteHandle(this.selectedAnnotation);
+        const handleX = handle.x, handleY = handle.y, size = this.screenPixels(12);
         
-        if (mouseX >= handleX && mouseX <= handleX + 12 &&
-            mouseY >= handleY && mouseY <= handleY + 12) {
+        if (mouseX >= handleX && mouseX <= handleX + size &&
+            mouseY >= handleY && mouseY <= handleY + size) {
           this.annotations = this.annotations.filter(a => a !== this.selectedAnnotation);
           this.selectedAnnotation = null;
           this.drawCanvas();
@@ -831,6 +846,7 @@ class CanvasManager {
         // Check rotation handle
         if (this.isPointNearHandle({ x: mouseX, y: mouseY }, handles.rotate)) {
           this.currentAction = "rotate";
+          this.originalAnnotation = structuredClone(this.selectedAnnotation);
           this.originalMouseAngle = Math.atan2(mouseY - this.selectedAnnotation.cy, mouseX - this.selectedAnnotation.cx);
           this.originalAnnotationRotation = this.selectedAnnotation.rotation;
           return;
@@ -877,7 +893,8 @@ class CanvasManager {
         if (this.isPointInAnnotation(ann, mouseX, mouseY)) {
           this.selectedAnnotation = ann;
           this.currentAction = "move";
-          this.offset = { x: mouseX - ann.cx, y: mouseY - ann.cy };
+          this.offset = { x: mouseX, y: mouseY };
+          this.originalAnnotation = structuredClone(ann);
           this.drawCanvas();
           return;
         }
@@ -910,17 +927,22 @@ class CanvasManager {
     }
   
     handleMouseMove(e) {
-      if (this.usingLens) return;
-      
-      const rect = this.canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      if (this.usingLens || !this.ready || this.readOnly) return;
+      const { x: mouseX, y: mouseY } = this.eventPoint(e);
       
       switch (this.currentAction) {
         case "move":
           if (this.selectedAnnotation) {
-            this.selectedAnnotation.cx = mouseX - this.offset.x;
-            this.selectedAnnotation.cy = mouseY - this.offset.y;
+            const dx = mouseX - this.offset.x, dy = mouseY - this.offset.y;
+            if (this.selectedAnnotation.type === "rectangle") {
+              this.selectedAnnotation.cx = this.originalAnnotation.cx + dx;
+              this.selectedAnnotation.cy = this.originalAnnotation.cy + dy;
+            } else {
+              const bounds = this.getBoundingBox(this.originalAnnotation.points);
+              const boundedX = this.clamp(dx, -bounds.minX, this.canvas.width - bounds.maxX);
+              const boundedY = this.clamp(dy, -bounds.minY, this.canvas.height - bounds.maxY);
+              this.selectedAnnotation.points = this.originalAnnotation.points.map(p => ({x:p.x+boundedX,y:p.y+boundedY}));
+            }
             this.selectedAnnotation = this.boundaryCheck(this.selectedAnnotation);
             this.drawCanvas();
           }
@@ -946,8 +968,8 @@ class CanvasManager {
             const rotatedMouseY = translatedMouseX * sin + translatedMouseY * cos;
             
             // Calculate dimensions in rotated space - allow very small sizes (5px minimum)
-            const width = Math.max(5, Math.abs(rotatedMouseX));
-            const height = Math.max(5, Math.abs(rotatedMouseY));
+            const width = Math.max(1, Math.abs(rotatedMouseX));
+            const height = Math.max(1, Math.abs(rotatedMouseY));
             
             // Calculate center point
             // First determine the direction of resize based on which corner is being dragged
@@ -958,7 +980,7 @@ class CanvasManager {
             const rotatedCenterX = (width / 2) * dirX;
             const rotatedCenterY = (height / 2) * dirY;
             
-            // Transform center back to screen space
+            // Transform the center back to image coordinates.
             const screenCos = Math.cos(rotation);
             const screenSin = Math.sin(rotation);
             const centerOffsetX = rotatedCenterX * screenCos - rotatedCenterY * screenSin;
@@ -1014,7 +1036,8 @@ class CanvasManager {
             this.drawCanvas();
           } else if (this.currentMode === "freehand") {
             // Store points but don't show them while drawing
-            this.freehandPoints.push({ x: mouseX, y: mouseY });
+            const last = this.freehandPoints[this.freehandPoints.length - 1];
+            if (!last || Math.hypot(mouseX-last.x, mouseY-last.y) >= 0.25) this.freehandPoints.push({ x: mouseX, y: mouseY });
             
             // Draw current path without points
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -1032,12 +1055,12 @@ class CanvasManager {
             
             // Draw white border first
             this.ctx.strokeStyle = 'white';
-            this.ctx.lineWidth = 3;
+            this.ctx.lineWidth = this.screenPixels(4);
             this.ctx.stroke();
             
             // Then draw blue border
             this.ctx.strokeStyle = "blue";
-            this.ctx.lineWidth = 2;
+            this.ctx.lineWidth = this.screenPixels(2);
             this.ctx.stroke();
           }
           break;
@@ -1045,7 +1068,8 @@ class CanvasManager {
     }
   
     handleMouseUp(e) {
-      if (this.usingLens) return;
+      if (this.usingLens || !this.ready || this.readOnly) return;
+      const changed = this.currentAction !== "none";
       
       // Handle end of resizing to ensure rotation is properly maintained
       if (this.currentAction === "resize") {
@@ -1054,14 +1078,12 @@ class CanvasManager {
       
       if (this.currentAction === "draw") {
         if (this.currentMode === "rectangle") {
-          const rect = this.canvas.getBoundingClientRect();
-          const mouseX = e.clientX - rect.left;
-          const mouseY = e.clientY - rect.top;
+          const { x: mouseX, y: mouseY } = this.eventPoint(e);
           
           const width = Math.abs(mouseX - this.rectStart.x);
           const height = Math.abs(mouseY - this.rectStart.y);
           
-          if (width > 5 && height > 5) {
+          if (width >= 1 && height >= 1) {
             const cx = (mouseX + this.rectStart.x) / 2;
             const cy = (mouseY + this.rectStart.y) / 2;
             
@@ -1090,24 +1112,18 @@ class CanvasManager {
             }
           }
         } else if (this.currentMode === "freehand" && this.freehandPoints.length > 2) {
-          // Simplify points using RDP algorithm with adaptive tolerance
-          const tolerance = 2;
-          
-          // First simplify with RDP using a fixed tolerance
-          let simplified = this.rdp(this.freehandPoints, tolerance);
-          
-          // Then apply adaptive simplification to get a reasonable number of points
-          simplified = this.adaptiveSimplification(simplified);
-          
-          // Auto-close shape if endpoints are close
-          if (simplified.length > 2) {
-            const first = simplified[0];
-            const last = simplified[simplified.length - 1];
-            if (Math.hypot(last.x - first.x, last.y - first.y) < 5) {
-              simplified[simplified.length - 1] = { ...first };
-            } else {
-              simplified.push({ ...first });
+          // Keep sampled image-space vertices. The previous adaptive reduction to
+          // 25 points could move a research boundary by an unbounded distance.
+          const simplified = this.freehandPoints.map(p => ({...p}));
+          const first = simplified[0];
+          simplified.push({ ...first });
+          if (AnnotationGeometry.area(simplified.map(p => [p.x,p.y])) < 1 || simplified.length > 20000) {
+            const status = document.getElementById("annotation-status");
+            if (status) {
+              status.textContent = simplified.length > 20000 ? "This outline has too many points. Draw a shorter outline before saving." : "The outline must enclose an area. Draw a closed boundary before saving.";
+              status.dataset.state = "error";
             }
+            this.resetDrawingState(); this.drawCanvas(); return;
           }
           
           const newAnnotation = {
@@ -1134,6 +1150,7 @@ class CanvasManager {
       
       this.resetDrawingState();
       this.drawCanvas();
+      if (changed && this.onAnnotationsChange) this.onAnnotationsChange();
     }
   
     // Utility functions
@@ -1147,81 +1164,30 @@ class CanvasManager {
     }
   
     setAnnotations(newAnnotations) {
-      this.annotations = newAnnotations;
+      this.annotations = structuredClone(newAnnotations);
+      this.selectedAnnotation = null;
+      this.resetDrawingState();
       this.drawCanvas();
+    }
+
+    loadCoordinates(json) {
+      if (!this.ready) throw new Error("Wait for the image to load.");
+      this.setAnnotations(AnnotationGeometry.deserialize(json, this.canvas.width, this.canvas.height));
     }
   
     // Get coordinates for a single annotation
     getAnnotationCoordinatesJSON(annotation) {
-      // Calculate scale factors based on the original image dimensions
-      const scaleX = this.sourceImage.naturalWidth / this.canvas.width;
-      const scaleY = this.sourceImage.naturalHeight / this.canvas.height;
-      
-      if (annotation.type === "rectangle") {
-        const hw = annotation.width / 2;
-        const hh = annotation.height / 2;
-        const cos = Math.cos(annotation.rotation);
-        const sin = Math.sin(annotation.rotation);
-        
-        // Calculate corners in canvas space first
-        const corners = [
-          { x: annotation.cx + (-hw * cos - hh * sin), y: annotation.cy + (-hw * sin + hh * cos) }, // top-left
-          { x: annotation.cx + (hw * cos - hh * sin), y: annotation.cy + (hw * sin + hh * cos) },   // top-right
-          { x: annotation.cx + (hw * cos + hh * sin), y: annotation.cy + (hw * sin - hh * cos) },   // bottom-right
-          { x: annotation.cx + (-hw * cos + hh * sin), y: annotation.cy + (-hw * sin - hh * cos) }  // bottom-left
-        ];
-        
-        // Transform to original image space and round to integers
-        return corners.map(pt => [
-          Math.round(pt.x * scaleX),
-          Math.round(pt.y * scaleY)
-        ]);
-      } else if (annotation.type === "freehand") {
-        // For freehand, scale each point to original image space
-        return annotation.points.map(pt => [
-          Math.round(pt.x * scaleX),
-          Math.round(pt.y * scaleY)
-        ]);
-      }
-      return null;
+      return AnnotationGeometry.corners(annotation).map(p => p.map(n => Math.round(n*1000)/1000));
     }
   
     // Get all annotations as JSON
     getAllAnnotationsJSON() {
-      return JSON.stringify(this.annotations.map(ann => this.getAnnotationCoordinatesJSON(ann)));
+      if (!this.ready || this.currentAction !== "none" || this.imageIdentity !== (this.sourceImage.currentSrc || this.sourceImage.src)) throw new Error("Finish drawing and wait for the assigned image before saving.");
+      return AnnotationGeometry.serialize(this.annotations, this.canvas.width, this.canvas.height);
     }
   
     getAnnotationCornersOriginal(ann) {
-      // Calculate scale factors based on the original image dimensions
-          const scaleX = this.sourceImage.naturalWidth / this.canvas.width;
-          const scaleY = this.sourceImage.naturalHeight / this.canvas.height;
-      
-      if (ann.type === "rectangle") {
-        const hw = ann.width / 2;
-        const hh = ann.height / 2;
-        const cos = Math.cos(ann.rotation);
-        const sin = Math.sin(ann.rotation);
-        
-        // Calculate corners in canvas space first
-        const corners = [
-          { x: ann.cx + (-hw * cos - hh * sin), y: ann.cy + (-hw * sin + hh * cos) }, // top-left
-          { x: ann.cx + (hw * cos - hh * sin), y: ann.cy + (hw * sin + hh * cos) },   // top-right
-          { x: ann.cx + (hw * cos + hh * sin), y: ann.cy + (hw * sin - hh * cos) },   // bottom-right
-          { x: ann.cx + (-hw * cos + hh * sin), y: ann.cy + (-hw * sin - hh * cos) }  // bottom-left
-        ];
-        
-        // Transform to original image space
-        return corners.map(pt => [
-          Math.round(pt.x * scaleX),
-          Math.round(pt.y * scaleY)
-        ]);
-      } else if (ann.type === "freehand") {
-        // For freehand, simply scale each point
-        return ann.points.map(pt => [
-          Math.round(pt.x * scaleX),
-          Math.round(pt.y * scaleY)
-        ]);
-      }
+      return this.getAnnotationCoordinatesJSON(ann);
     }
   
     setupLensEventListeners() {

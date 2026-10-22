@@ -15,18 +15,35 @@ public class IdentityService : IIdentityService
         this.signInManager = signInManager;
     }
 
-    public async Task<(bool Succeeded, IEnumerable<string>? Errors)> SignupAsync(User user, string? password, string? confirmationUrl)
+    public async Task<(bool Succeeded, IEnumerable<string>? Errors)> SignupAsync(User user, string? password, string roleName)
     {
         if (string.IsNullOrWhiteSpace(password))
         {
             return (false, ["Password is required."]);
         }
 
-        var result = await userManager.CreateAsync(user, password);
+        if (roleName is not ("Professional" or "Medical_Student"))
+        {
+            return (false, ["Choose a valid research participant position."]);
+        }
 
-        return result.Succeeded
-            ? (true, null)
-            : (false, result.Errors.Select(error => error.Description).ToArray());
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+        {
+            return (false, result.Errors.Select(error => error.Description).ToArray());
+        }
+
+        var roleResult = await userManager.AddToRoleAsync(user, roleName);
+        if (roleResult.Succeeded)
+        {
+            return (true, null);
+        }
+
+        // Remove only the just-created account if assigning its research role fails.
+        var cleanup = await userManager.DeleteAsync(user);
+        return (false, [cleanup.Succeeded
+            ? "Your account could not be created. Please try again or contact the researcher."
+            : "Your account needs attention before you can sign in. Please contact the researcher."]);
     }
 
     public async Task<(bool Succeeded, IEnumerable<string>? Errors)> LoginAsync(string? email, string? password)
@@ -44,10 +61,10 @@ public class IdentityService : IIdentityService
         var user = await userManager.FindByEmailAsync(email);
         if (user == null)
         {
-            return (false, ["The email address you entered does not exist in our system."]);
+            return (false, ["Email or password is incorrect. Please try again."]);
         }
 
-        var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: false, lockoutOnFailure: false);
+        var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: false, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {
@@ -69,25 +86,7 @@ public class IdentityService : IIdentityService
             return (false, ["Two factor authentication is required but is not supported by this application."]);
         }
 
-        return (false, ["The password you entered is incorrect. Please try again."]);
-    }
-
-    public async Task<bool> ConfirmEmailAsync(string? userId, string? token)
-    {
-        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
-        {
-            return false;
-        }
-
-        var user = await userManager.FindByIdAsync(userId);
-        if (user == null)
-        {
-            return false;
-        }
-
-        var result = await userManager.ConfirmEmailAsync(user, token);
-
-        return result.Succeeded;
+        return (false, ["Email or password is incorrect. Please try again."]);
     }
 
     public async Task SignoutAsync()

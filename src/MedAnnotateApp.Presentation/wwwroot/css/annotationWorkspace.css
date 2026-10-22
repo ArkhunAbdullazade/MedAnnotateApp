@@ -1,0 +1,83 @@
+/* Fit the workspace to the viewport; only text and group panels scroll. */
+html, body { height: 100%; height: 100dvh; min-height: 0; overflow: hidden; }
+body { display: flex; flex-direction: column; }
+body > header { flex: 0 0 auto; }
+body > header .navbar { margin-bottom: 0 !important; padding-block: 5px; }
+body > header .navbar-brand { font-size: 1.5rem !important; }
+body > .container { flex: 1 1 0; min-height: 0; max-width: none; width: 100%; padding: 0 24px; overflow: hidden; }
+main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
+.annotation-workspace { flex-direction: row; height: calc(100% - 42px); min-height: 0; margin: 0; padding: 6px 0; align-items: stretch; gap: 40px; }
+.annotation-workspace .left-column { flex: 1 1 0; width: auto; max-width: none; min-width: 0; min-height: 0; height: 100%; margin: 0; justify-content: flex-start; }
+.annotation-workspace .right-column { flex: 0 0 260px; width: 260px; max-width: none; min-width: 0; min-height: 0; height: 100%; margin: 0; padding-left: 16px; box-sizing: border-box; }
+.annotation-workspace .right-column.student-mode { height: 100%; }
+.annotation-workspace .metadata { flex: 0 1 auto; height: auto; max-height: 45%; min-height: 0; overflow: hidden; }
+.annotation-workspace .metadata-inner { height: auto; min-height: 0; padding: 6px 12px; justify-content: flex-start; overflow: auto; font-size: .85rem; }
+.annotation-workspace .metadata-inner > p,
+.annotation-workspace .metadata-inner > .metadata-item {
+  display: grid;
+  grid-template-columns: minmax(0, 45%) minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  margin: 0;
+  padding: 6px 0;
+  font-size: inherit;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.annotation-workspace .metadata-inner strong,
+.annotation-workspace .metadata-item .label { min-width: 0; font-size: inherit; line-height: inherit; }
+.annotation-workspace .metadata-item .value { min-width: 0; overflow-wrap: anywhere; }
+.annotation-workspace .comments-section { flex: 1 1 0; height: auto; min-height: 60px; overflow: hidden; }
+.comments-section label { flex: 0 0 auto; width: 100%; padding: 8px 12px; margin: 0; border-bottom: 1px solid #f0f0f0; color: #333; font-size: .85rem; font-weight: 600; }
+.comments-section textarea { flex: 1 1 0; min-height: 0; height: auto; line-height: 1.4; }
+.header-text { flex: 0 0 auto; min-height: 0; height: clamp(64px, 12vh, 96px); max-height: 20%; margin-bottom: 4px; overflow: auto; align-items: flex-start; }
+.header-text p, .header-text.text-scale p { white-space: pre-wrap; font-size: .85rem; line-height: 1.25; color: #595959 !important; }
+.annotation-instructions { flex: 0 0 auto; width: 100%; font-size: .73rem; line-height: 1.2; margin: 2px 0 4px; }
+.header-text .keyword { cursor: pointer; font-weight: bold; }
+.header-text .keyword:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.annotation-status { flex: 0 0 auto; width: 100%; min-height: 24px; max-height: 3.5em; padding: 3px 6px; margin-bottom: 5px; overflow: auto; font-size: .78rem; line-height: 1.25; background: #eef3f7; border-left: 3px solid #49667d; }
+.annotation-status[data-state="error"] { color: #780c13; background: #fff0f0; border-color: #a9000e; }
+.annotation-status[data-state="unsaved"] { background: #fff7dc; border-color: #8c6700; }
+.annotation-status[data-state="saving"] { background: #e6f3ff; }
+.annotation-workspace .main-content, .annotation-workspace .annotation-section { flex: 1 1 0; min-height: 0; height: auto; margin: 0; }
+.image-viewport { flex: 1 1 0; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; padding: 3px; }
+#image-container { border: 0; outline: 2px solid #a9000e; border-radius: 0; overflow: visible; flex: 0 0 auto; box-sizing: content-box; max-width: 100%; margin: 0; }
+#canvasContainer { border: 0; padding: 0; box-sizing: content-box; flex: 0 0 auto; display: block; overflow: visible; }
+#mainCanvas { border: 0; padding: 0; display: block; max-width: none; box-sizing: content-box; touch-action: none; }
+.buttons-section { flex: 0 0 auto; flex-wrap: wrap; height: auto; gap: 6px; padding: 3px 0; margin: 4px 0 0; }
+.buttons-section .button, .buttons-section .primary-button { font-size: .85rem; padding: 6px 10px; }
+.buttons-section .button:disabled, .buttons-section .primary-button:disabled { color: #656565; background-color: #e9ecef; opacity: 1; cursor: not-allowed; box-shadow: none; }
+.annotation-workspace :is(button, a, input, textarea):focus-visible,
+.logout-section :is(button, a):focus-visible,
+.tools-container button:focus-visible,
+.floating-textbox :is(input, button):focus-visible { outline: 2px solid #a9000e; outline-offset: 2px; }
+.comments-section textarea:focus-visible { outline-offset: -2px; }
+.student-mode .annotation-section { overflow: hidden; align-items: stretch; }
+.student-mode .annotations-list { flex: 1 1 0; min-height: 0; height: auto; max-height: none; overflow: auto; }
+.student-mode .annotation-item { cursor: default; }
+.student-mode .annotation-info { min-width: 0; }
+.student-mode .annotation-label { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.student-mode .annotation-actions { flex-shrink: 0; }
+.annotation-workspace ~ .logout-section { height: 40px; padding: 0 16px; }
+.logout-section .btn { font-size: .8rem; padding: 4px 8px; }
+.logout-section .counter, .logout-section .counter-display, .logout-section #end-button { font-size: .85rem; }
+.floating-textbox { max-width: calc(100vw - 12px); }
+.floating-input { min-width: 90px; }
+@media (prefers-reduced-motion: reduce) {
+  .floating-textbox { animation: none; }
+  .annotation-item, .annotation-actions button { transition: none; }
+}
+.centered-container { height: calc(100% - 42px); min-height: 0; overflow: auto; }
+@media (max-width: 850px) {
+  body > .container { padding-inline: 12px; }
+  .annotation-workspace { flex-direction: row; gap: 35px; }
+  .annotation-workspace .right-column { flex-basis: 190px; width: 190px; }
+  .annotation-workspace .metadata-inner { padding-inline: 10px; }
+  .annotation-workspace .metadata-inner > p,
+  .annotation-workspace .metadata-inner > .metadata-item { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .buttons-section .button, .buttons-section .primary-button { font-size: .75rem; padding: 4px 6px; }
+}
+@media (max-height: 600px) {
+  .header-text { height: 72px; }
+  .annotation-instructions { font-size: .68rem; }
+}

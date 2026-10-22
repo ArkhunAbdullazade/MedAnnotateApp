@@ -16,7 +16,9 @@ public class StudentAnnotationDto
     public string? TreatmentName { get; set; }
     public string? Speciality { get; set; }
     public string? Modality { get; set; }
+    [Required, StringLength(1_500_000)]
     public string? Coordinates { get; set; }
+    [Required, StringLength(500)]
     public string? TextualAnnotation { get; set; }
 }
 

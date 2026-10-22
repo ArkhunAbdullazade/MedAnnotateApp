@@ -12,6 +12,10 @@ public interface IMedDataRepository
         string userId);
 
     Task<IEnumerable<string?>> GetKeywordsByMedDataIdAsync(int id);
-    Task<bool> UpdateIsAnnotated(int medDataId, bool isAnnotatedByStudent);
-    Task<bool> UpdateLock(int medDataId, string keywordStates, bool isAnnotationStarted, bool isStudent);
+    Task<bool> UpdateLock(int medDataId, string keywordStates, bool isAnnotationStarted, bool isStudent, string userId);
+    Task ReleaseAssignmentsAsync(string userId, bool isStudent);
+    Task<AnnotationSaveResult> SaveProfessionalAsync(User user, AnnotatedMedData annotation);
+    Task<AnnotationSaveResult> CompleteProfessionalAsync(int medDataId, User user);
+    Task<AnnotationSaveResult> SaveStudentAsync(User user, IReadOnlyList<AnnotatedByStudentsMedData> annotations);
+    Task<IReadOnlyList<AnnotatedMedData>?> GetProfessionalAnnotationsAsync(int medDataId, User user);
 }

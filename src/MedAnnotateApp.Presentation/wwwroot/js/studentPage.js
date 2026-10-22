@@ -1,305 +1,77 @@
-document.addEventListener("DOMContentLoaded", function () {
-  // Flag to identify student page for canvas.js
-  window.isStudentPage = true;
-  window.hasAnnotatedCurrentImage = false;
+"use strict";
 
-  setupLogoutFunctionality();
-
-  if (window.annotatedMedData) {
-    initializeStudentPageFunctionality();
-  }
-});
-
-function setupLogoutFunctionality() {
-  const endButton = document.getElementById("end-button");
-  if (endButton) {
-    endButton.addEventListener("click", handleLogout);
-  }
-
-  const endButtonCenter = document.getElementById("end-button-center");
-  if (endButtonCenter) {
-    endButtonCenter.addEventListener("click", handleLogout);
-  }
-}
-
-function handleLogout() {
-  let redirectTimerSet = false;
-
-  const redirectTimer = setTimeout(() => {
-    if (!redirectTimerSet) {
-      redirectTimerSet = true;
-      window.location.href = "/Identity/Login";
-    }
-  }, 2000);
-
-  const requestData = {
-    isAnnotationStarted: false,
-    medDataId: window.annotatedMedData ? window.annotatedMedData.id : null
-  };
-      
-  fetch('/Identity/Logout', {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestData),
-  })
-  .then((response) => response.json())
-  .then((result) => {
-    clearTimeout(redirectTimer);
-    redirectTimerSet = true;
-    window.location.href = "/Identity/Login";
-  })
-  .catch((error) => {
-    console.error("Error:", error);
-    if (!redirectTimerSet) {
-      redirectTimerSet = true;
-      window.location.href = "/Identity/Login";
-    }
+document.addEventListener("DOMContentLoaded", () => {
+  let dirty = false, saving = false, navigating = false, manager;
+  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+  const headers = {"Content-Type":"application/json","X-CSRF-TOKEN":token};
+  const status = document.getElementById("annotation-status");
+  const showStatus = (text, state="ready") => { if (status) {status.textContent=text;status.dataset.state=state;} };
+  const hasUnsavedWork=()=>manager ? manager.getAnnotationGroups().length>0 || manager.baseManager.annotations.length>0 || manager.baseManager.currentAction!=="none" : dirty;
+  window.addEventListener("beforeunload", e => {if(!navigating && (hasUnsavedWork() || saving)){e.preventDefault();e.returnValue="";}});
+  for (const id of ["end-button","end-button-center"]) document.getElementById(id)?.addEventListener("click", async () => {
+    if (saving || (hasUnsavedWork() && !confirm("Discard all unsubmitted annotations and log out?"))) return;
+    try {
+      const response = await fetch("/Identity/Logout",{method:"POST",headers,body:JSON.stringify({isAnnotationStarted:false,medDataId:window.annotatedMedData?.id})});
+      if (!response.ok) throw new Error("Logout failed. Your work is still on this page. Please try again.");
+      dirty=false;navigating=true; location.href="/Identity/Login";
+    } catch (error) { showStatus(error.message,"error"); }
   });
-}
-
-// Global variables to hold page elements
-let submitButton;
-let annotationsList;
-let imageContainer;
-let sourceImage;
-let canvasContainer;
-let studentCanvasManager = null;
-
-function initializeStudentPageFunctionality() {
-  submitButton = document.getElementById("submit-button");
-  annotationsList = document.getElementById("annotations-list");
-  imageContainer = document.getElementById("image-container");
-  sourceImage = document.getElementById("sourceImage");
-  canvasContainer = document.getElementById("canvasContainer");
-
-  window.tIdentifyStart = Date.now();
-  window.tAnnotationStart = 0;
-
-  window.setAnnotationStartTime = function() {
-    if (window.tAnnotationStart === 0) {
-      window.tAnnotationStart = Date.now();
+  if (!window.annotatedMedData) return;
+  const imageId=window.annotatedMedData.id;
+  const submit=document.getElementById("submit-button");
+  const list=document.getElementById("annotations-list");
+  manager=window.canvasManager=new StudentCanvasManager("mainCanvas","sourceImage","canvasContainer");
+  const tools=manager.createTools(document.getElementById("image-container"));
+  tools.rectButton.addEventListener("click",()=>manager.switchMode("rectangle"));
+  tools.freehandButton.addEventListener("click",()=>manager.switchMode("freehand"));
+  tools.magnifyButton.addEventListener("click",()=>manager.switchMode("magnifier"));
+  function updateList() {
+    list.replaceChildren();
+    const groups=manager.getAnnotationGroups();
+    submit.disabled=saving || !manager.baseManager.ready || groups.length===0;
+    if (!groups.length) {
+      const empty=document.createElement("p");empty.className="empty-annotations-message";empty.textContent="Draw a shape, enter a label, then save the group. Submit all groups when finished.";list.appendChild(empty);
     }
-  };
-
-  if (sourceImage.complete) {
-    initializeCanvas();
-  } else {
-    sourceImage.onload = initializeCanvas;
+    groups.forEach((group,index)=>{
+      const item=document.createElement("div");item.className="annotation-item";
+      const label=document.createElement("span");label.className="annotation-label";label.textContent=`${group.label} (${group.annotations.length} shape${group.annotations.length===1?"":"s"})`;
+      const actions=document.createElement("div");actions.className="annotation-actions";
+      const edit=document.createElement("button");edit.type="button";edit.textContent="Edit";edit.disabled=saving;
+      edit.addEventListener("click",()=>{if(!saving)manager.editGroup(index);});
+      const remove=document.createElement("button");remove.type="button";remove.textContent="Delete";remove.disabled=saving;
+      remove.addEventListener("click",()=>{if(!saving && confirm("Delete this annotation group?"))manager.deleteGroup(index);});
+      actions.append(edit,remove);item.append(label,actions);list.appendChild(item);
+    });
   }
-}
-
-function initializeCanvas() {
-  try {
-    studentCanvasManager = new StudentCanvasManager("mainCanvas", "sourceImage", "canvasContainer");
-    window.canvasManager = studentCanvasManager;
-
-    const { rectButton, freehandButton, magnifyButton } = studentCanvasManager.createTools(imageContainer);
-
-    rectButton.addEventListener("click", () => studentCanvasManager.switchMode("rectangle"));
-    freehandButton.addEventListener("click", () => studentCanvasManager.switchMode("freehand"));
-    magnifyButton.addEventListener("click", function(e) {
-      studentCanvasManager.switchMode("magnifier");
-      e.stopPropagation();
-    });
-
-    studentCanvasManager.onGroupedAnnotationsChange = updateAnnotationsList;
-
-    updateAnnotationsList();
-    setupSubmitButton();
-  } catch (error) {
-    console.error("Error initializing canvas:", error);
+  function updateDraftState() {
+    const pending=manager.baseManager.annotations.length>0 || manager.baseManager.currentAction!=="none";
+    dirty=hasUnsavedWork();updateList();
+    showStatus(pending ? "Unsaved shape changes. Enter a label and save this group before submitting." : dirty ?
+      "Groups are held on this page. Select Submit Annotations to save them to the database." :
+      "Image ready. Draw a shape, label it and save the group.",dirty ? "unsaved" : "ready");
   }
-}
-
-// ====================================================
-// Submit Button Setup
-// ====================================================
-function setupSubmitButton() {
-  submitButton.addEventListener("click", function() {
-    if (!studentCanvasManager) return;
-
-    const annotationGroups = studentCanvasManager.getAnnotationGroups();
-
-    if (annotationGroups.length === 0) {
-      alert("Please add at least one annotation before submitting.");
-      return;
-    }
-
-    const hasUnlabeledGroups = annotationGroups.some(group => !group.label || group.label.trim() === "");
-    if (hasUnlabeledGroups) {
-      if (!confirm("Some annotations don't have labels. Submit anyway?")) {
-        return;
-      }
-    }
-
-    const medData = window.annotatedMedData;
-    const groupedAnnotationsJSON = studentCanvasManager.getAllGroupedAnnotationsJSON();
-    const annotationDtos = [];
-
-    groupedAnnotationsJSON.forEach(group => {
-      annotationDtos.push({
-        Id: medData.id,
-        ImageUrl: medData.imageUrl,
-        ImageDescription: medData.imageDescription,
-
-        Sex: medData.sex || "",
-        Age: medData.age || "",
-        BodyRegion: medData.bodyRegion || "",
-        Diagnosis: medData.diagnosis || "",
-        TreatmentName: medData.treatmentName || "",
-        Speciality: medData.speciality || "",
-        Modality: medData.modality || "",
-        
-        // Group annotation data
-        Coordinates: JSON.stringify(group.annotations),
-        TextualAnnotation: group.label || `Annotation ${annotationDtos.length + 1}`,
-        GroupId: group.groupId
-      });
-    });
-
-    const submissionData = {
-      Annotations: annotationDtos,
-      IsAnnotationStarted: false
-    };
-
-    submitButton.disabled = true;
-    submitButton.textContent = "Submitting...";
-
-    fetch('/MedData/SubmitStudentAnnotations', {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(submissionData),
-    })
-    .then((response) => response.json())
-    .then((result) => {
-      if (result.success) {
-        setTimeout(() => {
-          window.location.href = result.redirectUrl || "/Home/Student";
-        }, 500);
-      } else {
-        alert(result.message || "Failed to submit annotations. Please try again.");
-        submitButton.disabled = false;
-        submitButton.textContent = "Submit Annotations";
-      }
-    })
-    .catch((error) => {
-      console.error("Error:", error);
-      alert("An error occurred while submitting annotations. Please try again.");
-      submitButton.disabled = false;
-      submitButton.textContent = "Submit Annotations";
-    });
+  manager.onGroupedAnnotationsChange=updateDraftState;
+  const original=manager.baseManager.onAnnotationsChange;
+  manager.baseManager.onAnnotationsChange=()=>{original();updateDraftState();};
+  manager.baseManager.canvas.addEventListener("annotationimageready",()=>{updateList();showStatus("Image ready. Draw a shape, label it and save the group.");});
+  manager.baseManager.canvas.addEventListener("annotationimageerror",updateList);
+  if(manager.baseManager.ready)showStatus("Image ready. Draw a shape, label it and save the group.");
+  submit.addEventListener("click",async()=>{
+    if(saving || !manager.baseManager.ready || imageId!==window.annotatedMedData.id)return;
+    if(manager.baseManager.currentAction!=="none" || manager.baseManager.annotations.length){showStatus("Finish and save or cancel the current group before submitting.","error");return;}
+    const groups=manager.getAnnotationGroups();
+    if(!groups.length || groups.some(g=>!g.label?.trim())){showStatus("Every group needs a label and at least one complete shape.","error");return;}
+    let payload;
+    try {
+      payload={Annotations:manager.getAllGroupedAnnotationsJSON().map(group=>({Id:imageId,Coordinates:group.annotations,TextualAnnotation:group.label}))};
+    } catch(error){showStatus(error.message,"error");return;}
+    saving=true;manager.baseManager.readOnly=true;submit.textContent="Submitting…";updateList();showStatus("Saving all groups… keep this page open.","saving");
+    try {
+      const response=await fetch("/MedData/SubmitStudentAnnotations",{method:"POST",headers,body:JSON.stringify(payload)});
+      let result;try{result=await response.json();}catch{throw new Error("Your session may have expired. Sign in in another tab and retry; keep this page open.");}
+      if(!response.ok || !result.success)throw new Error(result.message || "Save failed. All groups are still on this page.");
+      dirty=false;saving=false;navigating=true;location.href=result.redirectUrl || "/Home/Student";
+    } catch(error){saving=false;manager.baseManager.readOnly=false;submit.textContent="Submit Annotations";updateList();showStatus(error.message,"error");}
   });
-}
-
-// ====================================================
-// UI Update Functions
-// ====================================================
-function updateAnnotationsList() {
-  if (!studentCanvasManager) return;
-
-  annotationsList.replaceChildren();
-
-  const annotationGroups = studentCanvasManager.getAnnotationGroups();
-  submitButton.disabled = annotationGroups.length === 0;
-
-  if (annotationGroups.length === 0) {
-    const emptyMessage = document.createElement("div");
-    emptyMessage.className = "empty-annotations-message";
-    emptyMessage.textContent = "No annotations yet. Use the tools to annotate the image.";
-    annotationsList.appendChild(emptyMessage);
-    return;
-  }
-
-  annotationGroups.forEach((group, index) => {
-    const annotationItem = document.createElement("div");
-    annotationItem.className = "annotation-item";
-    annotationItem.dataset.index = index;
-
-    if (studentCanvasManager.selectedGroupIndex === index) {
-      annotationItem.classList.add("selected");
-    }
-
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "annotation-info";
-
-    const colorIndicator = document.createElement("span");
-    colorIndicator.className = "annotation-color-indicator";
-    colorIndicator.style.backgroundColor = group.color;
-    infoDiv.appendChild(colorIndicator);
-
-    const labelSpan = document.createElement("span");
-    labelSpan.className = "annotation-label";
-    labelSpan.textContent = group.label || `Annotation ${index + 1}`;
-    infoDiv.appendChild(labelSpan);
-
-    if (group.annotations.length > 1) {
-      const countBadge = document.createElement("span");
-      countBadge.className = "annotation-count";
-      countBadge.textContent = group.annotations.length;
-      annotationItem.appendChild(countBadge);
-    }
-
-    const actionsDiv = document.createElement("div");
-    actionsDiv.className = "annotation-actions";
-
-    const editButton = document.createElement("button");
-    editButton.textContent = "Edit";
-    editButton.addEventListener("click", function(e) {
-      e.stopPropagation();
-      studentCanvasManager.editGroup(index);
-      updateAnnotationsList();
-    });
-
-    const deleteButton = document.createElement("button");
-    deleteButton.textContent = "Delete";
-    deleteButton.addEventListener("click", function(e) {
-      e.stopPropagation();
-      if (confirm("Are you sure you want to delete this annotation?")) {
-        studentCanvasManager.deleteGroup(index);
-      }
-    });
-
-    annotationItem.addEventListener("click", function() {
-      studentCanvasManager.editGroup(index);
-      updateAnnotationsList();
-    });
-
-    actionsDiv.appendChild(editButton);
-    actionsDiv.appendChild(deleteButton);
-    annotationItem.appendChild(infoDiv);
-    annotationItem.appendChild(actionsDiv);
-    annotationsList.appendChild(annotationItem);
-  });
-}
-
-// Keep canvas tools aligned after the full page layout settles.
-window.addEventListener("load", function() {
-  if (window.canvasManager) {
-    window.addEventListener('resize', function() {
-      if (window.canvasManager && window.canvasManager.updateToolsPosition) {
-        window.canvasManager.updateToolsPosition(document.getElementById("image-container"));
-      }
-    });
-
-    document.addEventListener('scroll', function() {
-      if (window.canvasManager && window.canvasManager.updateToolsPosition) {
-        window.canvasManager.updateToolsPosition(document.getElementById("image-container"));
-      }
-    });
-
-    if (window.canvasManager.drawCanvas) {
-      window.canvasManager.drawCanvas();
-    }
-
-    const sourceImage = document.getElementById('sourceImage');
-    if (sourceImage && !sourceImage.complete) {
-      sourceImage.onload = function() {
-        if (window.canvasManager && window.canvasManager.sourceImage) {
-          window.canvasManager.sourceImage.onload();
-        }
-      };
-    } else if (window.canvasManager.baseManager && window.canvasManager.baseManager.sourceImage) {
-      window.canvasManager.baseManager.sourceImage.onload();
-    }
-  }
+  updateList();
 });

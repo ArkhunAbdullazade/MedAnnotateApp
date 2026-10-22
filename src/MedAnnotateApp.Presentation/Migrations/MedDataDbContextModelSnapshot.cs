@@ -17,7 +17,7 @@ namespace MedAnnotateApp.Presentation.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.10")
+                .HasAnnotation("ProductVersion", "8.0.32")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -212,6 +212,9 @@ namespace MedAnnotateApp.Presentation.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Pmcid")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceUrl")
                         .HasColumnType("text");
 
                     b.Property<string>("Sex")

@@ -42,7 +42,7 @@ Both workflows provide rectangle and freehand tools, with a magnifier for inspec
 
 ### Participant access and image assignment
 
-Participants pass a shared authorization gate, then register or log in through ASP.NET Core Identity. Registration accepts `stanford.edu` and `mountsinai.org` email addresses and collects profile information used to filter images by specialty, body region, modality, and role.
+Participants pass a shared research access gate, then register or log in with their own account password through ASP.NET Core Identity. Ordinary email addresses are accepted; ownership confirmation is not required. Each image selection list requires at least one option and supports multiple options. Images match any selected option within each list and must match all three lists. Selections can be changed at `/Identity/Filters`.
 
 Selecting `medical student` assigns the `Medical_Student` role; other positions receive `Professional`. Each role has its own annotation workspace.
 
@@ -88,21 +88,22 @@ Saved keyword states preserve progress when a specialist has not finished every 
 | Infrastructure | `src/MedAnnotateApp.Infrastructure` | Data access, repository implementations, services, and settings |
 | Presentation | `src/MedAnnotateApp.Presentation` | MVC controllers, Razor views, DTOs, migrations, and static assets |
 
-The application uses ASP.NET Core Identity for accounts, EF Core 8 with Npgsql for PostgreSQL access, and EPPlus for Excel seed data. The interface uses Bootstrap, jQuery, and custom canvas annotation tools. Docker Compose runs the web app, PostgreSQL, and Redis.
+The application uses ASP.NET Core Identity for accounts, EF Core 8 with Npgsql for PostgreSQL access, and EPPlus for optional Excel seed data. The interface uses locally served Bootstrap 5.3.8, jQuery 3.7.1, and custom canvas tools. Docker Compose runs one web instance and PostgreSQL, with persistent database and data-protection-key volumes.
 
 ## Run with Docker
 
-From the repository root, use PowerShell:
+Configure the intended database, shared gate hash, persistent keys, hostname, trusted HTTPS proxy and backups before public deployment. Production does not automatically migrate or seed data.
 
 ```powershell
-Copy-Item .env.example .env
-# Configure .env before starting the app.
-docker compose up --build
+# Create .env from .env.example only if it does not exist; configure real values.
+docker compose --project-name medannotateapp build --pull webapp
+# Review/apply the schema and load approved image data before starting webapp.
+docker compose --project-name medannotateapp up -d
 ```
 
-Open [http://localhost:8080](http://localhost:8080).
+Use the public HTTPS hostname through the reverse proxy. Container HTTP is loopback-only on port 8080.
 
-On startup, the app applies EF Core migrations, creates the `Medical_Student` and `Professional` roles if needed, and loads `mockPMCMIDdata7.xlsx` when `MedDatas` is empty.
+Startup initializes the two roles and fails clearly if PostgreSQL or its migration state is not ready. Sample Excel seeding is opt-in and false by default.
 
 ### Configuration
 
@@ -111,12 +112,14 @@ Keep private values in `.env`, environment variables, or .NET user secrets.
 | Setting | Purpose |
 | --- | --- |
 | `ConnectionStrings:MedDataDb` | PostgreSQL connection string |
-| `ConnectionStrings:RedisConnection` | Redis connection string for containerized environments |
 | `AuthorizationAccessPasswordHash` | BCrypt hash for the shared authorization gate |
-| `DataProtection:KeysPath` | Optional persisted data-protection key path |
-| `SmtpSettings:*` | SMTP settings for email delivery |
+| `DataProtection:KeysPath` | Required persistent key path in production |
+| `AllowedHosts` | Public hostname |
+| `ReverseProxy:KnownProxies` | Explicit trusted proxy addresses |
+| `Database:ApplyMigrations` | Defaults to development only; false in production Compose |
+| `Database:SeedExcel` | Opt-in sample seed, false by default |
 
-Environment variables use double underscores for nested settings, such as `ConnectionStrings__MedDataDb` and `SmtpSettings__Password`. Supply a BCrypt hash for the authorization gate, rather than a plaintext password.
+Environment variables use double underscores for nested settings, such as `ConnectionStrings__MedDataDb`. Supply a BCrypt hash for the shared gate. SMTP is not required for research signup/sign-in. Ignored `appsettings.Local.json` is excluded from the image.
 
 <details>
 <summary>Run locally with the .NET SDK</summary>
@@ -127,14 +130,13 @@ Requires the .NET 8 SDK and a running PostgreSQL instance. The commands below us
 dotnet user-secrets init --project src/MedAnnotateApp.Presentation
 dotnet user-secrets set "ConnectionStrings:MedDataDb" "Host=localhost;Port=5432;Database=meddatadb;Username=postgres;Password=<password>" --project src/MedAnnotateApp.Presentation
 dotnet user-secrets set "AuthorizationAccessPasswordHash" '<bcrypt-hash>' --project src/MedAnnotateApp.Presentation
-dotnet user-secrets set "SmtpSettings:Password" "<smtp-password>" --project src/MedAnnotateApp.Presentation
 
 dotnet restore MedAnnotateApp.sln
 dotnet build MedAnnotateApp.sln
 dotnet run --project src/MedAnnotateApp.Presentation
 ```
 
-Configure any other required SMTP settings under `SmtpSettings`. Development launch profiles use [https://localhost:7243](https://localhost:7243) or [http://localhost:5210](http://localhost:5210); use the URL printed at startup.
+Alternatively, set the database connection and shared gate hash in ignored `src/MedAnnotateApp.Presentation/appsettings.Local.json`. Development launch profiles use [https://localhost:7243](https://localhost:7243) or [http://localhost:5210](http://localhost:5210); use the URL printed at startup.
 
 Entry route: `/Identity/AuthorizationAccess`. After authentication, users are routed to `/Home/Professional` or `/Home/Student`.
 
@@ -143,20 +145,21 @@ Entry route: `/Identity/AuthorizationAccess`. After authentication, users are ro
 <details>
 <summary>Manual database migrations</summary>
 
-Migrations run automatically at startup. For manual migration work, install a compatible `dotnet-ef` tool and run:
+Development can apply the existing migrations at startup. Production requires a reviewed script and backup. Generate SQL without applying it:
 
 ```powershell
-dotnet ef migrations add <MigrationName> --project src/MedAnnotateApp.Presentation --startup-project src/MedAnnotateApp.Presentation
-dotnet ef database update --project src/MedAnnotateApp.Presentation --startup-project src/MedAnnotateApp.Presentation
+dotnet tool restore
+dotnet ef migrations script --idempotent --project src/MedAnnotateApp.Presentation --startup-project src/MedAnnotateApp.Presentation --output reviewed-migrations.sql
 ```
 
 </details>
 
-## Current limitations
+## Testing
 
-- Email confirmation support exists but is not active during signup.
-- Redis is included in Docker Compose; session state currently uses the default in-app session services.
-- The repository does not yet include an automated test project.
+- .NET tests: `dotnet test tests/MedAnnotateApp.Tests/MedAnnotateApp.Tests.csproj`.
+- Coordinate tests: `node --test tests/js/annotationGeometry.test.cjs`.
+
+Images need speciality, body-region and modality metadata to be assigned through the required filters. .NET 8 support ends on 10 November 2026; deployments continuing beyond then need a supported runtime.
 
 ## License
 

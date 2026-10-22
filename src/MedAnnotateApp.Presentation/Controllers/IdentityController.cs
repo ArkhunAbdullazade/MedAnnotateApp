@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
@@ -7,25 +6,12 @@ using MedAnnotateApp.Presentation.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MedAnnotateApp.Presentation.Controllers;
 
 public class IdentityController : Controller
 {
-    private static readonly string[] Specialities =
-    [
-        "allergy", "anatomy", "anesthesiology", "cardiology", "critical care",
-        "dentistry", "dermatology", "emergency medicine", "endocrinology", "forensic medicine",
-        "gastroenterology", "general surgery", "genetics", "hematology", "hepatology",
-        "immunology", "infectious diseases", "internal medicine", "microbiology", "neonatology",
-        "nephrology", "neurology", "neurosurgery", "obstetrics and gynecology", "oncology",
-        "ophthalmology", "oral and maxillofacial surgery", "orthopedics", "otorhinolaryngology", "parasitology",
-        "pathology", "pediatric cardiology", "pediatrics", "physiology", "plastic surgery",
-        "podiatry", "proctology", "psychiatry", "radiology", "radiotherapy",
-        "rehabilitation medicine", "rheumatology", "sports medicine", "thoracic surgery", "toxicology",
-        "traditional medicine", "urology", "vascular surgery", "cardiac surgery", "pulmonology"
-    ];
-
     private readonly IMedDataRepository medDataRepository;
     private readonly IIdentityService identityService;
     private readonly UserManager<User> userManager;
@@ -54,7 +40,7 @@ public class IdentityController : Controller
             return RedirectToRoleBasedPage();
         }
 
-        if (HttpContext.Session.Keys.Contains("Authorized"))
+        if (HasResearchAccess())
         {
             return RedirectToAction(nameof(Login));
         }
@@ -68,6 +54,7 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
+    [EnableRateLimiting("research-access")]
     public IActionResult PostAuthorizationAccess(AuthorizationAccessDto authDto)
     {
         logger.LogInformation("Authorization access attempt");
@@ -98,7 +85,7 @@ public class IdentityController : Controller
             logger.LogWarning("Authorization access denied.");
         }
 
-        ModelState.AddModelError(string.Empty, "The password you entered is incorrect. Please try again.");
+        ModelState.AddModelError(string.Empty, "The research access password is incorrect. Please try again or contact the researcher.");
         return View("AuthorizationAccess", authDto);
     }
 
@@ -110,6 +97,8 @@ public class IdentityController : Controller
         {
             return RedirectToRoleBasedPage();
         }
+
+        if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
         {
@@ -125,8 +114,10 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
+    [EnableRateLimiting("research-access")]
     public async Task<IActionResult> PostLogin(LoginDto loginDto)
     {
+        if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
         logger.LogInformation("Login attempt for email: {Email}", loginDto.Email);
 
         if (!ModelState.IsValid)
@@ -145,7 +136,8 @@ public class IdentityController : Controller
                 return Redirect(returnUrl);
             }
 
-            return RedirectToRoleBasedPage();
+            // Resolve the destination through the authenticated home request.
+            return RedirectToAction("Index", "Home");
         }
 
         logger.LogWarning(
@@ -163,16 +155,14 @@ public class IdentityController : Controller
 
     [HttpPost]
     [Authorize]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout([FromBody] LogoutDto? logoutDto)
     {
+        var userId = userManager.GetUserId(User);
+        var isMedicalStudent = User.IsInRole("Medical_Student");
         try
         {
-            var isMedicalStudent = User.IsInRole("Medical_Student");
-
-            await identityService.SignoutAsync();
-            HttpContext.Session.Clear();
-
-            if (logoutDto?.MedDataId is int medDataId)
+            if (logoutDto?.MedDataId is int medDataId && userId is not null)
             {
                 logger.LogDebug(
                     "Releasing annotation lock for MedDataId {MedDataId}. AnnotationStarted: {AnnotationStarted}",
@@ -183,16 +173,17 @@ public class IdentityController : Controller
                     medDataId,
                     logoutDto.KeywordStates ?? string.Empty,
                     logoutDto.IsAnnotationStarted,
-                    isMedicalStudent);
+                    isMedicalStudent,
+                    userId);
             }
-
-            return Json(new { success = true });
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error during logout");
-            return Json(new { success = true, error = "Logout completed, but annotation lock cleanup failed." });
         }
+        await identityService.SignoutAsync();
+        HttpContext.Session.Clear();
+        return Json(new { success = true });
     }
 
     [HttpGet]
@@ -204,90 +195,51 @@ public class IdentityController : Controller
             return RedirectToRoleBasedPage();
         }
 
-        ViewBag.Specialities = Specialities;
+        if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
         HandleTempDataErrors();
-
-        if (TempData["FormData"] is string formDataJson)
-        {
-            var formData = JsonSerializer.Deserialize<SignupDto>(formDataJson);
-            return View(formData);
-        }
-
+        // Drop any legacy form cache: older versions stored passwords in TempData.
+        TempData.Remove("FormData");
         return View();
     }
 
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
+    [EnableRateLimiting("research-access")]
     public async Task<IActionResult> PostSignup([FromForm] SignupDto signupDto)
     {
+        if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
         try
         {
             logger.LogInformation("Starting signup process for email: {Email}", signupDto.Email);
 
             if (!ModelState.IsValid)
             {
-                var validationErrors = ModelState.Values
-                    .SelectMany(value => value.Errors.Select(error => error.ErrorMessage))
-                    .ToList();
-
-                logger.LogWarning("Model validation failed for signup: {Errors}", JsonSerializer.Serialize(validationErrors));
-                TempData["Errors"] = validationErrors;
-                TempData["FormData"] = JsonSerializer.Serialize(signupDto);
-                return RedirectToAction(nameof(Signup));
+                return View("Signup", signupDto);
             }
 
             var newUser = new User
             {
-                Email = signupDto.Email,
-                FullName = signupDto.FullName,
-                UserName = signupDto.Email,
+                Email = signupDto.Email?.Trim(),
+                FullName = signupDto.FullName?.Trim(),
+                UserName = signupDto.Email?.Trim(),
                 University = signupDto.University,
                 Position = signupDto.Position,
-                Speciality = signupDto.Speciality != null ? string.Join(",", signupDto.Speciality) : null,
-                BodyRegion = signupDto.BodyRegion != null ? string.Join(",", signupDto.BodyRegion) : null,
-                ImageModality = signupDto.ImageModality != null ? string.Join(",", signupDto.ImageModality) : null,
+                Speciality = ImageFiltersDto.JoinSelection(signupDto.Speciality!),
+                BodyRegion = ImageFiltersDto.JoinSelection(signupDto.BodyRegion!),
+                ImageModality = ImageFiltersDto.JoinSelection(signupDto.ImageModality!),
                 ClinicalExperience = signupDto.ClinicalExperience ?? 0,
                 OrcidId = signupDto.OrcidId,
             };
 
-            logger.LogInformation(
-                "Attempting to create user: {User}",
-                JsonSerializer.Serialize(new
-                {
-                    newUser.Email,
-                    newUser.FullName,
-                    newUser.Position,
-                    newUser.Speciality
-                }));
-
-            var (succeeded, signupErrors) = await identityService.SignupAsync(newUser, signupDto.Password, null);
+            var roleName = signupDto.Position == "medical student" ? "Medical_Student" : "Professional";
+            var (succeeded, signupErrors) = await identityService.SignupAsync(newUser, signupDto.Password, roleName);
             if (succeeded)
             {
-                var roleName = signupDto.Position?.Equals("medical student", StringComparison.OrdinalIgnoreCase) == true
-                    ? "Medical_Student"
-                    : "Professional";
-
-                var roleResult = await userManager.AddToRoleAsync(newUser, roleName);
-                if (!roleResult.Succeeded)
-                {
-                    logger.LogWarning(
-                        "User created but role assignment failed for {Email}: {Errors}",
-                        signupDto.Email,
-                        string.Join(", ", roleResult.Errors.Select(error => error.Description)));
-
-                    TempData["Errors"] = roleResult.Errors.Select(error => error.Description).ToList();
-                    TempData["FormData"] = JsonSerializer.Serialize(signupDto);
-                    return RedirectToAction(nameof(Signup));
-                }
-
                 logger.LogInformation("User created successfully and assigned role: {Role}", roleName);
+                TempData["Notice"] = "Your account is ready. Sign in with your email address and account password.";
                 return RedirectToAction(nameof(Login));
             }
-
-            logger.LogWarning(
-                "User creation failed: {Errors}",
-                signupErrors != null ? JsonSerializer.Serialize(signupErrors) : "No specific errors returned");
 
             var errorList = signupErrors?.ToList() ?? [];
             if (errorList.Count == 0)
@@ -295,19 +247,63 @@ public class IdentityController : Controller
                 errorList.Add("This email is already in use.");
             }
 
-            TempData["Errors"] = errorList;
-            TempData["FormData"] = JsonSerializer.Serialize(signupDto);
-
-            return RedirectToAction(nameof(Signup));
+            foreach (var error in errorList) ModelState.AddModelError(string.Empty, error);
+            return View("Signup", signupDto);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Exception during signup process");
-            TempData["Errors"] = new List<string> { "An unexpected error occurred during registration. Please try again." };
-            TempData["FormData"] = JsonSerializer.Serialize(signupDto);
-            return RedirectToAction(nameof(Signup));
+            ModelState.AddModelError(string.Empty, "Your account could not be created. Please try again or contact the researcher.");
+            return View("Signup", signupDto);
         }
     }
+
+    [HttpGet]
+    [Authorize(Roles = "Professional,Medical_Student")]
+    public async Task<IActionResult> Filters()
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Challenge();
+        return View(new ImageFiltersDto
+        {
+            Speciality = SplitSelection(user.Speciality),
+            BodyRegion = SplitSelection(user.BodyRegion),
+            ImageModality = SplitSelection(user.ImageModality)
+        });
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "Professional,Medical_Student")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Filters(ImageFiltersDto filters)
+    {
+        if (!ModelState.IsValid) return View(filters);
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Challenge();
+
+        var speciality = ImageFiltersDto.JoinSelection(filters.Speciality!);
+        var bodyRegion = ImageFiltersDto.JoinSelection(filters.BodyRegion!);
+        var modality = ImageFiltersDto.JoinSelection(filters.ImageModality!);
+        if (user.Speciality != speciality || user.BodyRegion != bodyRegion || user.ImageModality != modality)
+        {
+            await medDataRepository.ReleaseAssignmentsAsync(user.Id, User.IsInRole("Medical_Student"));
+            user.Speciality = speciality;
+            user.BodyRegion = bodyRegion;
+            user.ImageModality = modality;
+            var result = await userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                ModelState.AddModelError(string.Empty, "Your image selections could not be saved. Please try again.");
+                return View(filters);
+            }
+        }
+        return RedirectToRoleBasedPage();
+    }
+
+    private bool HasResearchAccess() => HttpContext.Session.GetString("Authorized") == "true";
+
+    private static string[] SplitSelection(string? value) => (value ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     [AllowAnonymous]
     public IActionResult AccessDenied()

@@ -1,510 +1,156 @@
-document.addEventListener("DOMContentLoaded", function () {
-  // Handle logout functionality first - this should work regardless of which page state we're in
-  setupLogoutFunctionality();
-  
-  // Only proceed with the rest of the initialization if we have data (not the "no more data" screen)
-  if (window.annotatedMedData) {
-    initializeAnnotationTools();
-  }
-});
+"use strict";
 
-// Function to setup logout functionality
-function setupLogoutFunctionality() {
-  // Setup end button (primary logout button)
-  const endButton = document.getElementById("end-button");
-  if (endButton) {
-    endButton.addEventListener("click", handleLogout);
-  }
-
-  // Add event listener for center logout button (when no data is available)
-  const endButtonCenter = document.getElementById("end-button-center");
-  if (endButtonCenter) {
-    endButtonCenter.addEventListener("click", handleLogout);
-  }
-}
-
-// Shared logout handler function
-function handleLogout() {
-  // Allow some buffer time for the logout operation to complete
-  let redirectTimerSet = false;
-  
-  // Set a fallback timer to ensure redirection happens regardless of API response
-  const redirectTimer = setTimeout(() => {
-    if (!redirectTimerSet) {
-      redirectTimerSet = true;
-      window.location.href = "/Identity/Login";
-    }
-  }, 2000);
-  
-  let isAnnotationStarted = false;
-  
-  // If window.hasAnnotatedCurrentImage is set to true anywhere in the code, use that
-  if (window.hasAnnotatedCurrentImage === true) {
-    isAnnotationStarted = true;
-  } 
-  // Otherwise check keywordStates to see if any annotations were made
-  else if (window.keywordStatesJson) {
-    try {
-      // Parse the keywordStates and check if any state is 2 (annotated) or 4 (skipped)
-      const parsedStates = JSON.parse(window.keywordStatesJson);
-      if (Array.isArray(parsedStates) && 
-          (parsedStates.includes(2) || parsedStates.includes(4))) {
-        isAnnotationStarted = true;
-      }
-    } catch (e) {
-      console.error("Error parsing keywordStates:", e);
-    }
-  }
-  
-  // Check if we have a canvasManager with annotations that might not be reflected in keywordStates yet
-  if (!isAnnotationStarted && window.canvasManager) {
-    try {
-      if (typeof window.canvasManager.getAnnotations === 'function') {
-        const annotations = window.canvasManager.getAnnotations();
-        if (annotations && annotations.length > 0) {
-          isAnnotationStarted = true;
-        }
-      } else if (typeof window.canvasManager.getAnnotationGroups === 'function') {
-        const groups = window.canvasManager.getAnnotationGroups();
-        if (groups && groups.length > 0) {
-          isAnnotationStarted = true;
-        }
-      }
-    } catch (e) {
-      console.error("Error checking for annotations:", e);
-    }
-  }
-  
-  const requestData = {
-    isAnnotationStarted: isAnnotationStarted,
-    medDataId: window.annotatedMedData ? window.annotatedMedData.id : null,
-    keywordStates: window.keywordStatesJson || null,
+document.addEventListener("DOMContentLoaded", () => {
+  let dirty = false, saving = false, initialized = false;
+  const status = document.getElementById("annotation-status");
+  const showStatus = (message, state = "ready") => {
+    if (status) { status.textContent = message; status.dataset.state = state; }
   };
-      
-  fetch('/Identity/Logout', {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestData),
-  })
-  .then((response) => response.json())
-  .then((result) => {
-    clearTimeout(redirectTimer);
-    redirectTimerSet = true;
-    window.location.href = "/Identity/Login";
-  })
-  .catch((error) => {
-    console.error("Error:", error);
-    if (!redirectTimerSet) {
-      redirectTimerSet = true;
-      window.location.href = "/Identity/Login";
-    }
+  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+  const headers = { "Content-Type": "application/json", "X-CSRF-TOKEN": token || "" };
+  const request = async (url, options = {}) => {
+    const response = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
+    let result;
+    try { result = await response.json(); } catch { throw new Error("Your session may have expired. Keep this page open and sign in again in another tab before retrying."); }
+    if (!response.ok || result.success === false) throw new Error(result.message || "The request could not be saved. Your work is still on this page.");
+    return result;
+  };
+  window.addEventListener("beforeunload", e => {
+    if (dirty || saving) { e.preventDefault(); e.returnValue = ""; }
   });
-}
-
-// Function to initialize the annotation tools and related functionality
-function initializeAnnotationTools() {
-  // ====================================================
-  // Global Elements & Setup
-  // ====================================================
-  const nextButton = document.getElementById("next-button");
-  const skipButton = document.getElementById("skip-button");
-  const notPresentButton = document.getElementById("not-present-button");
-  const keywords = document.querySelectorAll(".keyword");
-  const commentField = document.getElementById("comments");
-  const imageContainer = document.getElementById("image-container");
-
-  // Initialize CanvasManager
-  const canvasManager = new CanvasManager("mainCanvas", "sourceImage", "canvasContainer");
-  const { rectButton, freehandButton, magnifyButton } = canvasManager.createTools(imageContainer);
-
-  // Setup tool button event listeners
-  rectButton.addEventListener("click", () => canvasManager.switchMode("rectangle"));
-  freehandButton.addEventListener("click", () => canvasManager.switchMode("freehand"));
-  magnifyButton.addEventListener("click", function(e) {
-    // Simply call the magnifier mode which now handles toggling internally
-    canvasManager.switchMode("magnifier");
-    e.stopPropagation();
-  });
-
-  // ====================================================
-  // Global Navigation & Storage Variables
-  // ====================================================
-  let currentIndex = 0;
-  window.keywordStatesJson = window.annotatedMedData.keywordStates;
-  window.hasAnnotatedCurrentImage = false;
-
-  function createInitialKeywordStates(serializedStates, keywordCount) {
-    if (serializedStates) {
+  for (const id of ["end-button", "end-button-center"]) {
+    document.getElementById(id)?.addEventListener("click", async () => {
+      if (saving) return;
+      if (dirty && !confirm("This term has unsaved annotations or comments. Discard them and log out?")) return;
       try {
-        const parsedStates = JSON.parse(serializedStates);
-        if (Array.isArray(parsedStates) && parsedStates.length === keywordCount) {
-          return parsedStates;
-        }
-      } catch (error) {
-        console.error("Error parsing keywordStates:", error);
-      }
-    }
-
-    return Array.from({ length: keywordCount }, (_, index) => index === 0 ? 3 : 1);
-  }
-
-  let keywordStates = createInitialKeywordStates(window.keywordStatesJson, keywords.length);
-  currentIndex = keywordStates.findIndex((state) => state === 3);
-  if (currentIndex === -1 && keywordStates.length > 0) {
-    currentIndex = Math.max(0, keywordStates.findIndex((state) => state === 1));
-    keywordStates[currentIndex] = 3;
-  }
-  if (currentIndex === -1) {
-    currentIndex = 0;
-  }
-
-  function syncKeywordStates() {
-    window.keywordStatesJson = JSON.stringify(keywordStates);
-  }
-
-  syncKeywordStates();
-
-  // ====================================================
-  // Timestamp Variables for Current Term
-  // ====================================================
-  window.tIdentifyStart = Date.now();
-  window.tAnnotationStart = 0;
-
-  // Function to safely calculate timestamps
-  function calculateTimestamps() {
-    let t1 = 0, t2 = 0;
-    
-    if (window.tAnnotationStart > 0) {
-      // Time from starting to look at the image until first annotation
-      t1 = Math.max(0, window.tAnnotationStart - window.tIdentifyStart);
-      // Time from first annotation until saving
-      t2 = Math.max(0, Date.now() - window.tAnnotationStart);
-    }
-    
-    return `(${t1},${t2})`;
-  }
-
-  // Also add the function to handleMouseUp in the CanvasManager
-  // This can be done by injecting code into window for the CanvasManager to use
-  window.setAnnotationStartTime = function() {
-    if (window.tAnnotationStart === 0) {
-      window.tAnnotationStart = Date.now();
-    }
-  };
-
-  // ====================================================
-  // UI Update Functions
-  // ====================================================
-  function updateKeywordUI() {
-    keywords.forEach((kw, i) => {
-      kw.classList.remove("current_keyword", "annotated_keyword", "not_annotated_keyword", "skipped_keyword");
-      if (keywordStates[i] === 1) kw.classList.add("not_annotated_keyword");
-      else if (keywordStates[i] === 2) kw.classList.add("annotated_keyword");
-      else if (keywordStates[i] === 3) kw.classList.add("current_keyword");
-      else if (keywordStates[i] === 4) kw.classList.add("skipped_keyword");
+        await request("/Identity/Logout", {method: "POST", body: JSON.stringify({isAnnotationStarted:window.hasAnnotatedCurrentImage === true,medDataId:window.annotatedMedData?.id})});
+        dirty = false;
+        location.href = "/Identity/Login";
+      } catch (error) { showStatus(error.message, "error"); }
     });
-    
-    syncKeywordStates();
   }
-
-  function updateNavigationButtons() {
-    /* Previous button removed */
+  if (!window.annotatedMedData) return;
+  const medData = window.annotatedMedData;
+  const assignmentId = medData.id;
+  const next = document.getElementById("next-button");
+  const skip = document.getElementById("skip-button");
+  const absent = document.getElementById("not-present-button");
+  const comments = document.getElementById("comments");
+  const occurrences = [...document.querySelectorAll(".header-text .keyword")];
+  // Repeated phrases share one response; progress follows their first appearance in the text.
+  const terms = occurrences.filter((term, index) => occurrences.findIndex(other => other.dataset.keyword === term.dataset.keyword) === index);
+  const expectedTermCount = Number(document.querySelector(".header-text")?.dataset.keywordCount || 0);
+  const manager = new CanvasManager("mainCanvas", "sourceImage", "canvasContainer");
+  window.canvasManager = manager;
+  const tools = manager.createTools(document.getElementById("image-container"));
+  tools.rectButton.addEventListener("click", () => manager.switchMode("rectangle"));
+  tools.freehandButton.addEventListener("click", () => manager.switchMode("freehand"));
+  tools.magnifyButton.addEventListener("click", () => manager.switchMode("magnifier"));
+  let history = [], currentIndex = -1, reviewIndex = -1;
+  let started = Date.now(), firstDraw = 0;
+  window.setAnnotationStartTime = () => { if (!firstDraw) firstDraw = Date.now(); };
+  const termName = i => terms[i]?.dataset.keyword || terms[i]?.textContent.trim();
+  const saved = i => history.find(row => row.extractedKeyword === termName(i));
+  const pendingIndex = () => terms.findIndex((_, i) => !saved(i));
+  function buttons() {
+    const complete = initialized && currentIndex === -1;
+    next.textContent = complete ? "Next Image" : "Save and Next Term";
+    next.disabled = saving || !initialized || !manager.ready || (!complete && (reviewIndex !== -1 || !manager.annotations.length || manager.currentAction !== "none"));
+    skip.disabled = absent.disabled = saving || !initialized || !manager.ready || complete || reviewIndex !== -1 || manager.annotations.length > 0;
+    comments.disabled = saving || reviewIndex !== -1 || complete;
+    manager.readOnly = !initialized || saving || reviewIndex !== -1 || complete;
+    occurrences.forEach(term => {
+      const i = terms.findIndex(first => first.dataset.keyword === term.dataset.keyword);
+      term.classList.remove("current_keyword", "annotated_keyword", "not_annotated_keyword", "skipped_keyword");
+      const row = saved(i);
+      term.classList.add(row ? row.pressedButton === "Save and Next Term" ? "annotated_keyword" : "skipped_keyword" : i === currentIndex ? "current_keyword" : "not_annotated_keyword");
+      term.setAttribute("aria-pressed", String(i === (reviewIndex === -1 ? currentIndex : reviewIndex)));
+    });
   }
-
-  function updateButtonState() {
-    const annotations = canvasManager.getAnnotations();
-    
-    // Check if we're in the "Next Image" state
-    if (nextButton.textContent.trim() === "Next Image") {
-      // When we reach the "Next Image" state, always disable the other buttons
-      nextButton.disabled = false;
-      skipButton.disabled = true;
-      notPresentButton.disabled = true;
-      return; // Exit early to avoid the other checks
-    }
-    
-    // Normal state - enable/disable based on annotations
-    nextButton.disabled = annotations.length === 0;
-    
-    // Update skip and not present buttons based on annotation state
-    if (annotations.length > 0) {
-      skipButton.disabled = true;
-      notPresentButton.disabled = true;
-    } else {
-      skipButton.disabled = false;
-      notPresentButton.disabled = false;
+  function showCurrent() {
+    reviewIndex = -1;
+    manager.resetAnnotation(); comments.value = ""; dirty = false;
+    currentIndex = pendingIndex(); started = Date.now(); firstDraw = 0;
+    buttons();
+    showStatus(currentIndex === -1 ? "All terms saved. Select Next Image to continue. You can select a saved term to review it." : `Annotate the current term: ${termName(currentIndex)}. Changes are not saved until you select Save and Next Term.`);
+    const current = terms[currentIndex], textBox = current?.closest?.(".header-text");
+    if (textBox) {
+      const phrase = current.getBoundingClientRect(), box = textBox.getBoundingClientRect();
+      if (phrase.top < box.top + 4) textBox.scrollTop -= box.top + 4 - phrase.top;
+      else if (phrase.bottom > box.bottom - 4) textBox.scrollTop += phrase.bottom - box.bottom + 4;
     }
   }
-
-  function resetTermState() {
-    commentField.value = "";
-    window.tIdentifyStart = Date.now();
-    window.tAnnotationStart = 0;
-    updateButtonState();
+  async function initialize() {
+    if (!manager.ready || initialized) return;
+    if (!terms.length || terms.length !== expectedTermCount) {
+      showStatus("Some annotation terms could not be found separately in the description. Ask the research team to refine this image's keywords. No responses have been saved.", "error");
+      buttons();
+      return;
+    }
+    try {
+      const result = await request(`/MedData/CurrentAnnotations?medDataId=${encodeURIComponent(assignmentId)}`);
+      history = result.annotations || [];
+      initialized = true;
+      window.hasAnnotatedCurrentImage = history.length > 0;
+      showCurrent();
+    } catch (error) { showStatus(error.message, "error"); }
   }
-
-  // ====================================================
-  // Button Event Handlers & Sending Annotations
-  // ====================================================
-  nextButton.addEventListener("click", function () {
-    if (nextButton.textContent.trim() === "Save and Next Term") {
-      if (canvasManager.getAnnotations().length > 0) {
-        window.hasAnnotatedCurrentImage = true;
-        const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
-        
-        if (currentKeywordElement) {
-          let medData = window.annotatedMedData;
-          let boxCoordinates = canvasManager.getAllAnnotationsJSON();
-          
-          const commentValue = commentField.value.trim();
-          
-          let hasNext = false;
-          let nextIdx = -1;
-          
-          for (let i = 0; i < keywords.length; i++) {
-            if (i > currentIndex && keywordStates[i] === 1) {
-              hasNext = true;
-              nextIdx = i;
-              break;
-            }
-          }
-          
-          // Update the current keyword to be annotated (2)
-          keywordStates[currentIndex] = 2;
-          
-          if (hasNext) {
-            keywordStates[nextIdx] = 3;
-            currentIndex = nextIdx;
-            canvasManager.resetAnnotation();
-          } else {
-            nextButton.textContent = "Next Image";
-            skipButton.disabled = true;
-            notPresentButton.disabled = true;
-          }
-          
-          updateKeywordUI();
-          syncKeywordStates();
-          
-          // Create a copy for API
-          let statesForAPI = [...keywordStates];
-          
-          const annotationData = {
-            Id: medData.id,
-            ImageUrl: medData.imageUrl,
-            ImageDescription: medData.imageDescription,
-            Sex: medData.sex,
-            Age: medData.age,
-            SkinTone: medData.skinTone,
-            BodyRegion: medData.bodyRegion,
-            Diagnosis: medData.diagnosis,
-            TreatmentName: medData.treatmentName,
-            Speciality: medData.speciality,
-            Modality: medData.modality,
-            BoxCoordinates: boxCoordinates,
-            ExtractedKeyword: currentKeywordElement.textContent,
-            Timestamps: calculateTimestamps(),
-            PressedButton: "Save and Next Term",
-            Comment: commentValue,
-            KeywordStates: JSON.stringify(statesForAPI)
-          };
-          
-          fetch(`/MedData/ProcessAnnotatedMedData`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(annotationData),
-          })
-          .then((response) => response.json())
-          .then((result) => {
-            if (result.success) {
-              resetTermState();
-            } else {
-              console.error("Failed to process annotation data.");
-            }
-          })
-          .catch((error) => console.error("Error:", error));
-        }
-      }
-    } else {
-      fetch(`/MedData/NextImage?medDataId=${encodeURIComponent(window.annotatedMedData.id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" }
-      })
-      .then((response) => response.json())
-      .then((result) => {
-        if (result.success) {
-          location.reload();
-        } else {
-          console.error("Failed to process data.");
-        }
-      })
-      .catch((error) => console.error("Error:", error));
+  manager.canvas.addEventListener("annotationimageready", initialize);
+  manager.canvas.addEventListener("annotationimageerror", buttons);
+  manager.onAnnotationsChange = () => {
+    if (!manager.readOnly && initialized) {
+      dirty = true;
+      showStatus("Unsaved changes. Select Save and Next Term to save this term.", "unsaved");
     }
-  });
-
-  skipButton.addEventListener("click", function () {
-    const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
-    
-    if (currentKeywordElement) {
-      window.hasAnnotatedCurrentImage = true;
-      
-      let medData = window.annotatedMedData;
-      const commentValue = commentField.value.trim();
-      
-      let hasNext = false;
-      let nextIdx = -1;
-      
-      for (let i = 0; i < keywords.length; i++) {
-        if (i > currentIndex && keywordStates[i] === 1) {
-          hasNext = true;
-          nextIdx = i;
-          break;
-        }
-      }
-      
-      // Update the current keyword to be skipped (4)
-      keywordStates[currentIndex] = 4;
-      
-      if (hasNext) {
-        keywordStates[nextIdx] = 3;
-        currentIndex = nextIdx;
-        canvasManager.resetAnnotation();
-      } else {
-        nextButton.textContent = "Next Image";
-        skipButton.disabled = true;
-        notPresentButton.disabled = true;
-      }
-      
-      updateKeywordUI();
-      syncKeywordStates();
-      
-      // Create a copy for API
-      let statesForAPI = [...keywordStates];
-      
-      const annotationData = {
-        Id: medData.id,
-        ImageUrl: medData.imageUrl,
-        ImageDescription: medData.imageDescription,
-        Sex: medData.sex,
-        Age: medData.age,
-        SkinTone: medData.skinTone,
-        BodyRegion: medData.bodyRegion,
-        Diagnosis: medData.diagnosis,
-        TreatmentName: medData.treatmentName,
-        Speciality: medData.speciality,
-        Modality: medData.modality,
-        BoxCoordinates: "",
-        ExtractedKeyword: currentKeywordElement.textContent,
-        Timestamps: "",
-        PressedButton: "Uncertain/Skip",
-        Comment: commentValue,
-        KeywordStates: JSON.stringify(statesForAPI)
-      };
-      
-      fetch(`/MedData/ProcessAnnotatedMedData`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(annotationData),
-      })
-      .then((response) => response.json())
-      .then((result) => {
-        if (result.success) {
-          resetTermState();
-        } else {
-          console.error("Failed to process annotation data.");
-        }
-      })
-      .catch((error) => console.error("Error:", error));
-    }
-  });
-
-  notPresentButton.addEventListener("click", function () {
-    const currentKeywordElement = document.getElementById(`keyword-${currentIndex}`);
-    
-    if (currentKeywordElement) {
-      window.hasAnnotatedCurrentImage = true;
-      
-      let medData = window.annotatedMedData;
-      const commentValue = commentField.value.trim();
-      
-      let hasNext = false;
-      let nextIdx = -1;
-      
-      for (let i = 0; i < keywords.length; i++) {
-        if (i > currentIndex && keywordStates[i] === 1) {
-          hasNext = true;
-          nextIdx = i;
-          break;
-        }
-      }
-      
-      // Mark current keyword as not present (1)
-      keywordStates[currentIndex] = 1;
-      
-      if (hasNext) {
-        keywordStates[nextIdx] = 3;
-        currentIndex = nextIdx;
-        canvasManager.resetAnnotation();
-      } else {
-        nextButton.textContent = "Next Image";
-        skipButton.disabled = true;
-        notPresentButton.disabled = true;
-      }
-      
-      updateKeywordUI();
-      syncKeywordStates();
-      
-      // Create a copy for API
-      let statesForAPI = [...keywordStates];
-      
-      const annotationData = {
-        Id: medData.id,
-        ImageUrl: medData.imageUrl,
-        ImageDescription: medData.imageDescription,
-        Sex: medData.sex,
-        Age: medData.age,
-        SkinTone: medData.skinTone,
-        BodyRegion: medData.bodyRegion,
-        Diagnosis: medData.diagnosis,
-        TreatmentName: medData.treatmentName,
-        Speciality: medData.speciality,
-        Modality: medData.modality,
-        BoxCoordinates: "",
-        ExtractedKeyword: currentKeywordElement.textContent,
-        Timestamps: "",
-        PressedButton: "Not Visible/Abstract",
-        Comment: commentValue,
-        KeywordStates: JSON.stringify(statesForAPI)
-      };
-      
-      fetch(`/MedData/ProcessAnnotatedMedData`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(annotationData),
-      })
-      .then((response) => response.json())
-      .then((result) => {
-        if (result.success) {
-          resetTermState();
-        } else {
-          console.error("Failed to process annotation data.");
-        }
-      })
-      .catch((error) => console.error("Error:", error));
-    }
-  });
-
-  // Initialize UI
-  updateKeywordUI();
-  updateNavigationButtons();
-
-  // Add event listener to update button state when annotations change
-  canvasManager.onAnnotationsChange = function() {
-    updateButtonState();
-    
-    // Enable Save and Next button as soon as an annotation is added
-    if (canvasManager.getAnnotations().length > 0) {
-      nextButton.disabled = false;
-    }
+    buttons();
   };
-}
-
+  comments.addEventListener("input", () => { dirty = true; showStatus("Unsaved comment.", "unsaved"); });
+  occurrences.forEach(term => {
+    const i = terms.findIndex(first => first.dataset.keyword === term.dataset.keyword);
+    term.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); term.click(); }
+    });
+    term.addEventListener("click", () => {
+    if (saving || !initialized || !manager.ready) return;
+    const record = saved(i);
+    if (!record && i !== currentIndex) return;
+    if (dirty && !confirm("Discard unsaved changes to review another term?")) return;
+    if (!record) { showCurrent(); return; }
+    manager.resetAnnotation(); dirty = false; reviewIndex = i; comments.value = record.comment || "";
+    const reviewNext = currentIndex < 0 ? "All terms are saved. Select Next Image to continue." : "Select the current term to continue.";
+    if (record.boxCoordinates) {
+      try { manager.loadCoordinates(record.boxCoordinates); showStatus(`Saved annotation for ${termName(i)} (read only). ${reviewNext}`); }
+      catch (error) { showStatus(`This saved response has legacy or changed image coordinates. It is preserved and has not been converted. ${error.message}`, "error"); }
+    } else showStatus(`Saved response for ${termName(i)}: ${record.pressedButton}. ${reviewNext}`);
+    buttons();
+    });
+  });
+  async function save(action) {
+    if (saving || !initialized || !manager.ready || currentIndex < 0 || reviewIndex !== -1 || assignmentId !== window.annotatedMedData.id) return;
+    let coordinates = "";
+    try { if (action === "Save and Next Term") coordinates = manager.getAllAnnotationsJSON(); }
+    catch (error) { showStatus(error.message, "error"); return; }
+    const elapsed = firstDraw ? `(${Math.max(0,firstDraw-started)},${Math.max(0,Date.now()-firstDraw)})` : "(0,0)";
+    const payload = {Id:assignmentId,BoxCoordinates:coordinates,ExtractedKeyword:termName(currentIndex),PressedButton:action,Comment:comments.value.trim(),Timestamps:elapsed};
+    saving = true; buttons(); showStatus("Saving… keep this page open.", "saving");
+    try {
+      await request("/MedData/ProcessAnnotatedMedData", {method:"POST",body:JSON.stringify(payload)});
+      history.push({extractedKeyword:payload.ExtractedKeyword,boxCoordinates:coordinates,pressedButton:action,comment:payload.Comment});
+      window.hasAnnotatedCurrentImage = true;
+      saving = false; showCurrent();
+    } catch (error) { saving = false; buttons(); showStatus(error.message, "error"); }
+  }
+  next.addEventListener("click", async () => {
+    if (saving) return;
+    if (currentIndex !== -1) { await save("Save and Next Term"); return; }
+    saving = true; buttons(); showStatus("Loading the next image…", "saving");
+    try {
+      await request(`/MedData/NextImage?medDataId=${encodeURIComponent(assignmentId)}`,{method:"PUT"});
+      saving = false; dirty = false; location.reload();
+    } catch (error) { saving = false; buttons(); showStatus(error.message,"error"); }
+  });
+  skip.addEventListener("click", () => save("Uncertain/Skip"));
+  absent.addEventListener("click", () => save("Not Visible/Abstract"));
+  buttons();
+  initialize();
+});

@@ -17,10 +17,15 @@ public class AnnotatedMedDataDto
     public string? TreatmentName { get; set; }
     public string? Speciality { get; set; }
     public string? Modality { get; set; }
+    [StringLength(1_500_000)]
     public string? BoxCoordinates { get; set; }
+    [Required, StringLength(1000)]
     public string? ExtractedKeyword { get; set; }
+    [Required, StringLength(100)]
     public string? PressedButton { get; set; }
+    [StringLength(100)]
     public string? Timestamps { get; set; }
+    [StringLength(4000)]
     public string? Comment { get; set; }
     public string? KeywordStates { get; set; }
 }

@@ -9,14 +9,22 @@ class StudentCanvasManager {
     this.currentGroup = null; // Current annotation group
     this.textBoxElement = null; // Element for floating text input
     this.selectedGroupIndex = -1; // Index of the selected group
+    const drawBase = this.baseManager.drawCanvas.bind(this.baseManager);
+    this.baseManager.drawCanvas = () => {
+      drawBase();
+      if (!this.baseManager.ready) return;
+      for (let i = 0; i < this.groupedAnnotations.length; i++) {
+        if (i === this.selectedGroupIndex) continue;
+        for (const shape of this.groupedAnnotations[i].annotations) this.baseManager.drawAnnotation(shape, false);
+      }
+      if (this.baseManager.selectedAnnotation) this.baseManager.drawAnnotation(this.baseManager.selectedAnnotation, true);
+    };
     
     // Override the base manager's onAnnotationsChange
     const originalOnAnnotationsChange = this.baseManager.onAnnotationsChange;
     this.baseManager.onAnnotationsChange = () => {
-      // Call our custom handler first
       this.handleAnnotationsChange();
       
-      // Then call the original handler if it exists
       if (typeof originalOnAnnotationsChange === 'function') {
         originalOnAnnotationsChange();
       }
@@ -42,27 +50,25 @@ class StudentCanvasManager {
     if (!this.textBoxElement) {
       this.textBoxElement = document.createElement('div');
       this.textBoxElement.className = 'floating-textbox';
-      this.textBoxElement.style.position = 'absolute';
+      this.textBoxElement.style.position = 'fixed';
       this.textBoxElement.style.zIndex = '10000'; // Higher z-index to ensure it's on top
       this.textBoxElement.style.display = 'none';
       
-      // Create the text input
       const input = document.createElement('input');
       input.type = 'text';
       input.placeholder = 'Enter annotation label';
+      input.setAttribute('aria-label', 'Annotation label');
       input.className = 'floating-input';
+      input.addEventListener('input', () => input.setCustomValidity(''));
       
-      // Create save button
       const saveBtn = document.createElement('button');
-      saveBtn.textContent = 'Save';
+      saveBtn.textContent = 'Save Group';
       saveBtn.className = 'floating-save-btn';
       
-      // Create cancel button
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel';
       cancelBtn.className = 'floating-cancel-btn';
       
-      // Add event listeners to buttons
       saveBtn.addEventListener('click', () => this.saveCurrentAnnotation());
       cancelBtn.addEventListener('click', () => this.cancelCurrentAnnotation());
       
@@ -75,12 +81,10 @@ class StudentCanvasManager {
         }
       });
       
-      // Add elements to textbox
       this.textBoxElement.appendChild(input);
       this.textBoxElement.appendChild(saveBtn);
       this.textBoxElement.appendChild(cancelBtn);
       
-      // Add the textbox to the document body
       document.body.appendChild(this.textBoxElement);
       
       // Track the current annotation being edited for repositioning
@@ -96,8 +100,9 @@ class StudentCanvasManager {
     }
     
     // Get the rotation handle position (it appears at the top center of the rectangle)
-    const handleX = canvasRect.left + annotation.cx;
-    const handleY = canvasRect.top + annotation.cy - annotation.height / 2 - 15; // Rotation handle is ~15px above the rectangle
+    const handle = AnnotationGeometry.imageToClient({x:annotation.cx,y:annotation.cy-annotation.height/2}, canvasRect, this.baseManager.canvas.width, this.baseManager.canvas.height);
+    const handleX = handle.x;
+    const handleY = handle.y - 30;
     
     // Calculate the textbox's bottom edge at the current position
     const textBoxBottom = posY + this.textBoxElement.offsetHeight;
@@ -130,16 +135,18 @@ class StudentCanvasManager {
     
     if (annotation.type === 'rectangle') {
       // Center the textbox over the rectangle
-      posX = canvasRect.left + annotation.cx; // Center X of the rectangle
+      const top = AnnotationGeometry.imageToClient({x:annotation.cx,y:annotation.cy-annotation.height/2}, canvasRect, this.baseManager.canvas.width, this.baseManager.canvas.height);
+      posX = top.x;
       
       // Position textbox higher to avoid covering rotation handle (which appears above the rectangle)
       const extraPadding = annotation.rotation !== undefined ? 35 : 15;
-      posY = canvasRect.top + annotation.cy - annotation.height / 2 - extraPadding; 
+      posY = top.y - extraPadding;
     } else if (annotation.type === 'freehand') {
       // For freehand, find the center of the bounding box and position above it
       const bbox = this.baseManager.getBoundingBox(annotation.points);
-      posX = canvasRect.left + (bbox.minX + bbox.maxX) / 2; // Center X of the bounding box
-      posY = canvasRect.top + bbox.minY - 25; // More padding for freehand to avoid handles
+      const top = AnnotationGeometry.imageToClient({x:(bbox.minX+bbox.maxX)/2,y:bbox.minY}, canvasRect, this.baseManager.canvas.width, this.baseManager.canvas.height);
+      posX = top.x;
+      posY = top.y - 25;
     }
     
     // First, show the textbox to get its dimensions
@@ -167,10 +174,10 @@ class StudentCanvasManager {
     if (posY < 5) {
       // If textbox would go off-screen at the top, position it below the annotation instead
       if (annotation.type === 'rectangle') {
-        posY = canvasRect.top + annotation.cy + annotation.height / 2 + 30; // More space below
+        posY = AnnotationGeometry.imageToClient({x:annotation.cx,y:annotation.cy+annotation.height/2}, canvasRect, this.baseManager.canvas.width, this.baseManager.canvas.height).y + 30;
       } else {
         const bbox = this.baseManager.getBoundingBox(annotation.points);
-        posY = canvasRect.top + bbox.maxY + 30; // More space below
+        posY = AnnotationGeometry.imageToClient({x:bbox.maxX,y:bbox.maxY}, canvasRect, this.baseManager.canvas.width, this.baseManager.canvas.height).y + 30;
       }
     }
     
@@ -180,17 +187,16 @@ class StudentCanvasManager {
     posY = adjustedPosition.posY;
     
     // Position the textbox
-    this.textBoxElement.style.left = `${posX}px`;
-    this.textBoxElement.style.top = `${posY}px`;
+    this.textBoxElement.style.left = `${Math.max(6,Math.min(posX,window.innerWidth-textBoxWidth-6))}px`;
+    this.textBoxElement.style.top = `${Math.max(6,Math.min(posY,window.innerHeight-textBoxHeight-6))}px`;
     
     // Focus the input
     const input = this.textBoxElement.querySelector('input');
     
     // If we have a current group with a label, prefill the input
-    if (this.currentGroup && this.currentGroup.label) {
-      input.value = this.currentGroup.label;
-    } else {
-      input.value = '';
+    if (this.textBoxGroupId !== this.currentGroup?.id) {
+      input.value = this.currentGroup?.label || '';
+      this.textBoxGroupId = this.currentGroup?.id;
     }
     
     // Focus after a small delay to ensure the element is fully rendered
@@ -214,7 +220,7 @@ class StudentCanvasManager {
     
     // Create a new group
     this.currentGroup = {
-      id: Date.now(), // Unique ID for the group
+      id: `${Date.now()}-${Math.random()}`, // Local identity only; the server owns persistence identity.
       label: '', // Will be set when the user saves the textbox
       annotations: [], // Will contain all annotations in this group
       color: this.getRandomColor() // Assign a random color to the group
@@ -242,6 +248,10 @@ class StudentCanvasManager {
   saveCurrentAnnotation() {
     const input = this.textBoxElement.querySelector('input');
     const label = input.value.trim();
+    if (!label) { input.setCustomValidity("Enter a label before saving this group."); input.reportValidity(); return; }
+    input.setCustomValidity("");
+    try { this.baseManager.getAllAnnotationsJSON(); }
+    catch (error) { window.alert(error.message); return; }
     
     // Start a new group if we don't have one
     if (!this.currentGroup) {
@@ -252,7 +262,7 @@ class StudentCanvasManager {
     this.currentGroup.label = label;
     
     // Save all current annotations to this group
-    this.currentGroup.annotations = [...this.baseManager.annotations];
+    this.currentGroup.annotations = structuredClone(this.baseManager.annotations);
     
     // Save the group
     this.saveGroup(this.currentGroup);
@@ -265,6 +275,9 @@ class StudentCanvasManager {
     
     // Reset the current group
     this.currentGroup = null;
+    this.selectedGroupIndex = -1;
+    this.baseManager.drawCanvas();
+    this.onGroupedAnnotationsChange();
   }
   
   // Cancel the current annotation
@@ -272,13 +285,13 @@ class StudentCanvasManager {
     // Hide the textbox
     this.hideTextBox();
     
-    // Clear the current annotations if we're creating a new group
-    if (this.selectedGroupIndex === -1) {
-      this.baseManager.resetAnnotation();
-    }
+    this.baseManager.resetAnnotation();
     
     // Reset the current group
     this.currentGroup = null;
+    this.selectedGroupIndex = -1;
+    this.baseManager.drawCanvas();
+    this.onGroupedAnnotationsChange();
   }
   
   // Handle changes to the annotations on the canvas
@@ -310,19 +323,17 @@ class StudentCanvasManager {
   editGroup(groupIndex) {
     if (groupIndex < 0 || groupIndex >= this.groupedAnnotations.length) return;
     
-    // Save the current group if needed
-    if (this.currentGroup && this.currentGroup.annotations.length > 0) {
-      this.saveGroup(this.currentGroup);
-    }
+    if (this.currentGroup && this.baseManager.annotations.length > 0 &&
+        !window.confirm("Discard the unsaved changes to the current group?")) return;
     
     // Get the group we want to edit
     const groupToEdit = this.groupedAnnotations[groupIndex];
     
     // Set it as the current group
-    this.currentGroup = { ...groupToEdit };
+    this.currentGroup = structuredClone(groupToEdit);
     
     // Set the canvas annotations to match this group
-    this.baseManager.setAnnotations(groupToEdit.annotations.map(ann => ({ ...ann })));
+    this.baseManager.setAnnotations(groupToEdit.annotations);
     
     // Set this as the selected group
     this.selectedGroupIndex = groupIndex;
@@ -383,6 +394,7 @@ class StudentCanvasManager {
     
     // Notify that grouped annotations have changed
     this.onGroupedAnnotationsChange();
+    this.baseManager.drawCanvas();
   }
   
   // Get a random color for annotation groups
@@ -439,7 +451,6 @@ class StudentCanvasManager {
     const originalSelectAnnotation = this.baseManager.selectAnnotation;
     if (originalSelectAnnotation) {
       this.baseManager.selectAnnotation = (annotation) => {
-        // Call original method first
         originalSelectAnnotation.call(this.baseManager, annotation);
         
         // Don't update if magnifier is active
@@ -460,7 +471,6 @@ class StudentCanvasManager {
     const originalHandleDragMove = this.baseManager.handleDragMove;
     if (originalHandleDragMove) {
       this.baseManager.handleDragMove = (e) => {
-        // Call original method first
         originalHandleDragMove.call(this.baseManager, e);
         
         // Don't update if magnifier is active
@@ -482,7 +492,6 @@ class StudentCanvasManager {
     const originalHandleResize = this.baseManager.handleResize;
     if (originalHandleResize) {
       this.baseManager.handleResize = (e) => {
-        // Call original method first
         originalHandleResize.call(this.baseManager, e);
         
         // Don't update if magnifier is active
@@ -504,7 +513,6 @@ class StudentCanvasManager {
     const originalHandleRotate = this.baseManager.handleRotate;
     if (originalHandleRotate) {
       this.baseManager.handleRotate = (e) => {
-        // Call original method first
         originalHandleRotate.call(this.baseManager, e);
         
         // Don't update if magnifier is active
@@ -526,7 +534,6 @@ class StudentCanvasManager {
     const originalShowLens = this.baseManager.showLens;
     if (originalShowLens) {
       this.baseManager.showLens = () => {
-        // Call original method first
         originalShowLens.call(this.baseManager);
         
         // Hide textbox when magnifier is shown
@@ -537,7 +544,6 @@ class StudentCanvasManager {
     const originalHideLens = this.baseManager.hideLens;
     if (originalHideLens) {
       this.baseManager.hideLens = () => {
-        // Call original method first
         originalHideLens.call(this.baseManager);
         
         // Restore textbox if we have annotations
@@ -609,9 +615,7 @@ class StudentCanvasManager {
   getAllGroupedAnnotationsJSON() {
     const result = this.groupedAnnotations.map(group => {
       // Get coordinates for each annotation in the group
-      const annotationCoordinates = group.annotations.map(annotation => 
-        this.baseManager.getAnnotationCoordinatesJSON(annotation)
-      );
+      const annotationCoordinates = AnnotationGeometry.serialize(group.annotations, this.baseManager.canvas.width, this.baseManager.canvas.height);
       
       return {
         groupId: group.id,
