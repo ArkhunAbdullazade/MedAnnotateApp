@@ -35,8 +35,15 @@ public class MedDataRepository : IMedDataRepository
         var existingLocks = await context.MedDatas.Where(image => isStudent
                 ? image.LockedByStudentUserId == userId : image.LockedByUserId == userId)
             .OrderBy(image => image.Id).ToListAsync();
-        var matchingIds = await eligible.Select(image => image.Id).ToListAsync();
-        var ownerEmail = await context.Users.Where(user => user.Id == userId).Select(user => user.Email).SingleOrDefaultAsync();
+        var matchingIds = new HashSet<int>();
+        if (existingLocks.Count > 0)
+        {
+            var lockedIds = existingLocks.Select(image => image.Id).ToArray();
+            matchingIds = (await eligible.Where(image => lockedIds.Contains(image.Id))
+                .Select(image => image.Id).ToListAsync()).ToHashSet();
+        }
+        var ownerEmail = isStudent ? null : await context.Users.Where(user => user.Id == userId)
+            .Select(user => user.Email).SingleOrDefaultAsync();
         MedData? assigned = null;
         foreach (var image in existingLocks)
         {
@@ -297,7 +304,7 @@ public class MedDataRepository : IMedDataRepository
     {
         var keywords = await KeywordListAsync(id);
         var responses = await context.AnnotatedMedDatas.Where(item => item.MedDataId == id && item.Email == email)
-            .OrderBy(item => item.Id).ToListAsync();
+            .OrderBy(item => item.Id).Select(item => new { item.ExtractedKeyword, item.PressedButton }).ToListAsync();
         var hasCurrent = false;
         return JsonSerializer.Serialize(keywords.Select(keyword =>
         {

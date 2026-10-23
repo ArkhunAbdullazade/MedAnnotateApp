@@ -119,9 +119,6 @@ public class HomeController : Controller
                 user.Id);
 
             ViewBag.Counter = counter;
-            ViewBag.MedDataKeywords = medData != null
-                ? (await medDataRepository.GetKeywordsByMedDataIdAsync(medData.Id)).ToList()
-                : null;
 
             return View(medData);
         }

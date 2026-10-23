@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tools.freehandButton.addEventListener("click", () => manager.switchMode("freehand"));
   tools.magnifyButton.addEventListener("click", () => manager.switchMode("magnifier"));
   let history = [], currentIndex = -1, reviewIndex = -1;
+  let historyLoaded = false, historyLoading = false;
   let started = Date.now(), firstDraw = 0;
   window.setAnnotationStartTime = () => { if (!firstDraw) firstDraw = Date.now(); };
   const termName = i => terms[i]?.dataset.keyword || terms[i]?.textContent.trim();
@@ -57,8 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
     next.textContent = complete ? "Next Image" : "Save and Next Term";
     next.disabled = saving || !initialized || !manager.ready || (!complete && (reviewIndex !== -1 || !manager.annotations.length || manager.currentAction !== "none"));
     skip.disabled = absent.disabled = saving || !initialized || !manager.ready || complete || reviewIndex !== -1 || manager.annotations.length > 0;
-    comments.disabled = saving || reviewIndex !== -1 || complete;
-    manager.readOnly = !initialized || saving || reviewIndex !== -1 || complete;
+    comments.disabled = !initialized || !manager.ready || saving || reviewIndex !== -1 || complete;
+    manager.readOnly = !initialized || !manager.ready || saving || reviewIndex !== -1 || complete;
     occurrences.forEach(term => {
       const i = terms.findIndex(first => first.dataset.keyword === term.dataset.keyword);
       term.classList.remove("current_keyword", "annotated_keyword", "not_annotated_keyword", "skipped_keyword");
@@ -81,19 +82,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   async function initialize() {
-    if (!manager.ready || initialized) return;
+    if (initialized || historyLoading) return;
     if (!terms.length || terms.length !== expectedTermCount) {
       showStatus("Some annotation terms could not be found separately in the description. Ask the research team to refine this image's keywords. No responses have been saved.", "error");
       buttons();
       return;
     }
-    try {
-      const result = await request(`/MedData/CurrentAnnotations?medDataId=${encodeURIComponent(assignmentId)}`);
-      history = result.annotations || [];
-      initialized = true;
-      window.hasAnnotatedCurrentImage = history.length > 0;
-      showCurrent();
-    } catch (error) { showStatus(error.message, "error"); }
+    if (!historyLoaded) {
+      historyLoading = true;
+      try {
+        const result = await request(`/MedData/CurrentAnnotations?medDataId=${encodeURIComponent(assignmentId)}`);
+        history = result.annotations || [];
+        historyLoaded = true;
+        window.hasAnnotatedCurrentImage = history.length > 0;
+      } catch (error) { showStatus(error.message, "error"); buttons(); return; }
+      finally { historyLoading = false; }
+    }
+    if (!manager.ready) return;
+    initialized = true;
+    showCurrent();
   }
   manager.canvas.addEventListener("annotationimageready", initialize);
   manager.canvas.addEventListener("annotationimageerror", buttons);
@@ -141,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) { saving = false; buttons(); showStatus(error.message, "error"); }
   }
   next.addEventListener("click", async () => {
-    if (saving) return;
+    if (saving || !initialized || !manager.ready) return;
     if (currentIndex !== -1) { await save("Save and Next Term"); return; }
     saving = true; buttons(); showStatus("Loading the next image…", "saving");
     try {
