@@ -116,7 +116,7 @@ Keep private values in `.env`, environment variables, or .NET user secrets.
 | `DataProtection:KeysPath` | Required persistent key path in production |
 | `AllowedHosts` | Public hostname |
 | `ReverseProxy:KnownProxies` | Explicit trusted proxy addresses |
-| `RateLimiting:AccessAttemptsPerTenMinutes` | Gate, sign-in and sign-up submissions allowed per client address every ten minutes (default 120: about 20 people joining together from one hospital or university network, with a few retries each) |
+| `RateLimiting:AccessAttemptsPerTenMinutes` | Gate, sign-in and sign-up submissions allowed per client address every ten minutes (default 78: about 13 people joining together from one hospital or university network, with a few retries each) |
 | `Database:ApplyMigrations` | Defaults to development only; false in production Compose |
 | `Database:SeedExcel` | Opt-in sample seed, false by default |
 

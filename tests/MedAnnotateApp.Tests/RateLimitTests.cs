@@ -14,7 +14,7 @@ public class RateLimitTests
         var hospital = Request("203.0.113.10");
 
         // A full group behind one address, each participant using every allowed attempt.
-        Assert.Equal(120, ResearchAccessRateLimit.DefaultPermitLimit);
+        Assert.Equal(78, ResearchAccessRateLimit.DefaultPermitLimit);
         for (var attempt = 0; attempt < ResearchAccessRateLimit.GroupSize * ResearchAccessRateLimit.AttemptsPerParticipant; attempt++)
         {
             using var lease = limiter.AttemptAcquire(hospital);
