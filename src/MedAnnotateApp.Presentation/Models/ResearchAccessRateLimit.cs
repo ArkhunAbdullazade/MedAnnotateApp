@@ -9,7 +9,10 @@ public static class ResearchAccessRateLimit
 {
     public const string PolicyName = "research-access";
     public const string LimitSetting = "RateLimiting:AccessAttemptsPerTenMinutes";
-    public const int DefaultPermitLimit = 300;
+    // 20 participants joining together, each with gate, signup and login plus a few typos or retries.
+    public const int GroupSize = 20;
+    public const int AttemptsPerParticipant = 6;
+    public const int DefaultPermitLimit = GroupSize * AttemptsPerParticipant;
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(10);
 
     public static RateLimitPartition<string> Partition(HttpContext context, int permitLimit) =>
