@@ -3,6 +3,7 @@ using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Presentation.Dtos;
+using MedAnnotateApp.Presentation.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -54,7 +55,7 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    [EnableRateLimiting("research-access")]
+    [EnableRateLimiting(ResearchAccessRateLimit.PolicyName)]
     public IActionResult PostAuthorizationAccess(AuthorizationAccessDto authDto)
     {
         logger.LogInformation("Authorization access attempt");
@@ -114,7 +115,7 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    [EnableRateLimiting("research-access")]
+    [EnableRateLimiting(ResearchAccessRateLimit.PolicyName)]
     public async Task<IActionResult> PostLogin(LoginDto loginDto)
     {
         if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
@@ -203,7 +204,7 @@ public class IdentityController : Controller
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    [EnableRateLimiting("research-access")]
+    [EnableRateLimiting(ResearchAccessRateLimit.PolicyName)]
     public async Task<IActionResult> PostSignup([FromForm] SignupDto signupDto)
     {
         if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));

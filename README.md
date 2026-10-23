@@ -88,7 +88,7 @@ Saved keyword states preserve progress when a specialist has not finished every 
 | Infrastructure | `src/MedAnnotateApp.Infrastructure` | Data access, repository implementations, services, and settings |
 | Presentation | `src/MedAnnotateApp.Presentation` | MVC controllers, Razor views, DTOs, migrations, and static assets |
 
-The application uses ASP.NET Core Identity for accounts, EF Core 8 with Npgsql for PostgreSQL access, and EPPlus for optional Excel seed data. The interface uses locally served Bootstrap 5.3.8, jQuery 3.7.1, and custom canvas tools. Docker Compose runs one web instance and PostgreSQL, with persistent database and data-protection-key volumes.
+The application uses ASP.NET Core Identity for accounts, EF Core 10 with Npgsql for PostgreSQL access, and EPPlus for optional Excel seed data. The interface uses locally served Bootstrap 5.3.8, jQuery 3.7.1, and custom canvas tools. Docker Compose runs one web instance and PostgreSQL, with persistent database and data-protection-key volumes.
 
 ## Run with Docker
 
@@ -116,6 +116,7 @@ Keep private values in `.env`, environment variables, or .NET user secrets.
 | `DataProtection:KeysPath` | Required persistent key path in production |
 | `AllowedHosts` | Public hostname |
 | `ReverseProxy:KnownProxies` | Explicit trusted proxy addresses |
+| `RateLimiting:AccessAttemptsPerTenMinutes` | Gate, sign-in and sign-up submissions allowed per client address every ten minutes (default 300, sized for a group joining from one hospital or university network) |
 | `Database:ApplyMigrations` | Defaults to development only; false in production Compose |
 | `Database:SeedExcel` | Opt-in sample seed, false by default |
 

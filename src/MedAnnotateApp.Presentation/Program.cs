@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Net;
-using System.Threading.RateLimiting;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
@@ -8,6 +7,7 @@ using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Infrastructure.Repositories;
 using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Infrastructure.Settings;
+using MedAnnotateApp.Presentation.Models;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -89,13 +89,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     foreach (var address in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
         options.KnownProxies.Add(IPAddress.Parse(address));
 });
+var accessAttemptLimit = builder.Configuration.GetValue(ResearchAccessRateLimit.LimitSetting, ResearchAccessRateLimit.DefaultPermitLimit);
+if (accessAttemptLimit < 1)
+{
+    throw new InvalidOperationException($"{ResearchAccessRateLimit.LimitSetting} must be at least 1.");
+}
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddPolicy("research-access", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 30, Window = TimeSpan.FromMinutes(10), QueueLimit = 0, AutoReplenishment = true
-        }));
+    options.AddPolicy(ResearchAccessRateLimit.PolicyName, context => ResearchAccessRateLimit.Partition(context, accessAttemptLimit));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, token) =>
         await context.HttpContext.Response.WriteAsync("Too many access attempts. Wait ten minutes and try again.", token);

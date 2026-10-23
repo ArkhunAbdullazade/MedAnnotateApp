@@ -55,6 +55,21 @@ public class ResearchGateTests
     }
 
     [Fact]
+    public void RepeatedCorrectGateEntriesStayValidAndWrongOrChangedPasswordsStillFail()
+    {
+        var hash = AuthorizationAccessPasswordService.HashPassword("GroupAccess1!");
+        Assert.True(AuthorizationAccessPasswordService.VerifyPassword("GroupAccess1!", hash));
+        Assert.True(AuthorizationAccessPasswordService.VerifyPassword("GroupAccess1!", hash));
+        Assert.False(AuthorizationAccessPasswordService.VerifyPassword("GroupAccess1?", hash));
+        Assert.False(AuthorizationAccessPasswordService.VerifyPassword("", hash));
+
+        // A rotated gate password must not accept the previously verified one.
+        var rotated = AuthorizationAccessPasswordService.HashPassword("RotatedAccess2!");
+        Assert.False(AuthorizationAccessPasswordService.VerifyPassword("GroupAccess1!", rotated));
+        Assert.True(AuthorizationAccessPasswordService.VerifyPassword("RotatedAccess2!", rotated));
+    }
+
+    [Fact]
     public async Task InvalidSignupDoesNotCachePersonalPasswordsInSession()
     {
         var session = new TestSession();
