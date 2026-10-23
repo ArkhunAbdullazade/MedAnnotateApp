@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build-env
 WORKDIR /app
 
 COPY MedAnnotateApp.sln ./
@@ -12,7 +12,7 @@ RUN dotnet restore src/MedAnnotateApp.Presentation/MedAnnotateApp.Presentation.c
 COPY src/ ./src/
 RUN dotnet publish src/MedAnnotateApp.Presentation/MedAnnotateApp.Presentation.csproj -c Release -o /app/out --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0.32
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13
 WORKDIR /app
 COPY --from=build-env /app/out .
 RUN mkdir -p /app/keys && chown app:app /app/keys
