@@ -52,6 +52,12 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
 .tools-container button:focus-visible,
 .floating-textbox :is(input, button):focus-visible { outline: 2px solid #a9000e; outline-offset: 2px; }
 .comments-section textarea:focus-visible { outline-offset: -2px; }
+.tools-container .tool-button { background-color: #fff; border-color: #d8d4d4; transition: background-color .12s ease, border-color .12s ease; }
+.tools-container .tool-button:hover { background-color: #f6f2f2; border-color: #bda7a9; transform: none; }
+.tools-container .tool-button.active,
+.tools-container .tool-button.active:hover { background-color: #a9000e; border-color: #a9000e; color: #fff; }
+.tools-container .tool-button img { object-fit: contain; pointer-events: none; }
+.tools-container .tool-button.active img { filter: brightness(0) invert(1); }
 .student-mode .annotation-section { overflow: hidden; align-items: stretch; }
 .student-mode .annotations-list { flex: 1 1 0; min-height: 0; height: auto; max-height: none; overflow: auto; }
 .student-mode .annotation-item { cursor: default; }
@@ -66,6 +72,7 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
 @media (prefers-reduced-motion: reduce) {
   .floating-textbox { animation: none; }
   .annotation-item, .annotation-actions button { transition: none; }
+  .tools-container .tool-button { transition: none; }
 }
 .centered-container { height: calc(100% - 42px); min-height: 0; overflow: auto; }
 @media (max-width: 850px) {

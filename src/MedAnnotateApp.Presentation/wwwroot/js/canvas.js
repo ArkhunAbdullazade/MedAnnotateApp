@@ -178,11 +178,11 @@ class CanvasManager {
       toolsContainer.className = "tools-container";
       toolsContainer.style.position = "fixed";
       
-      const rectButton = this.createToolButton("rectangle", "../images/rectangle-icon.png", "Rectangle Mode", true);
+      const rectButton = this.createToolButton("rectangle", "../images/rectangle.svg", "Rectangle Mode", true);
       
-      const freehandButton = this.createToolButton("freehand", "../images/pen-icon.png", "Freehand Mode", false);
+      const freehandButton = this.createToolButton("freehand", "../images/freehand.svg", "Freehand Mode", false);
       
-      const magnifyButton = this.createToolButton("magnify", "../images/magnifying-glass.png", "Magnifier Tool", false);
+      const magnifyButton = this.createToolButton("magnify", "../images/magnifier.svg", "Magnifier Tool", false);
       
       toolsContainer.appendChild(rectButton);
       toolsContainer.appendChild(freehandButton);
@@ -203,13 +203,14 @@ class CanvasManager {
       const button = document.createElement("button");
       button.type = "button";
       button.setAttribute("aria-label", title);
+      button.setAttribute("aria-pressed", String(isActive));
       button.className = `tool-button${isActive ? " active" : ""}`;
       button.id = `${type}ModeButton`;
       button.title = title;
       
       const icon = document.createElement("img");
       icon.src = iconSrc;
-      icon.alt = title;
+      icon.alt = "";
       
       button.appendChild(icon);
       return button;
@@ -230,27 +231,20 @@ class CanvasManager {
   
     // Mode switching
     switchMode(newMode) {
-      // Store previous mode for restoration
-      const previousMode = this.currentMode;
-      
       // Special handling for magnifier mode
       if (newMode === "magnifier") {
         // Toggle magnifier on/off
         if (this.usingLens) {
           this.hideLens();
-          // Reset magnifier button style
           if (this.magnifyButton) {
             this.magnifyButton.classList.remove("active");
-            this.magnifyButton.style.backgroundColor = "white";
-            this.magnifyButton.style.borderColor = "#dee2e6";
+            this.magnifyButton.setAttribute("aria-pressed", "false");
           }
         } else {
           this.showLens();
-          // Set magnifier button style
           if (this.magnifyButton) {
             this.magnifyButton.classList.add("active");
-            this.magnifyButton.style.backgroundColor = "#d9534f"; // Lighter red color
-            this.magnifyButton.style.borderColor = "#d9534f";
+            this.magnifyButton.setAttribute("aria-pressed", "true");
           }
         }
         return; // Don't change the current drawing mode
@@ -267,8 +261,7 @@ class CanvasManager {
         this.hideLens();
         if (this.magnifyButton) {
           this.magnifyButton.classList.remove("active");
-          this.magnifyButton.style.backgroundColor = "white";
-          this.magnifyButton.style.borderColor = "#dee2e6";
+          this.magnifyButton.setAttribute("aria-pressed", "false");
         }
       }
       
@@ -277,22 +270,16 @@ class CanvasManager {
         // Reset annotation button states
         this.rectButton.classList.remove("active");
         this.freehandButton.classList.remove("active");
-        
-        // Reset annotation button styles
-        this.rectButton.style.backgroundColor = "white";
-        this.rectButton.style.borderColor = "#dee2e6";
-        this.freehandButton.style.backgroundColor = "white";
-        this.freehandButton.style.borderColor = "#dee2e6";
+        this.rectButton.setAttribute("aria-pressed", "false");
+        this.freehandButton.setAttribute("aria-pressed", "false");
         
         // Apply active state to the correct annotation button
         if (newMode === "rectangle") {
           this.rectButton.classList.add("active");
-          this.rectButton.style.backgroundColor = "#d9534f"; // Lighter red color
-          this.rectButton.style.borderColor = "#d9534f";
+          this.rectButton.setAttribute("aria-pressed", "true");
         } else if (newMode === "freehand") {
           this.freehandButton.classList.add("active");
-          this.freehandButton.style.backgroundColor = "#d9534f"; // Lighter red color
-          this.freehandButton.style.borderColor = "#d9534f";
+          this.freehandButton.setAttribute("aria-pressed", "true");
         }
       }
     }

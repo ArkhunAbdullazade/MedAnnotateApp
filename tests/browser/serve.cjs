@@ -8,8 +8,8 @@ http.createServer((req, res) => {
     const allowed = req.method === 'GET' && (
         /^\/tests\/browser\/[a-zA-Z0-9_-]+\.(html|svg)$/.test(url.pathname) ||
         /^\/src\/MedAnnotateApp.Presentation\/wwwroot\/js\/[a-zA-Z0-9_-]+\.js$/.test(url.pathname) ||
-        /^\/images\/[a-zA-Z0-9_-]+\.png$/.test(url.pathname) ||
-        /^\/src\/MedAnnotateApp.Presentation\/wwwroot\/images\/[a-zA-Z0-9_-]+\.png$/.test(url.pathname));
+        /^\/images\/[a-zA-Z0-9_-]+\.(png|svg)$/.test(url.pathname) ||
+        /^\/src\/MedAnnotateApp.Presentation\/wwwroot\/images\/[a-zA-Z0-9_-]+\.(png|svg)$/.test(url.pathname));
     if (!allowed) { res.writeHead(404); res.end(); return; }
     const relative = url.pathname.startsWith('/images/')
         ? 'src/MedAnnotateApp.Presentation/wwwroot' + url.pathname : url.pathname.slice(1);
