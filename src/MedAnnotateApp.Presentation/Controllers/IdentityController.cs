@@ -118,7 +118,6 @@ public class IdentityController : Controller
     public async Task<IActionResult> PostLogin(LoginDto loginDto)
     {
         if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
-        logger.LogInformation("Login attempt for email: {Email}", loginDto.Email);
 
         if (!ModelState.IsValid)
         {
@@ -129,7 +128,7 @@ public class IdentityController : Controller
         var (succeeded, errors) = await identityService.LoginAsync(loginDto.Email, loginDto.Password);
         if (succeeded)
         {
-            logger.LogInformation("User logged in successfully: {Email}", loginDto.Email);
+            logger.LogInformation("Login succeeded.");
 
             if (TempData["ReturnUrl"] is string returnUrl && Url.IsLocalUrl(returnUrl))
             {
@@ -141,8 +140,7 @@ public class IdentityController : Controller
         }
 
         logger.LogWarning(
-            "Login failed for {Email}: {Errors}",
-            loginDto.Email,
+            "Login failed: {Errors}",
             errors != null && errors.Any() ? string.Join(", ", errors) : "No specific errors returned");
 
         foreach (var error in errors ?? ["Invalid email or password. Please try again."])
@@ -211,7 +209,6 @@ public class IdentityController : Controller
         if (!HasResearchAccess()) return RedirectToAction(nameof(AuthorizationAccess));
         try
         {
-            logger.LogInformation("Starting signup process for email: {Email}", signupDto.Email);
 
             if (!ModelState.IsValid)
             {
