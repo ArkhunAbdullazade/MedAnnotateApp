@@ -78,6 +78,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
+    if (builder.Configuration.GetValue<bool>("ReverseProxy:TrustPlatformProxy"))
+    {
+        // Azure App Service: its front end is the only ingress and has no fixed address.
+        // ForwardLimit = 1 still reads only the client address appended by that front end.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        return;
+    }
     foreach (var address in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
         options.KnownProxies.Add(IPAddress.Parse(address));
 });
@@ -178,7 +186,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Platform health probes (e.g. Azure App Service) may use plain HTTP and accept only 2xx responses.
+app.UseWhen(context => !context.Request.Path.StartsWithSegments("/health"), branch => branch.UseHttpsRedirection());
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
