@@ -16,8 +16,19 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 const string SeedDataFileName = "mockPMCMIDdata7.xlsx";
+const string ResetPasswordCommand = "reset-password";
 
-var builder = WebApplication.CreateBuilder(args);
+// Operator-only shell command, never an HTTP endpoint: `dotnet MedAnnotateApp.Presentation.dll reset-password <email>`.
+var resetPasswordEmail = args is [ResetPasswordCommand, var email] ? email : null;
+if (args.Length > 0 && args[0] == ResetPasswordCommand && resetPasswordEmail is null)
+{
+    Console.Error.WriteLine($"Usage: {ResetPasswordCommand} <account-email>");
+    Environment.ExitCode = 2;
+    return;
+}
+var isOperatorCommand = resetPasswordEmail is not null;
+
+var builder = WebApplication.CreateBuilder(isOperatorCommand ? [] : args);
 if (builder.Environment.IsDevelopment())
 {
     // Keep workstation database credentials outside tracked configuration files.
@@ -30,13 +41,13 @@ if (string.IsNullOrWhiteSpace(medDataConnectionString))
 {
     throw new InvalidOperationException("ConnectionStrings:MedDataDb must be configured before the application starts.");
 }
-if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Configuration["AuthorizationAccessPasswordHash"]))
+if (!builder.Environment.IsDevelopment() && !isOperatorCommand && string.IsNullOrWhiteSpace(builder.Configuration["AuthorizationAccessPasswordHash"]))
 {
     throw new InvalidOperationException("Configure AuthorizationAccessPasswordHash before deploying the research access gate.");
 }
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
-if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+if (!builder.Environment.IsDevelopment() && !isOperatorCommand && string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
     throw new InvalidOperationException("Configure persistent DataProtection:KeysPath before deploying.");
 }
@@ -144,6 +155,19 @@ builder.Services.AddScoped<IAnnotatedByStudentsMedDataRepository, AnnotatedByStu
 builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
 
 var app = builder.Build();
+
+if (isOperatorCommand)
+{
+    // Runs before database initialization, so it can never migrate or seed the target database.
+    using var scope = app.Services.CreateScope();
+    var (succeeded, temporaryPassword, errors) = await scope.ServiceProvider
+        .GetRequiredService<IIdentityService>().ResetPasswordAsync(resetPasswordEmail);
+    Console.WriteLine(succeeded
+        ? $"Temporary password: {temporaryPassword}{Environment.NewLine}Share it privately. Saved work and assignments are unchanged."
+        : string.Join(Environment.NewLine, errors ?? []));
+    Environment.ExitCode = succeeded ? 0 : 1;
+    return;
+}
 
 await InitializeDatabaseAsync(app);
 

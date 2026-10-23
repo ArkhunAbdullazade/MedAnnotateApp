@@ -73,6 +73,37 @@ public class IdentityServiceTests
         Assert.Null(await fixture.Users.FindByEmailAsync(user.Email));
     }
 
+    [Fact]
+    public async Task OperatorResetKeepsAccountIdentityClearsLockoutAndReplacesOnlyThePassword()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var user = new User { Email = "forgetful@gmail.com", UserName = "forgetful@gmail.com" };
+        Assert.True((await fixture.Users.CreateAsync(user, "ForgottenPassword1!")).Succeeded);
+        Assert.True((await fixture.Users.AddToRoleAsync(user, "Professional")).Succeeded);
+        var userId = user.Id;
+        await fixture.Users.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddMinutes(5));
+
+        var reset = await fixture.Identity.ResetPasswordAsync(" forgetful@gmail.com ");
+
+        Assert.True(reset.Succeeded);
+        Assert.False(string.IsNullOrWhiteSpace(reset.TemporaryPassword));
+        Assert.Equal(userId, user.Id);
+        Assert.False(await fixture.Users.CheckPasswordAsync(user, "ForgottenPassword1!"));
+        Assert.True(await fixture.Users.CheckPasswordAsync(user, reset.TemporaryPassword!));
+        Assert.False(await fixture.Users.IsLockedOutAsync(user));
+        Assert.True(await fixture.Users.IsInRoleAsync(user, "Professional"));
+        Assert.True((await fixture.Identity.LoginAsync(user.Email, reset.TemporaryPassword)).Succeeded);
+    }
+
+    [Fact]
+    public async Task OperatorResetRejectsUnknownAndBlankEmails()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+
+        Assert.False((await fixture.Identity.ResetPasswordAsync("nobody@gmail.com")).Succeeded);
+        Assert.False((await fixture.Identity.ResetPasswordAsync(" ")).Succeeded);
+    }
+
     private sealed class IdentityFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

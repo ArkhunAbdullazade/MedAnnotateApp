@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Services;
 using Microsoft.AspNetCore.Identity;
@@ -92,5 +93,28 @@ public class IdentityService : IIdentityService
     public async Task SignoutAsync()
     {
         await signInManager.SignOutAsync();
+    }
+
+    // Operator-only recovery (no email is configured). Keeps the account id, so saved work and assignments stay with it.
+    public async Task<(bool Succeeded, string? TemporaryPassword, IEnumerable<string>? Errors)> ResetPasswordAsync(string? email)
+    {
+        var user = string.IsNullOrWhiteSpace(email) ? null : await userManager.FindByEmailAsync(email.Trim());
+        if (user == null)
+        {
+            return (false, null, ["No account uses that email address."]);
+        }
+
+        // Random letters and digits plus a fixed mixed suffix always satisfy the Identity password policy.
+        var temporaryPassword = RandomNumberGenerator.GetString("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789", 16) + "-7a";
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, temporaryPassword);
+        if (!result.Succeeded)
+        {
+            return (false, null, result.Errors.Select(error => error.Description).ToArray());
+        }
+
+        await userManager.SetLockoutEndDateAsync(user, null);
+        await userManager.ResetAccessFailedCountAsync(user);
+        return (true, temporaryPassword, null);
     }
 }
