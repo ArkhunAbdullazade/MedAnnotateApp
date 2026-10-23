@@ -5,7 +5,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
   const headers = {"Content-Type":"application/json","X-CSRF-TOKEN":token};
   const status = document.getElementById("annotation-status");
-  const showStatus = (text, state="ready") => { if (status) {status.textContent=text;status.dataset.state=state;} };
+  let baseStatus = {message: status?.textContent || "", state: status?.dataset.state || "ready"};
+  let inspecting = false;
+  const renderStatus = () => {
+    if (!status) return;
+    const hint = inspecting && !["error", "saving"].includes(baseStatus.state);
+    status.textContent = hint ? "Inspection only: outlines are temporarily hidden. Drag the lens or its edge. Click Magnifier again to return to drawing." : baseStatus.message;
+    status.dataset.state = hint ? "inspection" : baseStatus.state;
+  };
+  const showStatus = (message, state="ready") => {
+    baseStatus = {message, state};
+    renderStatus();
+  };
+  const inspectionChanged = active => {
+    if (active && !inspecting && status) baseStatus = {message: status.textContent, state: status.dataset.state || "ready"};
+    inspecting = active;
+    renderStatus();
+  };
   const hasUnsavedWork=()=>manager ? manager.getAnnotationGroups().length>0 || manager.baseManager.annotations.length>0 || manager.baseManager.currentAction!=="none" : dirty;
   window.addEventListener("beforeunload", e => {if(!navigating && (hasUnsavedWork() || saving)){e.preventDefault();e.returnValue="";}});
   for (const id of ["end-button","end-button-center"]) document.getElementById(id)?.addEventListener("click", async () => {
@@ -21,6 +37,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const submit=document.getElementById("submit-button");
   const list=document.getElementById("annotations-list");
   manager=window.canvasManager=new StudentCanvasManager("mainCanvas","sourceImage","canvasContainer");
+  manager.baseManager.onInspectionChange=inspectionChanged;
+  if(status?.dataset.state==="error")showStatus(status.textContent,"error");
   const tools=manager.createTools(document.getElementById("image-container"));
   tools.rectButton.addEventListener("click",()=>manager.switchMode("rectangle"));
   tools.freehandButton.addEventListener("click",()=>manager.switchMode("freehand"));
@@ -54,7 +72,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const original=manager.baseManager.onAnnotationsChange;
   manager.baseManager.onAnnotationsChange=()=>{original();updateDraftState();};
   manager.baseManager.canvas.addEventListener("annotationimageready",()=>{updateList();showStatus("Image ready. Draw a shape, label it and save the group.");});
-  manager.baseManager.canvas.addEventListener("annotationimageerror",updateList);
+  manager.baseManager.canvas.addEventListener("annotationimageerror",()=>{
+    showStatus(status?.textContent || "This image could not be loaded.","error");
+    updateList();
+  });
   if(manager.baseManager.ready)showStatus("Image ready. Draw a shape, label it and save the group.");
   submit.addEventListener("click",async()=>{
     if(saving || !manager.baseManager.ready || imageId!==window.annotatedMedData.id)return;

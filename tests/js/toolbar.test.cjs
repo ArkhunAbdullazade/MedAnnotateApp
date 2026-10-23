@@ -47,7 +47,7 @@ function toolbar() {
   const canvas = new Element('canvas');
   canvas.width = 1200; canvas.height = 800;
   Object.assign(manager, {canvas, ctx: drawingContext, sourceImage: {},
-    currentMode: 'rectangle', annotations: [], ready: false, usingLens: false,
+    currentMode: 'rectangle', annotations: [], ready: true, usingLens: false,
     lens: null, _lensSize: 150, _zoomFactor: 4});
   return {manager, tools: manager.createTools(new Element('div'))};
 }
@@ -102,4 +102,12 @@ test('changing drawing mode closes the lens and clears its selected state', () =
   assert.equal(manager.currentMode, 'freehand');
   pressed(tools.magnifyButton, false);
   pressed(tools.rectButton, false); pressed(tools.freehandButton, true);
+});
+
+test('magnifier waits for a decoded image without falsely activating the tool', () => {
+  const {manager, tools} = toolbar();
+  manager.ready = false;
+  manager.switchMode('magnifier');
+  assert.equal(manager.usingLens, false); assert.equal(manager.lens, null);
+  pressed(tools.magnifyButton, false);
 });

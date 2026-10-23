@@ -33,6 +33,7 @@ class Element {
 
 async function page(occurrences, expectedCount, options = {}) {
   const loadHistory = options.loadHistory;
+  const saveAnnotation = options.saveAnnotation;
   const elements = Object.fromEntries(['annotation-status', 'next-button', 'skip-button',
     'not-present-button', 'comments', 'image-container'].map(id => [id, new Element()]));
   const header = new Element();
@@ -66,6 +67,7 @@ async function page(occurrences, expectedCount, options = {}) {
     fetch: async (url, options = {}) => {
       calls.push({url, ...options});
       if (url.includes('CurrentAnnotations') && loadHistory) return loadHistory();
+      if (url === '/MedData/ProcessAnnotatedMedData' && saveAnnotation) return saveAnnotation();
       return {ok: true, json: async () => url.includes('CurrentAnnotations') ? {annotations: []} : {success: true}};
     }
   };
@@ -104,6 +106,67 @@ test('inline repeated phrases advance once per canonical term in description ord
   assert.deepEqual(saves.map(call => JSON.parse(call.body).ExtractedKeyword), ['boundary', 'lesion']);
   assert.equal(elements['next-button'].textContent, 'Next Image');
   assert.equal(elements['skip-button'].disabled, true);
+});
+
+test('inspection restores the specialist status and keeps the current shapes and term', async () => {
+  const term = new Element('lesion', 'lesion');
+  const {elements, manager} = await page([term], 1);
+  manager.annotations = [{syntheticShape: true}];
+  manager.onAnnotationsChange();
+  const status = elements['annotation-status'], before = status.textContent;
+  manager.onInspectionChange(true);
+  assert.equal(status.dataset.state, 'inspection');
+  assert.match(status.textContent, /Inspection only.*temporarily hidden/);
+  assert.equal(term.classList.contains('current_keyword'), true);
+  assert.equal(manager.annotations.length, 1);
+  manager.onInspectionChange(false);
+  assert.equal(status.textContent, before);
+  assert.equal(status.dataset.state, 'unsaved');
+});
+
+test('specialist status updates during inspection are restored when it ends', async () => {
+  const {elements, manager} = await page([new Element('lesion', 'lesion')], 1);
+  const status = elements['annotation-status'];
+  manager.onInspectionChange(true);
+  elements.comments.value = 'A comment entered while inspecting';
+  await elements.comments.fire('input');
+  assert.equal(status.dataset.state, 'inspection');
+  manager.onInspectionChange(false);
+  assert.equal(status.textContent, 'Unsaved comment.');
+  assert.equal(status.dataset.state, 'unsaved');
+});
+
+test('inspection never covers specialist errors, including an image error arriving while inspecting', async () => {
+  const {elements, manager} = await page([new Element('lesion', 'lesion')], 1);
+  const status = elements['annotation-status'];
+  status.textContent = 'The outline must enclose an area.';
+  status.dataset.state = 'error';
+  manager.onInspectionChange(true);
+  assert.equal(status.textContent, 'The outline must enclose an area.');
+  assert.equal(status.dataset.state, 'error');
+  status.textContent = 'This image could not be loaded.';
+  status.dataset.state = 'error'; manager.ready = false;
+  await manager.canvas.fire('annotationimageerror');
+  manager.onInspectionChange(false);
+  assert.equal(status.textContent, 'This image could not be loaded.');
+  assert.equal(status.dataset.state, 'error');
+});
+
+test('specialist saving status takes priority over the inspection hint', async () => {
+  const response = deferred();
+  const {elements, manager} = await page([new Element('lesion', 'lesion')], 1,
+    {saveAnnotation: () => response.promise});
+  manager.annotations = [{syntheticShape: true}];
+  manager.onAnnotationsChange(); manager.onInspectionChange(true);
+  const saving = elements['next-button'].click();
+  await new Promise(setImmediate);
+  const status = elements['annotation-status'];
+  assert.equal(status.dataset.state, 'saving');
+  assert.match(status.textContent, /Saving/);
+  manager.onInspectionChange(false);
+  assert.equal(status.dataset.state, 'saving');
+  response.resolve({ok: true, json: async () => ({success: true})});
+  await saving;
 });
 
 test('a missing description keyword blocks annotation and completion controls', async () => {

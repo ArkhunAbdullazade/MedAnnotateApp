@@ -12,7 +12,7 @@ class StudentCanvasManager {
     const drawBase = this.baseManager.drawCanvas.bind(this.baseManager);
     this.baseManager.drawCanvas = () => {
       drawBase();
-      if (!this.baseManager.ready) return;
+      if (!this.baseManager.ready || this.baseManager.usingLens) return;
       for (let i = 0; i < this.groupedAnnotations.length; i++) {
         if (i === this.selectedGroupIndex) continue;
         for (const shape of this.groupedAnnotations[i].annotations) this.baseManager.drawAnnotation(shape, false);

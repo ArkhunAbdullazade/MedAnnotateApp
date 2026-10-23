@@ -16,6 +16,7 @@ class CanvasManager {
       this.resizingFixedCorner = null;
       this.originalMouseAngle = 0;
       this.originalAnnotationRotation = 0;
+      this.originalAnnotation = null;
       this.rectStart = null;
       this.freehandPoints = [];
       this.currentDrawingAnnotation = null;
@@ -26,6 +27,7 @@ class CanvasManager {
       
       // Callback for annotation changes
       this.onAnnotationsChange = null;
+      this.onInspectionChange = null;
   
       // Magnifier state
       this.usingLens = false;
@@ -36,8 +38,6 @@ class CanvasManager {
       this.isResizingLens = false;
       this.lensOffset = { x: 0, y: 0 };
       this.initialLensSize = 150;
-      this.initialMousePos = { x: 0, y: 0 };
-      this.resizeMargin = 20;
   
       // Setup event listeners
       this.setupEventListeners();
@@ -233,6 +233,7 @@ class CanvasManager {
     switchMode(newMode) {
       // Special handling for magnifier mode
       if (newMode === "magnifier") {
+        if (!this.ready && !this.usingLens) return;
         // Toggle magnifier on/off
         if (this.usingLens) {
           this.hideLens();
@@ -290,10 +291,16 @@ class CanvasManager {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       
       this.ctx.drawImage(this.sourceImage, 0, 0, this.canvas.width, this.canvas.height);
+      if (this.usingLens) {
+        const lensRect = this.lens.getBoundingClientRect();
+        this.moveLensTo(lensRect.left + lensRect.width / 2, lensRect.top + lensRect.height / 2);
+        return;
+      }
       
       this.annotations.forEach(ann => this.drawAnnotation(ann, ann === this.selectedAnnotation));
       if (this.currentAction === "draw" && this.currentDrawingAnnotation) {
-        this.drawAnnotation(this.currentDrawingAnnotation, true);
+        if (this.currentMode === "freehand") this.drawFreehandPreview();
+        else this.drawRectangle(this.currentDrawingAnnotation, true);
       }
     }
   
@@ -313,17 +320,13 @@ class CanvasManager {
       this.ctx.save();
       this.ctx.translate(ann.cx, ann.cy);
       this.ctx.rotate(ann.rotation);
-      this.ctx.lineWidth = this.screenPixels(2);
-      this.ctx.strokeStyle = isSelected ? "red" : "blue";
-      this.ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
-      
-      // Add fill with transparency and border
-      this.ctx.fillStyle = isSelected ? "rgba(255,0,0,0.1)" : "rgba(0,0,255,0.1)";
+      this.ctx.fillStyle = isSelected ? "rgba(255,0,0,0.06)" : "rgba(0,0,255,0.06)";
       this.ctx.fillRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
-      
-      // Add second border for better visibility
-      this.ctx.strokeStyle = 'white';
-      this.ctx.lineWidth = this.screenPixels(1);
+      this.ctx.lineWidth = this.screenPixels(4);
+      this.ctx.strokeStyle = "white";
+      this.ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
+      this.ctx.strokeStyle = isSelected ? "red" : "blue";
+      this.ctx.lineWidth = this.screenPixels(2);
       this.ctx.strokeRect(-ann.width / 2, -ann.height / 2, ann.width, ann.height);
       
       this.ctx.restore();
@@ -356,8 +359,38 @@ class CanvasManager {
       this.ctx.stroke();
       
       // Add fill with transparency
-      this.ctx.fillStyle = isSelected ? "rgba(255,0,0,0.1)" : "rgba(0,0,255,0.1)";
+      this.ctx.fillStyle = isSelected ? "rgba(255,0,0,0.06)" : "rgba(0,0,255,0.06)";
       this.ctx.fill();
+    }
+
+    drawFreehandPreview() {
+      if (!this.freehandPoints.length) return;
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.freehandPoints.forEach((point, index) => {
+        if (index === 0) this.ctx.moveTo(point.x, point.y);
+        else this.ctx.lineTo(point.x, point.y);
+      });
+      this.ctx.strokeStyle = "white";
+      this.ctx.lineWidth = this.screenPixels(4);
+      this.ctx.stroke();
+      this.ctx.strokeStyle = "red";
+      this.ctx.lineWidth = this.screenPixels(2);
+      this.ctx.stroke();
+      if (this.freehandPoints.length > 2) {
+        const first = this.freehandPoints[0], last = this.freehandPoints[this.freehandPoints.length - 1];
+        this.ctx.beginPath();
+        this.ctx.moveTo(last.x, last.y);
+        this.ctx.lineTo(first.x, first.y);
+        this.ctx.setLineDash([this.screenPixels(4), this.screenPixels(4)]);
+        this.ctx.strokeStyle = "white";
+        this.ctx.lineWidth = this.screenPixels(4);
+        this.ctx.stroke();
+        this.ctx.strokeStyle = "red";
+        this.ctx.lineWidth = this.screenPixels(2);
+        this.ctx.stroke();
+      }
+      this.ctx.restore();
     }
   
     drawHandles(ann) {
@@ -371,9 +404,19 @@ class CanvasManager {
   
     drawRectangleHandles(handles) {
       const size = this.screenPixels(8);
+      const top = {x: (handles.tl.x + handles.tr.x) / 2, y: (handles.tl.y + handles.tr.y) / 2};
+      this.ctx.beginPath();
+      this.ctx.moveTo(top.x, top.y);
+      this.ctx.lineTo(handles.rotate.x, handles.rotate.y);
+      this.ctx.strokeStyle = "white";
+      this.ctx.lineWidth = this.screenPixels(3);
+      this.ctx.stroke();
+      this.ctx.strokeStyle = "#a9000e";
+      this.ctx.lineWidth = this.screenPixels(1);
+      this.ctx.stroke();
       this.ctx.fillStyle = "white";
       this.ctx.lineWidth = this.screenPixels(1);
-      this.ctx.strokeStyle = "black";
+      this.ctx.strokeStyle = "#a9000e";
       
       // Draw resize handles
       ['tl', 'tr', 'bl', 'br'].forEach(key => {
@@ -386,10 +429,10 @@ class CanvasManager {
       const rHandle = handles.rotate;
       this.ctx.beginPath();
       this.ctx.arc(rHandle.x, rHandle.y, this.screenPixels(5), 0, 2 * Math.PI);
-      this.ctx.fillStyle = "red";
+      this.ctx.fillStyle = "#a9000e";
       this.ctx.fill();
       this.ctx.lineWidth = this.screenPixels(1);
-      this.ctx.strokeStyle = "black";
+      this.ctx.strokeStyle = "white";
       this.ctx.stroke();
       
       // Draw delete handle with X
@@ -438,20 +481,23 @@ class CanvasManager {
       this.lens = document.createElement("div");
       this.lens.className = "lens";
       
-      // Make lens circular with red border - using lighter red color
-      this.lens.style.border = "2px solid #d9534f";
-      this.lens.style.boxShadow = "0 0 10px rgba(0,0,0,0.5)";
+      this.lens.style.border = "2px solid #a9000e";
+      this.lens.style.boxShadow = "0 2px 8px rgba(0,0,0,0.3)";
       this.lens.style.borderRadius = "50%";
       this.lens.style.overflow = "hidden";
       this.lens.style.position = "fixed";
-      this.lens.style.width = "180px";
-      this.lens.style.height = "180px";
+      this.lens.style.boxSizing = "border-box";
+      this.lens.style.touchAction = "none";
+      this.lens.title = "Drag the center to move. Drag the circular border to resize.";
       this.lens.style.pointerEvents = "auto";
       this.lens.style.zIndex = "1000";
       
       const lensCanvas = document.createElement("canvas");
       lensCanvas.width = this._lensSize;
       lensCanvas.height = this._lensSize;
+      lensCanvas.style.width = "100%";
+      lensCanvas.style.height = "100%";
+      lensCanvas.style.display = "block";
       this.lens.appendChild(lensCanvas);
       this.lens.ctx = lensCanvas.getContext("2d");
       
@@ -474,23 +520,13 @@ class CanvasManager {
       const centerY = canvasRect.top + canvasRect.height/2;
       
       this.moveLensTo(centerX, centerY);
-      
-      // IMPORTANT: We specifically don't add any mouse follow behavior
-      // The lens should only move when explicitly dragged
+      this.updateCursor();
+      if (this.onInspectionChange) this.onInspectionChange(true);
     }
   
     hideLens() {
-      // Remove the lens element from the DOM
       if (this.lens) {
-        // Remove any move and up handlers that might be attached to document
-        if (this.lens.moveHandler) {
-        document.removeEventListener("mousemove", this.lens.moveHandler);
-        }
-        
-        if (this.lens.upHandler) {
-        document.removeEventListener("mouseup", this.lens.upHandler);
-        }
-        
+        if (this.lens.finishInteraction) this.lens.finishInteraction();
         document.body.removeChild(this.lens);
         this.lens = null;
       }
@@ -502,6 +538,8 @@ class CanvasManager {
       
       // Redraw the canvas with annotations
       this.drawCanvas();
+      this.updateCursor();
+      if (this.onInspectionChange) this.onInspectionChange(false);
     }
   
     updateLens() {
@@ -519,9 +557,9 @@ class CanvasManager {
         return;
       }
       
-      const scale = 1 / this._zoomFactor;
-      const sourceWidth = this.screenPixels(this._lensSize * scale);
-      const sourceHeight = this.screenPixels(this._lensSize * scale);
+      const displaySize = Math.max(1, lensRect.width - 4);
+      const sourceWidth = this.screenPixels(displaySize / this._zoomFactor);
+      const sourceHeight = sourceWidth;
       
       let sourceX = relativeLensX * this.canvas.width / canvasRect.width - sourceWidth/2;
       let sourceY = relativeLensY * this.canvas.height / canvasRect.height - sourceHeight/2;
@@ -531,8 +569,16 @@ class CanvasManager {
       
       const lensCanvas = this.lens.querySelector("canvas");
       const lensCtx = lensCanvas.getContext("2d");
+      const pixelRatio = window.devicePixelRatio || 1;
+      const backingSize = Math.max(1, Math.round(displaySize * pixelRatio));
+      if (lensCanvas.width !== backingSize || lensCanvas.height !== backingSize) {
+        lensCanvas.width = backingSize;
+        lensCanvas.height = backingSize;
+      }
+      const backingScale = backingSize / displaySize;
+      lensCtx.setTransform(backingScale, 0, 0, backingScale, 0, 0);
       
-      lensCtx.clearRect(0, 0, this._lensSize, this._lensSize);
+      lensCtx.clearRect(0, 0, displaySize, displaySize);
       
       try {
         lensCtx.drawImage(
@@ -543,11 +589,11 @@ class CanvasManager {
           sourceHeight,
           0,
           0,
-          this._lensSize,
-          this._lensSize
+          displaySize,
+          displaySize
         );
         
-        const center = this._lensSize / 2;
+        const center = displaySize / 2;
         lensCtx.strokeStyle = "rgba(255,0,0,0.7)";
         lensCtx.lineWidth = 1;
         
@@ -565,33 +611,16 @@ class CanvasManager {
       }
     }
   
-    // Modified to prevent automatic cursor following
-    handleLensFollowMouse(e) {
-      // We're intentionally leaving this empty to prevent 
-      // the lens from automatically following the cursor
-      return;
-    }
-  
-    moveLensTo(x, y) {
+    moveLensTo(x, y, requestedSize = this._lensSize) {
       if (!this.lens) return;
-      
-      const lensRect = this.lens.getBoundingClientRect();
       const canvasRect = this.canvas.getBoundingClientRect();
-      
-      // Calculate new position keeping lens within canvas bounds
-      const newX = Math.max(
-        canvasRect.left,
-        Math.min(x - lensRect.width/2, canvasRect.right - lensRect.width)
-      );
-      
-      const newY = Math.max(
-        canvasRect.top,
-        Math.min(y - lensRect.height/2, canvasRect.bottom - lensRect.height)
-      );
-      
-      this.lens.style.left = newX + "px";
-      this.lens.style.top = newY + "px";
-      
+      const maxSize = Math.max(1, Math.min(200, canvasRect.width, canvasRect.height));
+      this._lensSize = this.clamp(requestedSize, Math.min(75, maxSize), maxSize);
+      const radius = this._lensSize / 2;
+      this.lens.style.width = this._lensSize + "px";
+      this.lens.style.height = this._lensSize + "px";
+      this.lens.style.left = (this.clamp(x, canvasRect.left + radius, canvasRect.right - radius) - radius) + "px";
+      this.lens.style.top = (this.clamp(y, canvasRect.top + radius, canvasRect.bottom - radius) - radius) + "px";
       this.updateLens();
     }
   
@@ -681,6 +710,8 @@ class CanvasManager {
       this.rectStart = null;
       this.freehandPoints = [];
       this.currentAction = "none";
+      this.originalAnnotation = null;
+      this.activeHandle = null;
     }
   
     resetAnnotation() {
@@ -699,7 +730,7 @@ class CanvasManager {
       this.canvas.tabIndex = 0;
       this.canvas.setAttribute("aria-label", "Medical image annotation canvas. Draw with the pointer. Delete removes the selected shape.");
       this.canvas.addEventListener("keydown", e => {
-        if (this.readOnly || !this.selectedAnnotation || !["Delete", "Backspace"].includes(e.key)) return;
+        if (this.usingLens || this.readOnly || !this.selectedAnnotation || !["Delete", "Backspace"].includes(e.key)) return;
         e.preventDefault();
         this.annotations = this.annotations.filter(annotation => annotation !== this.selectedAnnotation);
         this.selectedAnnotation = null;
@@ -712,6 +743,7 @@ class CanvasManager {
         this.canvas.focus({preventScroll:true});
         this.canvas.setPointerCapture(e.pointerId);
         this.handleMouseDown(e);
+        this.updateCursor(this.eventPoint(e));
       });
       this.canvas.addEventListener("pointermove", e => this.handleMouseMove(e));
       this.canvas.addEventListener("pointerup", e => {
@@ -722,6 +754,10 @@ class CanvasManager {
         // Interrupted gestures must never become saveable partial shapes.
         if (this.originalAnnotation && this.selectedAnnotation) Object.assign(this.selectedAnnotation, this.originalAnnotation);
         this.resetDrawingState(); this.drawCanvas();
+        this.updateCursor();
+      });
+      this.canvas.addEventListener("pointerleave", () => {
+        if (this.currentAction === "none") this.updateCursor();
       });
     }
   
@@ -802,6 +838,45 @@ class CanvasManager {
     }
   
     // Mouse event handlers
+    updateCursor(point) {
+      let cursor = "crosshair", hint = "Drag to draw an annotation.";
+      if (this.usingLens || !this.ready || this.readOnly) {
+        cursor = "default";
+        hint = this.usingLens ? "Inspection only. Click Magnifier again to return to drawing." : "";
+      } else if (this.currentAction === "move" || this.currentAction === "rotate") {
+        cursor = "grabbing";
+        hint = this.currentAction === "rotate" ? "Drag to rotate." : "Drag to move.";
+      } else if (this.currentAction !== "draw") {
+        let corner = this.currentAction === "resize" ? this.activeHandle : null;
+        const selected = this.selectedAnnotation;
+        if (point && selected && selected.type === "rectangle") {
+          const handles = this.getAnnotationHandles(selected);
+          if (this.isPointNearHandle(point, handles.rotate)) {
+            cursor = "grab"; hint = "Drag to rotate.";
+          } else if (this.isPointNearHandle(point, handles.delete)) {
+            cursor = "pointer"; hint = "Delete this annotation.";
+          } else {
+            corner = corner || ['tl', 'tr', 'bl', 'br'].find(key => this.isPointNearHandle(point, handles[key]));
+          }
+        } else if (point && selected && selected.type === "freehand") {
+          const handle = this.getFreehandDeleteHandle(selected), size = this.screenPixels(12);
+          if (point.x >= handle.x && point.x <= handle.x + size && point.y >= handle.y && point.y <= handle.y + size) {
+            cursor = "pointer"; hint = "Delete this annotation.";
+          }
+        }
+        if (corner && selected) {
+          const angle = selected.rotation + (corner === "tl" || corner === "br" ? Math.PI / 4 : -Math.PI / 4);
+          const direction = ((Math.round(angle / (Math.PI / 4)) % 4) + 4) % 4;
+          cursor = ["ew-resize", "nwse-resize", "ns-resize", "nesw-resize"][direction];
+          hint = "Drag this corner to resize.";
+        } else if (cursor === "crosshair" && point && this.annotations.some(annotation => this.isPointInAnnotation(annotation, point.x, point.y))) {
+          cursor = "move"; hint = "Drag to move. Select to show editing handles.";
+        }
+      }
+      this.canvas.style.cursor = cursor;
+      this.canvas.title = hint;
+    }
+
     handleMouseDown(e) {
       // Don't allow drawing when magnifier is active
       if (this.usingLens || !this.ready || this.readOnly) return;
@@ -916,6 +991,7 @@ class CanvasManager {
     handleMouseMove(e) {
       if (this.usingLens || !this.ready || this.readOnly) return;
       const { x: mouseX, y: mouseY } = this.eventPoint(e);
+      this.updateCursor({x: mouseX, y: mouseY});
       
       switch (this.currentAction) {
         case "move":
@@ -1022,33 +1098,9 @@ class CanvasManager {
             this.currentDrawingAnnotation = this.boundaryCheck(this.currentDrawingAnnotation);
             this.drawCanvas();
           } else if (this.currentMode === "freehand") {
-            // Store points but don't show them while drawing
             const last = this.freehandPoints[this.freehandPoints.length - 1];
             if (!last || Math.hypot(mouseX-last.x, mouseY-last.y) >= 0.25) this.freehandPoints.push({ x: mouseX, y: mouseY });
-            
-            // Draw current path without points
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.drawImage(this.sourceImage, 0, 0, this.canvas.width, this.canvas.height);
-            
-            // Draw existing annotations
-            this.annotations.forEach(ann => this.drawAnnotation(ann, ann === this.selectedAnnotation));
-            
-            // Draw current freehand path
-            this.ctx.beginPath();
-            this.freehandPoints.forEach((pt, index) => {
-              if (index === 0) this.ctx.moveTo(pt.x, pt.y);
-              else this.ctx.lineTo(pt.x, pt.y);
-            });
-            
-            // Draw white border first
-            this.ctx.strokeStyle = 'white';
-            this.ctx.lineWidth = this.screenPixels(4);
-            this.ctx.stroke();
-            
-            // Then draw blue border
-            this.ctx.strokeStyle = "blue";
-            this.ctx.lineWidth = this.screenPixels(2);
-            this.ctx.stroke();
+            this.drawCanvas();
           }
           break;
       }
@@ -1056,11 +1108,17 @@ class CanvasManager {
   
     handleMouseUp(e) {
       if (this.usingLens || !this.ready || this.readOnly) return;
-      const changed = this.currentAction !== "none";
+      let changed = false;
       
       // Handle end of resizing to ensure rotation is properly maintained
       if (this.currentAction === "resize") {
         this.handleResizeEnd();
+      }
+      if (["move", "resize", "rotate"].includes(this.currentAction) && this.originalAnnotation && this.selectedAnnotation) {
+        const original = this.originalAnnotation, current = this.selectedAnnotation;
+        changed = current.type === "rectangle"
+          ? ["cx", "cy", "width", "height", "rotation"].some(key => current[key] !== original[key])
+          : current.points.length !== original.points.length || current.points.some((point, index) => point.x !== original.points[index].x || point.y !== original.points[index].y);
       }
       
       if (this.currentAction === "draw") {
@@ -1094,9 +1152,7 @@ class CanvasManager {
               }
             }
             
-            if (this.onAnnotationsChange) {
-              this.onAnnotationsChange();
-            }
+            changed = true;
           }
         } else if (this.currentMode === "freehand" && this.freehandPoints.length > 2) {
           // Keep sampled image-space vertices. The previous adaptive reduction to
@@ -1129,14 +1185,13 @@ class CanvasManager {
             }
           }
           
-          if (this.onAnnotationsChange) {
-            this.onAnnotationsChange();
-          }
+          changed = true;
         }
       }
       
       this.resetDrawingState();
       this.drawCanvas();
+      this.updateCursor(this.eventPoint(e));
       if (changed && this.onAnnotationsChange) this.onAnnotationsChange();
     }
   
@@ -1177,94 +1232,64 @@ class CanvasManager {
       return this.getAnnotationCoordinatesJSON(ann);
     }
   
+    isLensEdge(point, rect) {
+      const radius = rect.width / 2;
+      const distance = Math.hypot(point.x - rect.left - radius, point.y - rect.top - radius);
+      return distance >= Math.max(0, radius - 10) && distance <= radius;
+    }
+
     setupLensEventListeners() {
-      if (!this.lens) return;
-      
-      const updateLensCursor = (e) => {
-        if (!this.lens) return;
-        const lensRect = this.lens.getBoundingClientRect();
-        const x = e.clientX - lensRect.left;
-        const y = e.clientY - lensRect.top;
-        const margin = 10; // Smaller margin for better edge detection
-        
-        if (x < margin || x > lensRect.width - margin ||
-            y < margin || y > lensRect.height - margin) {
-          this.lens.style.cursor = "nwse-resize";
-        } else {
-          this.lens.style.cursor = "move";
-        }
+      const lens = this.lens;
+      if (!lens) return;
+      let pointerId = null, center, initialRadius;
+      const updateCursor = point => {
+        if (this.draggingLens) { lens.style.cursor = "grabbing"; return; }
+        const rect = lens.getBoundingClientRect();
+        if (this.isResizingLens || this.isLensEdge(point, rect)) {
+          const angle = Math.atan2(point.y - rect.top - rect.height / 2, point.x - rect.left - rect.width / 2);
+          const direction = ((Math.round(angle / (Math.PI / 4)) % 4) + 4) % 4;
+          lens.style.cursor = ["ew-resize", "nwse-resize", "ns-resize", "nesw-resize"][direction];
+        } else lens.style.cursor = "grab";
       };
-      
-      this.lens.moveHandler = (e) => {
-        if (this.draggingLens) {
-          const canvasRect = this.canvas.getBoundingClientRect();
-          let newLeft = e.clientX - this.lensOffset.x;
-          let newTop = e.clientY - this.lensOffset.y;
-          
-          // Keep lens within canvas bounds with a small margin
-          const margin = 5;
-          newLeft = Math.max(canvasRect.left - margin, Math.min(newLeft, canvasRect.right - this._lensSize + margin));
-          newTop = Math.max(canvasRect.top - margin, Math.min(newTop, canvasRect.bottom - this._lensSize + margin));
-          
-          this.lens.style.left = newLeft + "px";
-          this.lens.style.top = newTop + "px";
-          
-          this.updateLens();
-        } else if (this.isResizingLens) {
-          const dx = e.clientX - this.initialMousePos.x;
-          const dy = e.clientY - this.initialMousePos.y;
-          const delta = Math.max(Math.abs(dx), Math.abs(dy)) * (dx > 0 ? 1 : -1);
-          let newSize = this.initialLensSize + delta;
-          
-          // Limit size (75px to 200px)
-          newSize = Math.max(75, Math.min(newSize, 200));
-          this._lensSize = newSize;
-          
-          // Update lens size
-          this.lens.style.width = this._lensSize + "px";
-          this.lens.style.height = this._lensSize + "px";
-          
-          // Update canvas size
-          const lensCanvas = this.lens.querySelector("canvas");
-          lensCanvas.width = this._lensSize;
-          lensCanvas.height = this._lensSize;
-          
-          this.updateLens();
-        }
-      };
-      
-      this.lens.addEventListener("mousemove", updateLensCursor);
-      
-      this.lens.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const lensRect = this.lens.getBoundingClientRect();
-        const x = e.clientX - lensRect.left;
-        const y = e.clientY - lensRect.top;
-        const margin = 10;
-        
-        if (x < margin || x > lensRect.width - margin ||
-            y < margin || y > lensRect.height - margin) {
-          this.isResizingLens = true;
-          this.initialLensSize = this._lensSize;
-          this.initialMousePos = { x: e.clientX, y: e.clientY };
-        } else {
-          this.draggingLens = true;
-          this.lensOffset = { 
-            x: e.clientX - lensRect.left, 
-            y: e.clientY - lensRect.top 
-          };
-        }
+      lens.addEventListener("pointerdown", event => {
+        if (event.button !== 0 || pointerId !== null) return;
+        event.preventDefault(); event.stopPropagation();
+        pointerId = event.pointerId;
+        const rect = lens.getBoundingClientRect();
+        const point = {x: event.clientX, y: event.clientY};
+        center = {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2};
+        this.isResizingLens = this.isLensEdge(point, rect);
+        this.draggingLens = !this.isResizingLens;
+        this.initialLensSize = this._lensSize;
+        initialRadius = Math.hypot(point.x - center.x, point.y - center.y);
+        this.lensOffset = {x: point.x - center.x, y: point.y - center.y};
+        lens.setPointerCapture(pointerId);
+        updateCursor(point);
       });
-      
-      this.lens.upHandler = () => {
+      lens.addEventListener("pointermove", event => {
+        if (pointerId !== null && event.pointerId !== pointerId) return;
+        const point = {x: event.clientX, y: event.clientY};
+        if (this.draggingLens) {
+          this.moveLensTo(point.x - this.lensOffset.x, point.y - this.lensOffset.y);
+        } else if (this.isResizingLens) {
+          const radius = Math.hypot(point.x - center.x, point.y - center.y);
+          this.moveLensTo(center.x, center.y, this.initialLensSize + 2 * (radius - initialRadius));
+        }
+        updateCursor(point);
+      });
+      const finish = event => {
+        if (pointerId === null || event.pointerId !== pointerId) return;
+        const captured = pointerId;
+        pointerId = null;
         this.draggingLens = false;
         this.isResizingLens = false;
+        if (lens.hasPointerCapture(captured)) lens.releasePointerCapture(captured);
+        updateCursor({x: event.clientX, y: event.clientY});
       };
-      
-      document.addEventListener("mousemove", this.lens.moveHandler);
-      document.addEventListener("mouseup", this.lens.upHandler);
+      lens.addEventListener("pointerup", finish);
+      lens.addEventListener("pointercancel", finish);
+      lens.addEventListener("lostpointercapture", finish);
+      lens.finishInteraction = () => finish({pointerId, clientX: 0, clientY: 0});
     }
   
     // Add a helper method for handling resize end
@@ -1274,8 +1299,7 @@ class CanvasManager {
         // This ensures rotation is properly maintained
         this.selectedAnnotation.rotation = this.originalAnnotation.rotation;
         
-        // Clear original annotation reference
-        this.originalAnnotation = null;
+        // resetDrawingState clears the snapshot after change detection.
       }
     }
   

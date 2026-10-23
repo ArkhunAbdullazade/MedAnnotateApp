@@ -14,7 +14,8 @@ class Element {
   replaceChildren() { this.children = []; }
   append(...children) { this.children.push(...children); }
   appendChild(child) { this.append(child); }
-  click() { return Promise.all((this.listeners.click || []).map(callback => callback())); }
+  fire(name) { return Promise.all((this.listeners[name] || []).map(callback => callback())); }
+  click() { return this.fire('click'); }
 }
 function page(response) {
   const elements = Object.fromEntries(['annotation-status', 'submit-button', 'annotations-list',
@@ -43,7 +44,7 @@ function page(response) {
     StudentCanvasManager, confirm: () => true, location: {},
     fetch() {
       if (!response) throw new Error('This UI state test must not send requests.');
-      return Promise.resolve({ok: true, json: async () => response});
+      return Promise.resolve(response).then(result => ({ok: true, json: async () => result}));
     }
   };
   vm.runInNewContext(source, context, {filename: 'studentPage.js'});
@@ -134,4 +135,94 @@ test('cancelling edits preserves the original local group and its submit warning
   assert.equal(elements['annotation-status'].dataset.state, 'unsaved');
   assert.match(elements['annotation-status'].textContent, /Groups are held/);
   assert.equal(warnsBeforeLeaving(), true);
+});
+
+test('inspection restores student status without changing local groups', () => {
+  const {elements, manager} = page();
+  const group = {label: 'test finding', annotations: [{}]};
+  manager.groups.push(group); manager.onGroupedAnnotationsChange();
+  const status = elements['annotation-status'], before = status.textContent;
+  manager.baseManager.onInspectionChange(true);
+  assert.equal(status.dataset.state, 'inspection');
+  assert.match(status.textContent, /Inspection only.*temporarily hidden/);
+  assert.equal(manager.groups[0], group);
+  manager.baseManager.onInspectionChange(false);
+  assert.equal(status.textContent, before);
+  assert.equal(status.dataset.state, 'unsaved');
+});
+
+test('student status updates during inspection are restored when it ends', () => {
+  const {elements, manager} = page();
+  manager.baseManager.onInspectionChange(true);
+  manager.groups.push({label: 'test finding', annotations: [{}]});
+  manager.onGroupedAnnotationsChange();
+  const status = elements['annotation-status'];
+  assert.equal(status.dataset.state, 'inspection');
+  manager.baseManager.onInspectionChange(false);
+  assert.equal(status.dataset.state, 'unsaved');
+  assert.match(status.textContent, /Groups are held/);
+});
+
+test('inspection never covers student errors, including an image error arriving while inspecting', async () => {
+  const {elements, manager} = page();
+  const status = elements['annotation-status'];
+  status.textContent = 'The outline must enclose an area.'; status.dataset.state = 'error';
+  manager.baseManager.onInspectionChange(true);
+  assert.equal(status.textContent, 'The outline must enclose an area.');
+  assert.equal(status.dataset.state, 'error');
+  status.textContent = 'This image could not be loaded.'; status.dataset.state = 'error';
+  manager.baseManager.ready = false;
+  await manager.baseManager.canvas.fire('annotationimageerror');
+  manager.baseManager.onInspectionChange(false);
+  assert.equal(status.textContent, 'This image could not be loaded.');
+  assert.equal(status.dataset.state, 'error');
+});
+
+test('student saving status takes priority over the inspection hint', async () => {
+  let finish;
+  const response = new Promise(resolve => { finish = resolve; });
+  const {elements, manager} = page(response);
+  manager.groups.push({label: 'test finding', annotations: [{}]});
+  manager.onGroupedAnnotationsChange(); manager.baseManager.onInspectionChange(true);
+  const saving = elements['submit-button'].click();
+  const status = elements['annotation-status'];
+  assert.equal(status.dataset.state, 'saving');
+  assert.match(status.textContent, /Saving all groups/);
+  manager.baseManager.onInspectionChange(false);
+  assert.equal(status.dataset.state, 'saving');
+  finish({success: true, redirectUrl: '/Home/Student'});
+  await saving;
+});
+
+test('real student canvas keeps grouped and selected outlines hidden during inspection redraws', () => {
+  let baseDraws = 0;
+  const outlined = [];
+  class CanvasManager {
+    constructor() {
+      this.ready = true; this.usingLens = false;
+      this.drawCanvas = () => { baseDraws++; };
+      this.drawAnnotation = shape => outlined.push(shape);
+    }
+  }
+  const ActualStudentCanvas = vm.runInNewContext(fs.readFileSync(path.join(__dirname,
+    '../../src/MedAnnotateApp.Presentation/wwwroot/js/studentCanvas.js'), 'utf8') + '\nStudentCanvasManager',
+    {CanvasManager, document: {addEventListener() {}}});
+  ActualStudentCanvas.prototype.createFloatingTextBox = () => {};
+  ActualStudentCanvas.prototype.setupEventListeners = () => {};
+  const manager = new ActualStudentCanvas('canvas', 'image', 'container');
+  const groupedShape = {type: 'freehand'}, selectedShape = {type: 'rectangle'};
+  manager.groupedAnnotations = [{annotations: [groupedShape]}];
+  manager.baseManager.selectedAnnotation = selectedShape;
+  manager.baseManager.drawCanvas();
+  assert.deepEqual(outlined, [groupedShape, selectedShape]);
+  outlined.length = 0;
+  manager.baseManager.usingLens = true;
+  manager.baseManager.drawCanvas();
+  assert.equal(baseDraws, 2, 'The base image redraw still runs during inspection');
+  assert.deepEqual(outlined, [], 'Student overlays must remain hidden after resize/redraw');
+  manager.baseManager.usingLens = false;
+  manager.baseManager.drawCanvas();
+  assert.deepEqual(outlined, [groupedShape, selectedShape]);
+  assert.equal(manager.groupedAnnotations[0].annotations[0], groupedShape);
+  assert.equal(manager.baseManager.selectedAnnotation, selectedShape);
 });

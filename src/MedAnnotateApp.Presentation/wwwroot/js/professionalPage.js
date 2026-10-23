@@ -3,8 +3,22 @@
 document.addEventListener("DOMContentLoaded", () => {
   let dirty = false, saving = false, initialized = false;
   const status = document.getElementById("annotation-status");
+  let baseStatus = {message: status?.textContent || "", state: status?.dataset.state || "ready"};
+  let inspecting = false;
+  const renderStatus = () => {
+    if (!status) return;
+    const hint = inspecting && !["error", "saving"].includes(baseStatus.state);
+    status.textContent = hint ? "Inspection only: outlines are temporarily hidden. Drag the lens or its edge. Click Magnifier again to return to drawing." : baseStatus.message;
+    status.dataset.state = hint ? "inspection" : baseStatus.state;
+  };
   const showStatus = (message, state = "ready") => {
-    if (status) { status.textContent = message; status.dataset.state = state; }
+    baseStatus = {message, state};
+    renderStatus();
+  };
+  const inspectionChanged = active => {
+    if (active && !inspecting && status) baseStatus = {message: status.textContent, state: status.dataset.state || "ready"};
+    inspecting = active;
+    renderStatus();
   };
   const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
   const headers = { "Content-Type": "application/json", "X-CSRF-TOKEN": token || "" };
@@ -42,6 +56,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const expectedTermCount = Number(document.querySelector(".header-text")?.dataset.keywordCount || 0);
   const manager = new CanvasManager("mainCanvas", "sourceImage", "canvasContainer");
   window.canvasManager = manager;
+  manager.onInspectionChange = inspectionChanged;
+  if (status?.dataset.state === "error") showStatus(status.textContent, "error");
   const tools = manager.createTools(document.getElementById("image-container"));
   tools.rectButton.addEventListener("click", () => manager.switchMode("rectangle"));
   tools.freehandButton.addEventListener("click", () => manager.switchMode("freehand"));
@@ -103,7 +119,10 @@ document.addEventListener("DOMContentLoaded", () => {
     showCurrent();
   }
   manager.canvas.addEventListener("annotationimageready", initialize);
-  manager.canvas.addEventListener("annotationimageerror", buttons);
+  manager.canvas.addEventListener("annotationimageerror", () => {
+    showStatus(status?.textContent || "This image could not be loaded.", "error");
+    buttons();
+  });
   manager.onAnnotationsChange = () => {
     if (!manager.readOnly && initialized) {
       dirty = true;
