@@ -4,7 +4,7 @@ A web application for collecting structured annotations on medical publication i
 
 MedAnnotateApp was used to collect structured medical image annotations for the evaluation of **OpenMedSeg**, an explainable AI research project for medical imaging involving researchers from **Stanford Medicine, Mount Sinai, the Hasso Plattner Institute, and Charité**.
 
-Built with **ASP.NET Core MVC, .NET 8, and PostgreSQL**, with custom canvas tools for rectangle and freehand annotation.
+Built with **ASP.NET Core MVC, .NET 10, and PostgreSQL**, with custom canvas tools for rectangle and freehand annotation.
 
 [Full walkthrough](https://drive.google.com/file/d/1WtMTApfPg1Q_AMeK0-lMWVt-EKZZpWtu/view?usp=sharing)
 
@@ -124,7 +124,7 @@ Environment variables use double underscores for nested settings, such as `Conne
 <details>
 <summary>Run locally with the .NET SDK</summary>
 
-Requires the .NET 8 SDK and a running PostgreSQL instance. The commands below use PowerShell; replace the placeholders with your local values.
+Requires the .NET 10 SDK and a running PostgreSQL instance. The commands below use PowerShell; replace the placeholders with your local values.
 
 ```powershell
 dotnet user-secrets init --project src/MedAnnotateApp.Presentation
@@ -157,9 +157,10 @@ dotnet ef migrations script --idempotent --project src/MedAnnotateApp.Presentati
 ## Testing
 
 - .NET tests: `dotnet test tests/MedAnnotateApp.Tests/MedAnnotateApp.Tests.csproj`.
-- Coordinate tests: `node --test tests/js/annotationGeometry.test.cjs`.
+- JavaScript tests: `node --test tests/js/*.test.cjs` (PowerShell: `node --test (Get-ChildItem tests/js/*.test.cjs).FullName`).
+- PostgreSQL concurrency test: set `MEDANNOTATE_TEST_POSTGRES_CONNECTION` to a disposable `medannotate_audit_*` database.
 
-Images need speciality, body-region and modality metadata to be assigned through the required filters. .NET 8 support ends on 10 November 2026; deployments continuing beyond then need a supported runtime.
+Images need speciality, body-region and modality metadata to be assigned through the required filters. The app targets .NET 10 (LTS).
 
 ## License
 
