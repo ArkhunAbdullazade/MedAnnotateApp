@@ -80,7 +80,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardLimit = 1;
     if (builder.Configuration.GetValue<bool>("ReverseProxy:TrustPlatformProxy"))
     {
-        // Azure App Service: its front end is the only ingress and has no fixed address.
+        // Azure App Service / Container Apps: the platform front end is the only ingress and has no fixed address.
         // ForwardLimit = 1 still reads only the client address appended by that front end.
         options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
