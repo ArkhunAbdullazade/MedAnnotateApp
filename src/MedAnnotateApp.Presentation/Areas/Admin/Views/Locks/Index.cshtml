@@ -51,8 +51,9 @@
                 @if (rows.Count == 0)
                 {
                     <div class="empty-state"><i class="bi bi-unlock"></i>No @label.ToLowerInvariant() holds a lock right now.</div>
-                    continue;
                 }
+                else
+                {
                 <form method="post" asp-action="Release" data-confirm="Release the selected locks? Saved specialist answers stay in the data as incomplete sets, and the images go back into the pool." data-confirm-button="Release selected">
                     <div class="d-none d-sm-flex justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
                         <span class="muted small">Sorted with the locks that most need attention first.</span>
@@ -102,6 +103,7 @@
                         </table>
                     </div>
                 </form>
+                }
             </div>
         }
     </div>
