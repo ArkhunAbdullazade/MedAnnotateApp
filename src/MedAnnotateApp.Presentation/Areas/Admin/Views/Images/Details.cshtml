@@ -89,7 +89,7 @@
                                 <span class="muted">· opened <time datetime="@AdminUi.Iso(holder.LockedAt)" data-local="relative"></time></span>
                             </div>
                             <form method="post" asp-action="Release" asp-route-id="@image.Id" class="mt-2"
-                                  data-confirm="@($"Release image #{image.Id} from {holder.Name}? " + (kept > 0 ? $"Their {kept} saved answer(s) stay in the data as an incomplete set, and the next specialist will answer every term." : "Nothing has been saved on it yet.") + " If their page is still open, their next save will ask them to reload.")">
+                                  data-confirm="@($"Release image #{image.Id} from {holder.Name}? " + (kept > 0 ? $"Their {kept} saved answer(s) stay in the data as an incomplete set, and the next specialist will answer every term." : "Nothing has been saved on it yet.") + " If their page is still open, it locks and asks them to reload.")">
                                 <input type="hidden" name="student" value="@student.ToString().ToLowerInvariant()" />
                                 <input type="hidden" name="holderId" value="@holder.UserId" />
                                 <input type="hidden" name="returnUrl" value="@returnUrl" />

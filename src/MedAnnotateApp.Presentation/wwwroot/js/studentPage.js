@@ -1,29 +1,33 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
-  let dirty = false, saving = false, navigating = false, manager;
+  let dirty = false, saving = false, navigating = false, released = false, manager;
   const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
   const headers = {"Content-Type":"application/json","X-CSRF-TOKEN":token};
   const status = document.getElementById("annotation-status");
   let baseStatus = {message: status?.textContent || "", state: status?.dataset.state || "ready"};
-  let inspecting = false;
+  let inspecting = null;
+  const inspectionHints = {
+    magnifier: "Inspection only: outlines are temporarily hidden. Drag the lens or its edge. Click Magnifier again to return to drawing.",
+    zoom: "Zoom to Area: drag a box over the image, or click a point, to see it enlarged. Select Rectangle or Freehand to draw again."
+  };
   const renderStatus = () => {
     if (!status) return;
     const hint = inspecting && !["error", "saving"].includes(baseStatus.state);
-    status.textContent = hint ? "Inspection only: outlines are temporarily hidden. Drag the lens or its edge. Click Magnifier again to return to drawing." : baseStatus.message;
+    status.textContent = hint ? inspectionHints[inspecting] : baseStatus.message;
     status.dataset.state = hint ? "inspection" : baseStatus.state;
   };
   const showStatus = (message, state="ready") => {
     baseStatus = {message, state};
     renderStatus();
   };
-  const inspectionChanged = active => {
+  const inspectionChanged = (active, kind = "magnifier") => {
     if (active && !inspecting && status) baseStatus = {message: status.textContent, state: status.dataset.state || "ready"};
-    inspecting = active;
+    inspecting = active ? kind : null;
     renderStatus();
   };
   const hasUnsavedWork=()=>manager ? manager.getAnnotationGroups().length>0 || manager.baseManager.annotations.length>0 || manager.baseManager.currentAction!=="none" : dirty;
-  window.addEventListener("beforeunload", e => {if(!navigating && (hasUnsavedWork() || saving)){e.preventDefault();e.returnValue="";}});
+  window.addEventListener("beforeunload", e => {if(!navigating && !released && (hasUnsavedWork() || saving)){e.preventDefault();e.returnValue="";}});
   for (const id of ["end-button","end-button-center"]) document.getElementById(id)?.addEventListener("click", async () => {
     if (saving || (hasUnsavedWork() && !confirm("Discard all unsubmitted annotations and log out?"))) return;
     try {
@@ -43,10 +47,11 @@ document.addEventListener("DOMContentLoaded", () => {
   tools.rectButton.addEventListener("click",()=>manager.switchMode("rectangle"));
   tools.freehandButton.addEventListener("click",()=>manager.switchMode("freehand"));
   tools.magnifyButton.addEventListener("click",()=>manager.switchMode("magnifier"));
+  tools.zoomButton.addEventListener("click",()=>manager.switchMode("zoom"));
   function updateList() {
     list.replaceChildren();
     const groups=manager.getAnnotationGroups();
-    submit.disabled=saving || !manager.baseManager.ready || groups.length===0;
+    submit.disabled=released || saving || !manager.baseManager.ready || groups.length===0;
     if (!groups.length) {
       const empty=document.createElement("p");empty.className="empty-annotations-message";empty.textContent="Draw a shape, enter a label, then save the group. Submit all groups when finished.";list.appendChild(empty);
     }
@@ -54,10 +59,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const item=document.createElement("div");item.className="annotation-item";
       const label=document.createElement("span");label.className="annotation-label";label.textContent=`${group.label} (${group.annotations.length} shape${group.annotations.length===1?"":"s"})`;
       const actions=document.createElement("div");actions.className="annotation-actions";
-      const edit=document.createElement("button");edit.type="button";edit.textContent="Edit";edit.disabled=saving;
-      edit.addEventListener("click",()=>{if(!saving)manager.editGroup(index);});
-      const remove=document.createElement("button");remove.type="button";remove.textContent="Delete";remove.disabled=saving;
-      remove.addEventListener("click",()=>{if(!saving && confirm("Delete this annotation group?"))manager.deleteGroup(index);});
+      const edit=document.createElement("button");edit.type="button";edit.textContent="Edit";edit.disabled=saving || released;
+      edit.addEventListener("click",()=>{if(!saving && !released)manager.editGroup(index);});
+      const remove=document.createElement("button");remove.type="button";remove.textContent="Delete";remove.disabled=saving || released;
+      remove.addEventListener("click",()=>{if(!saving && !released && confirm("Delete this annotation group?"))manager.deleteGroup(index);});
       actions.append(edit,remove);item.append(label,actions);list.appendChild(item);
     });
   }
@@ -77,8 +82,15 @@ document.addEventListener("DOMContentLoaded", () => {
     updateList();
   });
   if(manager.baseManager.ready)showStatus("Image ready. Draw a shape, label it and save the group.");
+  const watch=window.watchAssignment?.({imageId,busy:()=>saving || navigating,
+    message:"It is no longer assigned to you, so the groups on this page can't be submitted.",
+    onReleased:()=>{
+      released=true;dirty=false;
+      manager.baseManager.stopInteraction();manager.hideTextBox();updateList();
+      showStatus("This image was released, so these groups can't be submitted. Reload to continue.","error");
+    }});
   submit.addEventListener("click",async()=>{
-    if(saving || !manager.baseManager.ready || imageId!==window.annotatedMedData.id)return;
+    if(released || saving || !manager.baseManager.ready || imageId!==window.annotatedMedData.id)return;
     if(manager.baseManager.currentAction!=="none" || manager.baseManager.annotations.length){showStatus("Finish and save or cancel the current group before submitting.","error");return;}
     const groups=manager.getAnnotationGroups();
     if(!groups.length || groups.some(g=>!g.label?.trim())){showStatus("Every group needs a label and at least one complete shape.","error");return;}
@@ -90,9 +102,13 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response=await fetch("/MedData/SubmitStudentAnnotations",{method:"POST",headers,body:JSON.stringify(payload)});
       let result;try{result=await response.json();}catch{throw new Error("Your session may have expired. Sign in in another tab and retry; keep this page open.");}
-      if(!response.ok || !result.success)throw new Error(result.message || "Save failed. All groups are still on this page.");
+      if(!response.ok || !result.success)throw Object.assign(new Error(result.message || "Save failed. All groups are still on this page."),{status:response.status});
       dirty=false;saving=false;navigating=true;location.href=result.redirectUrl || "/Home/Student";
-    } catch(error){saving=false;manager.baseManager.readOnly=false;submit.textContent="Submit Annotations";updateList();showStatus(error.message,"error");}
+    } catch(error){
+      saving=false;manager.baseManager.readOnly=false;submit.textContent="Submit Annotations";updateList();showStatus(error.message,"error");
+      // A conflict may mean the image was released, so confirm it now rather than at the next check.
+      if(error.status===409)watch?.check();
+    }
   });
   updateList();
 });

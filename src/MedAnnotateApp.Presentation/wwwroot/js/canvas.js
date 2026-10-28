@@ -33,11 +33,18 @@ class CanvasManager {
       this.usingLens = false;
       this.lens = null;
       this._lensSize = 150;
+      this._maxLensSize = 600;
       this._zoomFactor = 4;
       this.draggingLens = false;
       this.isResizingLens = false;
       this.lensOffset = { x: 0, y: 0 };
       this.initialLensSize = 150;
+  
+      // Zoom-to-area state
+      this.zoomSelection = null;
+      this.zoomDialog = null;
+      this.zoomedArea = null;
+      this._maxZoom = 8;
   
       // Setup event listeners
       this.setupEventListeners();
@@ -184,9 +191,12 @@ class CanvasManager {
       
       const magnifyButton = this.createToolButton("magnify", "../images/magnifier.svg", "Magnifier Tool", false);
       
+      const zoomButton = this.createToolButton("zoom", "../images/zoom-area.svg", "Zoom to Area", false);
+      
       toolsContainer.appendChild(rectButton);
       toolsContainer.appendChild(freehandButton);
       toolsContainer.appendChild(magnifyButton);
+      toolsContainer.appendChild(zoomButton);
       
       document.body.appendChild(toolsContainer);
       this.toolsContainer = toolsContainer;
@@ -194,9 +204,10 @@ class CanvasManager {
       this.rectButton = rectButton;
       this.freehandButton = freehandButton;
       this.magnifyButton = magnifyButton;
+      this.zoomButton = zoomButton;
   
       this.updateToolsPosition(imageContainer);
-      return { rectButton, freehandButton, magnifyButton };
+      return { rectButton, freehandButton, magnifyButton, zoomButton };
     }
   
     createToolButton(type, iconSrc, title, isActive) {
@@ -251,13 +262,14 @@ class CanvasManager {
         return; // Don't change the current drawing mode
       }
       
-      // Do nothing if trying to switch to the same drawing mode
-      if (this.currentMode === newMode && newMode !== "magnifier") return;
+      // Do nothing if trying to switch to the same mode
+      if (this.currentMode === newMode) return;
 
-      // Update the current mode for rectangle/freehand
+      // Update the current mode for rectangle/freehand/zoom
+      this.cancelZoomSelection();
       this.currentMode = newMode;
       
-      // Hide lens when switching to annotation modes
+      // Hide lens when switching modes
       if (this.usingLens) {
         this.hideLens();
         if (this.magnifyButton) {
@@ -266,23 +278,25 @@ class CanvasManager {
         }
       }
       
-      // Update button states for rectangle/freehand
-      if (this.rectButton && this.freehandButton) {
-        // Reset annotation button states
-        this.rectButton.classList.remove("active");
-        this.freehandButton.classList.remove("active");
-        this.rectButton.setAttribute("aria-pressed", "false");
-        this.freehandButton.setAttribute("aria-pressed", "false");
-        
-        // Apply active state to the correct annotation button
-        if (newMode === "rectangle") {
-          this.rectButton.classList.add("active");
-          this.rectButton.setAttribute("aria-pressed", "true");
-        } else if (newMode === "freehand") {
-          this.freehandButton.classList.add("active");
-          this.freehandButton.setAttribute("aria-pressed", "true");
-        }
+      // Zooming only inspects, so no shape stays selected with handles that cannot be used.
+      if (newMode === "zoom" && this.selectedAnnotation) {
+        this.selectedAnnotation = null;
+        this.drawCanvas();
       }
+
+      // Exactly one of rectangle, freehand and zoom is active
+      for (const [mode, button] of [["rectangle", this.rectButton], ["freehand", this.freehandButton], ["zoom", this.zoomButton]]) {
+        if (!button) continue;
+        button.classList.toggle("active", mode === newMode);
+        button.setAttribute("aria-pressed", String(mode === newMode));
+      }
+      this.updateCursor();
+      this.notifyInspection();
+    }
+
+    // Pages show a hint while the magnifier or zoom-to-area replaces drawing.
+    notifyInspection() {
+      if (this.onInspectionChange) this.onInspectionChange(this.usingLens || this.currentMode === "zoom", this.usingLens ? "magnifier" : "zoom");
     }
   
     // Canvas drawing and manipulation
@@ -521,7 +535,7 @@ class CanvasManager {
       
       this.moveLensTo(centerX, centerY);
       this.updateCursor();
-      if (this.onInspectionChange) this.onInspectionChange(true);
+      this.notifyInspection();
     }
   
     hideLens() {
@@ -539,7 +553,7 @@ class CanvasManager {
       // Redraw the canvas with annotations
       this.drawCanvas();
       this.updateCursor();
-      if (this.onInspectionChange) this.onInspectionChange(false);
+      this.notifyInspection();
     }
   
     updateLens() {
@@ -560,13 +574,11 @@ class CanvasManager {
       const displaySize = Math.max(1, lensRect.width - 4);
       const sourceWidth = this.screenPixels(displaySize / this._zoomFactor);
       const sourceHeight = sourceWidth;
-      
-      let sourceX = relativeLensX * this.canvas.width / canvasRect.width - sourceWidth/2;
-      let sourceY = relativeLensY * this.canvas.height / canvasRect.height - sourceHeight/2;
-      
-      sourceX = Math.max(0, Math.min(sourceX, this.canvas.width - sourceWidth));
-      sourceY = Math.max(0, Math.min(sourceY, this.canvas.height - sourceHeight));
-      
+
+      // Not clamped: the crosshair marks the point under the lens centre even at the image edges.
+      const sourceX = relativeLensX * this.canvas.width / canvasRect.width - sourceWidth/2;
+      const sourceY = relativeLensY * this.canvas.height / canvasRect.height - sourceHeight/2;
+
       const lensCanvas = this.lens.querySelector("canvas");
       const lensCtx = lensCanvas.getContext("2d");
       const pixelRatio = window.devicePixelRatio || 1;
@@ -581,18 +593,24 @@ class CanvasManager {
       lensCtx.clearRect(0, 0, displaySize, displaySize);
       
       try {
-        lensCtx.drawImage(
-          this.canvas,
-          sourceX,
-          sourceY,
-          sourceWidth,
-          sourceHeight,
-          0,
-          0,
-          displaySize,
-          displaySize
-        );
-        
+        // Only the part of the square that lies on the image is drawn; the rest of the lens is clipped away.
+        const left = Math.max(0, sourceX), top = Math.max(0, sourceY);
+        const right = Math.min(this.canvas.width, sourceX + sourceWidth), bottom = Math.min(this.canvas.height, sourceY + sourceHeight);
+        const scale = displaySize / sourceWidth;
+        if (right > left && bottom > top) {
+          lensCtx.drawImage(
+            this.canvas,
+            left,
+            top,
+            right - left,
+            bottom - top,
+            (left - sourceX) * scale,
+            (top - sourceY) * scale,
+            (right - left) * scale,
+            (bottom - top) * scale
+          );
+        }
+
         const center = displaySize / 2;
         lensCtx.strokeStyle = "rgba(255,0,0,0.7)";
         lensCtx.lineWidth = 1;
@@ -614,16 +632,141 @@ class CanvasManager {
     moveLensTo(x, y, requestedSize = this._lensSize) {
       if (!this.lens) return;
       const canvasRect = this.canvas.getBoundingClientRect();
-      const maxSize = Math.max(1, Math.min(200, canvasRect.width, canvasRect.height));
+      const maxSize = Math.max(1, Math.min(this._maxLensSize, canvasRect.width, canvasRect.height));
       this._lensSize = this.clamp(requestedSize, Math.min(75, maxSize), maxSize);
       const radius = this._lensSize / 2;
+      // The centre can reach every image border, so edges can be inspected at any lens size. The part of the
+      // lens hanging past the image is clipped, so it never covers the page around the image.
+      const left = this.clamp(x, canvasRect.left, canvasRect.right) - radius;
+      const top = this.clamp(y, canvasRect.top, canvasRect.bottom) - radius;
       this.lens.style.width = this._lensSize + "px";
       this.lens.style.height = this._lensSize + "px";
-      this.lens.style.left = (this.clamp(x, canvasRect.left + radius, canvasRect.right - radius) - radius) + "px";
-      this.lens.style.top = (this.clamp(y, canvasRect.top + radius, canvasRect.bottom - radius) - radius) + "px";
+      this.lens.style.left = left + "px";
+      this.lens.style.top = top + "px";
+      const overhang = [canvasRect.top - top, left + this._lensSize - canvasRect.right, top + this._lensSize - canvasRect.bottom, canvasRect.left - left];
+      // Sides that stay on the image keep room for the lens shadow.
+      this.lens.style.clipPath = overhang.some(value => value > 0)
+        ? `inset(${overhang.map(value => value > 0 ? `${value}px` : "-12px").join(" ")})` : "";
       this.updateLens();
     }
   
+    // Zoom-to-area: a blue box drawn over the image opens that area enlarged in a dialog. It only
+    // inspects, so it never changes shapes, the unsaved state or the drawing timer.
+    startZoomSelection(e) {
+      const box = document.createElement("div");
+      box.className = "zoom-selection";
+      this.container.appendChild(box);
+      const start = this.pointInDisplay(e);
+      this.zoomSelection = { pointerId: e.pointerId, start, end: start, box };
+      this.placeZoomBox(box, start.x, start.y, 0, 0);
+    }
+
+    updateZoomSelection(e) {
+      const selection = this.zoomSelection;
+      if (!selection || e.pointerId !== selection.pointerId) return;
+      const start = selection.start, end = selection.end = this.pointInDisplay(e);
+      this.placeZoomBox(selection.box, Math.min(start.x, end.x), Math.min(start.y, end.y), Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+    }
+
+    finishZoomSelection(e) {
+      const selection = this.zoomSelection;
+      if (!selection || e.pointerId !== selection.pointerId) return;
+      this.updateZoomSelection(e);
+      this.zoomSelection = null;
+      const rect = this.canvas.getBoundingClientRect(), { start, end, box } = selection;
+      let left = Math.min(start.x, end.x), top = Math.min(start.y, end.y);
+      let width = Math.abs(end.x - start.x), height = Math.abs(end.y - start.y);
+      if (width < 8 || height < 8) {
+        // A click enlarges a square around that point.
+        width = height = Math.min(rect.width, rect.height) / 3;
+        left = this.clamp(end.x - width / 2, 0, rect.width - width);
+        top = this.clamp(end.y - height / 2, 0, rect.height - height);
+        this.placeZoomBox(box, left, top, width, height);
+      }
+      const scaleX = this.canvas.width / rect.width, scaleY = this.canvas.height / rect.height;
+      this.openZoomView({ x: left * scaleX, y: top * scaleY, width: width * scaleX, height: height * scaleY }, box);
+    }
+
+    cancelZoomSelection() {
+      if (this.zoomSelection) this.zoomSelection.box.remove();
+      this.zoomSelection = null;
+    }
+
+    pointInDisplay(e) {
+      const rect = this.canvas.getBoundingClientRect();
+      return { x: this.clamp(e.clientX - rect.left, 0, rect.width), y: this.clamp(e.clientY - rect.top, 0, rect.height) };
+    }
+
+    placeZoomBox(box, left, top, width, height) {
+      Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+    }
+
+    // The area fills the dialog, drawn from the full-resolution source image, but never beyond 8x its size on
+    // the page, where enlarging only adds blur.
+    openZoomView(region, box) {
+      const dialog = this.zoomDialog || this.createZoomDialog();
+      const onPage = this.canvas.getBoundingClientRect().width / this.canvas.width;
+      // Some darkened page stays visible around the dialog; its header and padding take about 88px.
+      const roomWidth = Math.min(window.innerWidth * 0.92, 1600) - 24, roomHeight = window.innerHeight * 0.9 - 88;
+      const scale = Math.min(roomWidth / region.width, roomHeight / region.height, onPage * this._maxZoom);
+      const width = Math.max(1, Math.round(region.width * scale)), height = Math.max(1, Math.round(region.height * scale));
+      const view = dialog.querySelector("canvas");
+      const density = Math.min(window.devicePixelRatio || 1, 4096 / Math.max(width, height));
+      view.width = Math.max(1, Math.round(width * density));
+      view.height = Math.max(1, Math.round(height * density));
+      view.style.width = `${width}px`;
+      view.style.height = `${height}px`;
+      const ctx = view.getContext("2d");
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, view.width, view.height);
+      ctx.drawImage(this.sourceImage, region.x, region.y, region.width, region.height, 0, 0, view.width, view.height);
+      const times = scale / onPage;
+      dialog.querySelector(".zoom-dialog-note").textContent = times < 1.05 ? "About the same size as on the page"
+        : `${times.toFixed(1).replace(/\.0$/, "")}× larger than on the page`;
+      this.zoomedArea = box;
+      if (!dialog.open) dialog.showModal();
+    }
+
+    createZoomDialog() {
+      const dialog = document.createElement("dialog");
+      dialog.className = "annotation-dialog zoom-dialog";
+      dialog.setAttribute("aria-labelledby", "zoom-dialog-title");
+      dialog.innerHTML = '<div class="annotation-dialog-header"><div><h2 class="annotation-dialog-title" id="zoom-dialog-title">Enlarged area</h2>' +
+        '<p class="annotation-dialog-note zoom-dialog-note"></p></div><button type="button" class="btn-close" aria-label="Close"></button></div>' +
+        '<div class="zoom-dialog-body"><canvas role="img" aria-label="Enlarged part of the image"></canvas></div>';
+      dialog.querySelector(".btn-close").addEventListener("click", () => dialog.close());
+      // Only a press that starts and ends on the dark backdrop closes it, so a drag that leaves the dialog does not.
+      let fromBackdrop = false;
+      dialog.addEventListener("pointerdown", e => { fromBackdrop = e.target === dialog; });
+      dialog.addEventListener("click", e => { if (fromBackdrop && e.target === dialog) dialog.close(); });
+      dialog.addEventListener("close", () => {
+        if (this.zoomedArea) this.zoomedArea.remove();
+        this.zoomedArea = null;
+      });
+      document.body.appendChild(dialog);
+      this.zoomDialog = dialog;
+      return dialog;
+    }
+
+    closeZoomView() {
+      if (this.zoomDialog && this.zoomDialog.open) this.zoomDialog.close();
+    }
+
+    // Ends any gesture, lens or zoom without keeping it and leaves the canvas read only, e.g. when the image
+    // is released while its page is open.
+    stopInteraction() {
+      if (this.originalAnnotation && this.selectedAnnotation) Object.assign(this.selectedAnnotation, this.originalAnnotation);
+      this.closeZoomView();
+      this.switchMode("rectangle");
+      if (this.usingLens) this.switchMode("magnifier");
+      this.selectedAnnotation = null;
+      this.resetDrawingState();
+      this.readOnly = true;
+      if (this.toolsContainer) this.toolsContainer.querySelectorAll("button").forEach(button => { button.disabled = true; });
+      this.drawCanvas();
+      this.updateCursor();
+    }
+
     // Helper functions
     getAnnotationHandles(ann) {
       const hw = ann.width / 2, hh = ann.height / 2;
@@ -738,19 +881,30 @@ class CanvasManager {
         if (this.onAnnotationsChange) this.onAnnotationsChange();
       });
       this.canvas.addEventListener("pointerdown", e => {
-        if (e.button !== 0 || !this.ready || this.readOnly) return;
+        if (e.button !== 0 || !this.ready) return;
+        // Zooming works while saved terms are reviewed too; it never changes shapes.
+        if (this.currentMode === "zoom" && !this.usingLens) {
+          if (this.zoomSelection) return;
+          e.preventDefault();
+          this.canvas.setPointerCapture(e.pointerId);
+          this.startZoomSelection(e);
+          return;
+        }
+        if (this.readOnly) return;
         e.preventDefault();
         this.canvas.focus({preventScroll:true});
         this.canvas.setPointerCapture(e.pointerId);
         this.handleMouseDown(e);
         this.updateCursor(this.eventPoint(e));
       });
-      this.canvas.addEventListener("pointermove", e => this.handleMouseMove(e));
+      this.canvas.addEventListener("pointermove", e => this.zoomSelection ? this.updateZoomSelection(e) : this.handleMouseMove(e));
       this.canvas.addEventListener("pointerup", e => {
-        this.handleMouseUp(e);
+        if (this.zoomSelection) this.finishZoomSelection(e);
+        else this.handleMouseUp(e);
         if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
       });
       this.canvas.addEventListener("pointercancel", () => {
+        if (this.zoomSelection) { this.cancelZoomSelection(); return; }
         // Interrupted gestures must never become saveable partial shapes.
         if (this.originalAnnotation && this.selectedAnnotation) Object.assign(this.selectedAnnotation, this.originalAnnotation);
         this.resetDrawingState(); this.drawCanvas();
@@ -840,7 +994,10 @@ class CanvasManager {
     // Mouse event handlers
     updateCursor(point) {
       let cursor = "crosshair", hint = "Drag to draw an annotation.";
-      if (this.usingLens || !this.ready || this.readOnly) {
+      if (this.currentMode === "zoom" && this.ready && !this.usingLens) {
+        cursor = "zoom-in";
+        hint = "Drag a box over an area, or click a point, to see it enlarged.";
+      } else if (this.usingLens || !this.ready || this.readOnly) {
         cursor = "default";
         hint = this.usingLens ? "Inspection only. Click Magnifier again to return to drawing." : "";
       } else if (this.currentAction === "move" || this.currentAction === "rotate") {

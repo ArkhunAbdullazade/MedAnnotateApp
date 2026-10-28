@@ -48,7 +48,7 @@ function toolbar() {
   canvas.width = 1200; canvas.height = 800;
   Object.assign(manager, {canvas, ctx: drawingContext, sourceImage: {},
     currentMode: 'rectangle', annotations: [], ready: true, usingLens: false,
-    lens: null, _lensSize: 150, _zoomFactor: 4});
+    lens: null, _lensSize: 150, _maxLensSize: 600, _zoomFactor: 4});
   return {manager, tools: manager.createTools(new Element('div'))};
 }
 
@@ -110,4 +110,25 @@ test('magnifier waits for a decoded image without falsely activating the tool', 
   manager.switchMode('magnifier');
   assert.equal(manager.usingLens, false); assert.equal(manager.lens, null);
   pressed(tools.magnifyButton, false);
+});
+
+test('zoom to area is its own mode: it closes the lens, drops the selection and hands back to drawing', () => {
+  const {manager, tools} = toolbar();
+  const hints = [];
+  manager.onInspectionChange = (active, kind) => hints.push([active, kind]);
+  manager.selectedAnnotation = {type: 'rectangle', cx: 200, cy: 200, width: 100, height: 80, rotation: 0};
+  manager.annotations = [manager.selectedAnnotation];
+  manager.switchMode('magnifier');
+  manager.switchMode('zoom');
+  assert.equal(manager.currentMode, 'zoom');
+  assert.equal(manager.usingLens, false); assert.equal(manager.lens, null);
+  assert.equal(manager.selectedAnnotation, null);
+  assert.equal(manager.annotations.length, 1);
+  pressed(tools.zoomButton, true); pressed(tools.magnifyButton, false);
+  pressed(tools.rectButton, false); pressed(tools.freehandButton, false);
+  assert.equal(manager.canvas.style.cursor, 'zoom-in');
+  assert.deepEqual(hints.at(-1), [true, 'zoom']);
+  manager.switchMode('freehand');
+  pressed(tools.zoomButton, false); pressed(tools.freehandButton, true);
+  assert.deepEqual(hints.at(-1), [false, 'zoom']);
 });

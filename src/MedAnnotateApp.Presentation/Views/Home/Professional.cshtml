@@ -15,9 +15,16 @@
 {
     <div class="annotation-workspace">
         <div class="left-column">
-            <div class="header-text" data-keyword-count="@(medDataKeywords?.Count ?? 0)">
-                <p style="color:grey;">@DescriptionKeywords.Highlight(Model.ImageDescription, medDataKeywords)@if (!string.IsNullOrWhiteSpace(Model.Diagnosis) && Model.Diagnosis != "u" && Model.Diagnosis != "na")
-                    {<text>@("\n\nDiagnosis: " + Model.Diagnosis)</text>}</p>
+            <div class="description-panel">
+                <div class="header-text" data-keyword-count="@(medDataKeywords?.Count ?? 0)">
+                    <p style="color:grey;">@DescriptionKeywords.Highlight(Model.ImageDescription, medDataKeywords)@if (!string.IsNullOrWhiteSpace(Model.Diagnosis) && Model.Diagnosis != "u" && Model.Diagnosis != "na")
+                        {<text>@("\n\nDiagnosis: " + Model.Diagnosis)</text>}</p>
+                </div>
+                <div class="description-tools" role="group" aria-label="Description text">
+                    <button type="button" class="description-tool" data-size-step="1" title="Larger text" aria-label="Larger description text">A+</button>
+                    <button type="button" class="description-tool" data-size-step="-1" title="Smaller text" aria-label="Smaller description text">A−</button>
+                    <button type="button" class="description-tool" data-description-open title="Read the whole description" aria-label="Read the whole description" aria-haspopup="dialog"><i class="bi bi-arrows-angle-expand" aria-hidden="true"></i></button>
+                </div>
             </div>
             <div class="annotation-instructions">Draw a rectangle or closed freehand outline around the current term. Drag a shape to move it; use its corner handles to resize, the round handle to rotate, and X to delete. Saved terms can be selected for review.</div>
             <div id="annotation-status" class="annotation-status" role="status" aria-live="polite">Loading image and saved responses…</div>
@@ -88,6 +95,20 @@
             </div>
         </div>
     </div>
+    <dialog id="description-dialog" class="annotation-dialog description-dialog" aria-labelledby="description-dialog-title">
+        <div class="annotation-dialog-header">
+            <div>
+                <h2 class="annotation-dialog-title" id="description-dialog-title">Image description</h2>
+                <p class="annotation-dialog-note" id="description-dialog-term"></p>
+            </div>
+            <div class="description-tools description-tools-row" role="group" aria-label="Text size">
+                <button type="button" class="description-tool" data-size-step="-1" title="Smaller text" aria-label="Smaller text">A−</button>
+                <button type="button" class="description-tool" data-size-step="1" title="Larger text" aria-label="Larger text">A+</button>
+            </div>
+            <button type="button" class="btn-close" aria-label="Close"></button>
+        </div>
+        <div class="description-dialog-text" tabindex="-1" autofocus></div>
+    </dialog>
 }
 else
 {
@@ -120,34 +141,9 @@ else
 
 <script type="text/javascript" defer>
     window.annotatedMedData = @Html.Raw(Json.Serialize(AnnotationImage.From(Model)));
-
-    document.addEventListener('DOMContentLoaded', function() {
-        function handleTextScaling() {
-            const headerText = document.querySelector('.header-text');
-            if (!headerText) return; // Skip if not found (no data page)
-            
-            const textParagraph = headerText.querySelector('p');
-            
-            headerText.classList.remove('text-scale');
-            headerText.style.overflowY = 'auto';
-            
-            if (textParagraph) {
-                if (textParagraph.scrollHeight > headerText.clientHeight) {
-                    headerText.classList.add('text-scale');
-                }
-            }
-        }
-        
-        handleTextScaling();
-        
-        window.addEventListener('resize', handleTextScaling);
-        
-        const sourceImage = document.getElementById('sourceImage');
-        if (sourceImage && !sourceImage.complete) {
-            sourceImage.addEventListener('load', handleTextScaling);
-        }
-    });
 </script>
 <script src="~/js/annotationGeometry.js" asp-append-version="true"></script>
 <script src="~/js/canvas.js" asp-append-version="true"></script>
+<script src="~/js/assignmentWatch.js" asp-append-version="true"></script>
+<script src="~/js/descriptionReader.js" asp-append-version="true" defer></script>
 <script src="~/js/professionalPage.js" asp-append-version="true" defer></script>

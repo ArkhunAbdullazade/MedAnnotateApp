@@ -84,6 +84,18 @@ public class MedDataController : Controller
         });
     }
 
+    [HttpGet]
+    [Authorize(Roles = "Professional,Medical_Student")]
+    public async Task<IActionResult> AssignmentStatus([FromQuery] int medDataId)
+    {
+        if (medDataId <= 0) return BadRequest(new { success = false, message = "Invalid image id." });
+        // Claims only, so the open page's background check costs one indexed read and no user lookup.
+        var userId = userManager.GetUserId(User);
+        if (userId == null) return Unauthorized(new { success = false });
+        var assigned = await medDataRepository.IsAssignedAsync(medDataId, userId, User.IsInRole("Medical_Student"));
+        return Json(new { success = true, assigned });
+    }
+
     [HttpPost]
     [Authorize(Roles = "Medical_Student")]
     [RequestSizeLimit(2_000_000)]

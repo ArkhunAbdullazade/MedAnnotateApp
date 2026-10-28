@@ -79,12 +79,6 @@ body {
   line-height: 1.4;
 }
 
-/* Fixed smaller font size for when text is too long */
-.header-text.text-scale p {
-  font-size: 0.9rem;
-  line-height: 1.3;
-}
-
 .current_keyword {
   color: #a9000e;
   font-weight: bold;

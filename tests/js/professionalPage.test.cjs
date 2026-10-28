@@ -34,6 +34,7 @@ class Element {
 async function page(occurrences, expectedCount, options = {}) {
   const loadHistory = options.loadHistory;
   const saveAnnotation = options.saveAnnotation;
+  const events = {};
   const elements = Object.fromEntries(['annotation-status', 'next-button', 'skip-button',
     'not-present-button', 'comments', 'image-container'].map(id => [id, new Element()]));
   const header = new Element();
@@ -48,14 +49,15 @@ async function page(occurrences, expectedCount, options = {}) {
       this.currentAction = 'none';
     }
     createTools() {
-      return {rectButton: new Element(), freehandButton: new Element(), magnifyButton: new Element()};
+      return {rectButton: new Element(), freehandButton: new Element(), magnifyButton: new Element(), zoomButton: new Element()};
     }
     resetAnnotation() { this.annotations = []; }
+    stopInteraction() { this.stopped = true; this.readOnly = true; }
     getAllAnnotationsJSON() { return 'synthetic image-coordinate envelope'; }
     loadCoordinates(coordinates) { this.loaded = coordinates; }
   }
   const context = {
-    window: {annotatedMedData: {id: 1}, addEventListener() {}},
+    window: {annotatedMedData: {id: 1}, addEventListener(name, callback) { events[name] = callback; }, watchAssignment: options.watch},
     document: {
       addEventListener(name, callback) { if (name === 'DOMContentLoaded') onReady = callback; },
       getElementById: id => elements[id],
@@ -74,7 +76,12 @@ async function page(occurrences, expectedCount, options = {}) {
   vm.runInNewContext(source, context, {filename: 'professionalPage.js'});
   onReady();
   await new Promise(setImmediate);
-  return {elements, calls, manager: context.window.canvasManager};
+  const warnsBeforeLeaving = () => {
+    let warned = false;
+    events.beforeunload({preventDefault() { warned = true; }});
+    return warned;
+  };
+  return {elements, calls, manager: context.window.canvasManager, warnsBeforeLeaving};
 }
 
 test('inline repeated phrases advance once per canonical term in description order', async () => {
@@ -273,4 +280,89 @@ test('finishing the history prefetch does not hide an image loading error', asyn
   assert.equal(elements.comments.disabled, true);
   assert.equal(elements['annotation-status'].dataset.state, 'error');
   assert.match(elements['annotation-status'].textContent, /image could not be loaded/);
+});
+
+test('removing every shape and the comment returns the term to an untouched state', async () => {
+  const {elements, manager, warnsBeforeLeaving} = await page([new Element('lesion', 'lesion')], 1);
+  const status = elements['annotation-status'];
+  manager.annotations = [{syntheticShape: true}];
+  manager.onAnnotationsChange();
+  assert.equal(status.dataset.state, 'unsaved');
+  assert.equal(warnsBeforeLeaving(), true);
+  manager.annotations = [];
+  manager.onAnnotationsChange();
+  assert.equal(status.dataset.state, 'ready');
+  assert.match(status.textContent, /^Annotate the current term: lesion\./);
+  assert.equal(warnsBeforeLeaving(), false);
+
+  elements.comments.value = 'A note';
+  await elements.comments.fire('input');
+  assert.equal(status.textContent, 'Unsaved comment.');
+  manager.annotations = [{syntheticShape: true}];
+  manager.onAnnotationsChange();
+  manager.annotations = [];
+  manager.onAnnotationsChange();
+  assert.equal(status.dataset.state, 'unsaved', 'The comment still needs saving');
+  assert.equal(warnsBeforeLeaving(), true);
+  elements.comments.value = '  ';
+  await elements.comments.fire('input');
+  assert.equal(status.dataset.state, 'ready');
+  assert.equal(warnsBeforeLeaving(), false);
+});
+
+test('a released image locks every control, drops the leave warning and sends nothing more', async () => {
+  let watched;
+  const term = new Element('lesion', 'lesion');
+  const {elements, calls, manager, warnsBeforeLeaving} = await page([term], 1,
+    {watch: options => { watched = options; return {check() {}}; }});
+  assert.equal(watched.busy(), false);
+  manager.annotations = [{syntheticShape: true}];
+  manager.onAnnotationsChange();
+  watched.onReleased();
+  assert.equal(manager.stopped, true);
+  assert.equal(manager.readOnly, true);
+  for (const id of ['next-button', 'skip-button', 'not-present-button', 'comments']) assert.equal(elements[id].disabled, true, id);
+  assert.equal(elements['annotation-status'].dataset.state, 'error');
+  assert.match(elements['annotation-status'].textContent, /released/);
+  assert.equal(warnsBeforeLeaving(), false);
+  manager.onAnnotationsChange();
+  assert.equal(elements['next-button'].disabled, true);
+  const before = calls.length;
+  await elements['next-button'].click();
+  await elements['skip-button'].click();
+  await term.click();
+  assert.equal(calls.length, before);
+  assert.match(elements['annotation-status'].textContent, /released/);
+});
+
+test('saving counts as busy for the lock check and a conflict asks for an immediate check', async () => {
+  let watched, checks = 0;
+  const response = deferred();
+  const {elements, manager} = await page([new Element('lesion', 'lesion')], 1, {
+    watch: options => { watched = options; return {check() { checks++; }}; },
+    saveAnnotation: () => response.promise});
+  manager.annotations = [{syntheticShape: true}];
+  manager.onAnnotationsChange();
+  const saving = elements['next-button'].click();
+  await new Promise(setImmediate);
+  assert.equal(watched.busy(), true);
+  response.resolve({ok: false, status: 409, json: async () => ({success: false, message: 'This image is no longer assigned to you.'})});
+  await saving;
+  assert.equal(watched.busy(), false);
+  assert.equal(checks, 1);
+  assert.equal(elements['annotation-status'].dataset.state, 'error');
+});
+
+test('zoom to area shows its own hint and restores the specialist status afterwards', async () => {
+  const {elements, manager} = await page([new Element('lesion', 'lesion')], 1);
+  const status = elements['annotation-status'], before = status.textContent;
+  manager.onInspectionChange(true, 'zoom');
+  assert.equal(status.dataset.state, 'inspection');
+  assert.match(status.textContent, /^Zoom to Area/);
+  manager.onInspectionChange(true, 'magnifier');
+  assert.match(status.textContent, /^Inspection only/);
+  manager.onInspectionChange(true, 'zoom');
+  manager.onInspectionChange(false, 'zoom');
+  assert.equal(status.textContent, before);
+  assert.equal(status.dataset.state, 'ready');
 });

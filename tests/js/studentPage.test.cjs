@@ -17,7 +17,7 @@ class Element {
   fire(name) { return Promise.all((this.listeners[name] || []).map(callback => callback())); }
   click() { return this.fire('click'); }
 }
-function page(response) {
+function page(response, options = {}) {
   const elements = Object.fromEntries(['annotation-status', 'submit-button', 'annotations-list',
     'image-container'].map(id => [id, new Element()]));
   const events = {};
@@ -27,24 +27,26 @@ function page(response) {
       this.groups = [];
       this.baseManager = {ready: true, annotations: [], currentAction: 'none',
         canvas: new Element(), onAnnotationsChange() {}, drawCanvas() {},
-        resetAnnotation() { this.annotations = []; this.currentAction = 'none'; }};
+        resetAnnotation() { this.annotations = []; this.currentAction = 'none'; },
+        stopInteraction() { this.stopped = true; this.readOnly = true; }};
     }
-    createTools() { return {rectButton: new Element(), freehandButton: new Element(), magnifyButton: new Element()}; }
+    createTools() { return {rectButton: new Element(), freehandButton: new Element(), magnifyButton: new Element(), zoomButton: new Element()}; }
     getAnnotationGroups() { return this.groups; }
     getAllGroupedAnnotationsJSON() { return this.groups.map(group => ({label: group.label, annotations: []})); }
     deleteGroup(index) { this.groups.splice(index, 1); this.onGroupedAnnotationsChange(); }
-    hideTextBox() {}
+    hideTextBox() { this.textBoxHidden = true; }
     cancelCurrentAnnotation() { StudentCanvas.prototype.cancelCurrentAnnotation.call(this); }
   }
   const context = {
-    window: {annotatedMedData: {id: 1}, addEventListener(name, callback) { events[name] = callback; }},
+    window: {annotatedMedData: {id: 1}, addEventListener(name, callback) { events[name] = callback; }, watchAssignment: options.watch},
     document: {addEventListener(name, callback) { if (name === 'DOMContentLoaded') onReady = callback; },
       getElementById: id => elements[id], querySelector: () => ({value: 'synthetic-csrf'}),
       createElement: () => new Element()},
     StudentCanvasManager, confirm: () => true, location: {},
     fetch() {
       if (!response) throw new Error('This UI state test must not send requests.');
-      return Promise.resolve(response).then(result => ({ok: true, json: async () => result}));
+      const status = options.status || 200;
+      return Promise.resolve(response).then(result => ({ok: status < 400, status, json: async () => result}));
     }
   };
   vm.runInNewContext(source, context, {filename: 'studentPage.js'});
@@ -225,4 +227,48 @@ test('real student canvas keeps grouped and selected outlines hidden during insp
   assert.deepEqual(outlined, [groupedShape, selectedShape]);
   assert.equal(manager.groupedAnnotations[0].annotations[0], groupedShape);
   assert.equal(manager.baseManager.selectedAnnotation, selectedShape);
+});
+
+test('a released student image locks submit, group actions and the canvas without a leave warning', async () => {
+  let watched;
+  const {elements, manager, warnsBeforeLeaving} = page(undefined, {watch: options => { watched = options; return {check() {}}; }});
+  manager.groups.push({label: 'test finding', annotations: [{}]});
+  manager.onGroupedAnnotationsChange();
+  assert.equal(watched.busy(), false);
+  assert.equal(warnsBeforeLeaving(), true);
+  watched.onReleased();
+  assert.equal(manager.baseManager.stopped, true);
+  assert.equal(manager.textBoxHidden, true);
+  assert.equal(elements['submit-button'].disabled, true);
+  const actions = elements['annotations-list'].children[0].children[1];
+  assert.equal(actions.children[0].disabled, true);
+  assert.equal(actions.children[1].disabled, true);
+  assert.equal(elements['annotation-status'].dataset.state, 'error');
+  assert.equal(warnsBeforeLeaving(), false);
+  await elements['submit-button'].click();
+  assert.match(elements['annotation-status'].textContent, /released/, 'Submitting after a release sends nothing');
+});
+
+test('a student submit conflict asks the lock watcher to check at once', async () => {
+  let checks = 0;
+  const {elements, manager} = page({success: false, message: 'This image is no longer assigned to you.'},
+    {status: 409, watch: () => ({check() { checks++; }})});
+  manager.groups.push({label: 'test finding', annotations: [{}]});
+  manager.onGroupedAnnotationsChange();
+  await elements['submit-button'].click();
+  assert.equal(checks, 1);
+  assert.equal(elements['annotation-status'].dataset.state, 'error');
+  assert.match(elements['annotation-status'].textContent, /no longer assigned/);
+});
+
+test('student zoom to area hint replaces and then restores the group status', () => {
+  const {elements, manager} = page();
+  manager.groups.push({label: 'test finding', annotations: [{}]});
+  manager.onGroupedAnnotationsChange();
+  const status = elements['annotation-status'], before = status.textContent;
+  manager.baseManager.onInspectionChange(true, 'zoom');
+  assert.match(status.textContent, /^Zoom to Area/);
+  manager.baseManager.onInspectionChange(false, 'zoom');
+  assert.equal(status.textContent, before);
+  assert.equal(status.dataset.state, 'unsaved');
 });

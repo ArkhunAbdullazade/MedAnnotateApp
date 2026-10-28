@@ -58,6 +58,18 @@ function fixture(width=600,height=400){
 }
 
 function unchanged(f){assert.equal(f.manager.getAllAnnotationsJSON(),f.stored);assert.equal(f.changes(),0);}
+// The lens may hang over the image edge; its clip-path hides that part, so this is what the reader sees.
+function visibleRect(f){
+  const r=f.lensRect(),clip=f.manager.lens.style.clipPath;
+  if(!clip)return r;
+  const [top,right,bottom,left]=clip.match(/-?[\d.]+/g).map(Number).map(value=>Math.max(0,value));
+  return{left:r.left+left,top:r.top+top,right:r.right-right,bottom:r.bottom-bottom};
+}
+function onImage(f){
+  const v=visibleRect(f),image=f.rect(),c=f.center(),e=1e-6;
+  assert.ok(v.left>=image.left-e&&v.top>=image.top-e&&v.right<=image.right+e&&v.bottom<=image.bottom+e,'only the image part of the lens is visible');
+  assert.ok(c.x>=image.left-e&&c.x<=image.right+e&&c.y>=image.top-e&&c.y<=image.bottom+e,'the lens centre stays on the image');
+}
 
 test('all eight circular border directions resize outward and inward around a fixed center',()=>{
   for(let i=0;i<8;i++)for(const delta of [10,-10]){
@@ -94,7 +106,7 @@ test('inside dragging moves the lens while the circular edge gives directional r
 test('lens sizing respects minimum, maximum and images smaller than the ordinary minimum',()=>{
   const f=fixture(),center=f.center();
   f.emit('pointerdown',center.x+74,center.y);
-  f.emit('pointermove',center.x+500,center.y);near(f.lensRect().width,200);
+  f.emit('pointermove',center.x+500,center.y);near(f.lensRect().width,400,'the smaller image side caps the lens');
   f.emit('pointermove',center.x+1,center.y);near(f.lensRect().width,75);
   f.emit('pointerup',center.x+1,center.y);unchanged(f);
   const small=fixture(60,40),smallCenter=small.center();
@@ -103,9 +115,12 @@ test('lens sizing respects minimum, maximum and images smaller than the ordinary
   small.emit('pointermove',smallCenter.x+500,smallCenter.y);assert.ok(small.lensRect().width<=40);
   small.emit('pointermove',smallCenter.x+1,smallCenter.y);assert.ok(small.lensRect().width<=40);
   small.emit('pointerup',smallCenter.x+1,smallCenter.y);
-  const r=small.lensRect(),image=small.rect();
-  assert.ok(r.left>=image.left&&r.top>=image.top&&r.right<=image.right&&r.bottom<=image.bottom);
+  onImage(small);
   unchanged(small);
+  const large=fixture(1400,1000),largeCenter=large.center();
+  large.emit('pointerdown',largeCenter.x+74,largeCenter.y);
+  large.emit('pointermove',largeCenter.x+900,largeCenter.y);near(large.lensRect().width,600,'large images stop at 600px');
+  large.emit('pointerup',largeCenter.x+900,largeCenter.y);unchanged(large);
 });
 
 test('pointer release, cancellation and lost capture stop both resizing and dragging',()=>{
@@ -160,13 +175,37 @@ test('a high-DPI lens keeps fourfold visual magnification and the original annot
   assert.equal(f.canvas.width,1200);assert.equal(f.canvas.height,800);unchanged(f);
 });
 
-test('display resizing keeps the entire lens within the image without changing original coordinates',()=>{
+test('display resizing keeps the visible lens on the image without changing original coordinates',()=>{
   const f=fixture();
   for(const [width,height]of [[180,120],[60,40],[600,400]]){
     f.resize(width,height);
-    const lens=f.lensRect(),image=f.rect();
-    assert.ok(lens.width<=Math.min(200,width,height));
-    assert.ok(lens.left>=image.left&&lens.top>=image.top&&lens.right<=image.right&&lens.bottom<=image.bottom);
+    assert.ok(f.lensRect().width<=Math.min(600,width,height));
+    onImage(f);
     assert.equal(f.canvas.width,1200);assert.equal(f.canvas.height,800);unchanged(f);
   }
+});
+
+test('a large lens reaches every image border, marks the exact edge point and covers nothing outside the image',()=>{
+  const f=fixture(),image=f.rect(),start=f.center();
+  f.emit('pointerdown',start.x+74,start.y);f.emit('pointermove',start.x+500,start.y);f.emit('pointerup',start.x+500,start.y);
+  near(f.lensRect().width,400);
+  const content=400-4,source=content/4*2;
+  for(const [x,y]of [[image.left-50,image.top-50],[image.right+80,image.bottom+5],[image.left,image.top+200],[image.left+300,image.bottom]]){
+    const from=f.center();
+    f.emit('pointerdown',from.x,from.y);f.emit('pointermove',x,y);f.emit('pointerup',x,y);
+    const c=f.center();
+    near(c.x,Math.min(Math.max(x,image.left),image.right));near(c.y,Math.min(Math.max(y,image.top),image.bottom));
+    assert.notEqual(f.manager.lens.style.clipPath,'');
+    onImage(f);
+    // Only the on-image part is sampled, placed so the image point under the centre sits under the crosshair.
+    const draw=f.imageCalls.filter(args=>args[0]===f.canvas).at(-1);
+    const pointX=(c.x-image.left)*2,pointY=(c.y-image.top)*2;
+    near(draw[5],(draw[1]-(pointX-source/2))*content/source);near(draw[6],(draw[2]-(pointY-source/2))*content/source);
+    near(draw[7],draw[3]*content/source);near(draw[8],draw[4]*content/source);
+    assert.ok(draw[1]>=0&&draw[2]>=0&&draw[1]+draw[3]<=1200+1e-6&&draw[2]+draw[4]<=800+1e-6);
+  }
+  const from=f.center();
+  f.emit('pointerdown',from.x,from.y);f.emit('pointermove',image.left+300,image.top+200);f.emit('pointerup',image.left+300,image.top+200);
+  assert.equal(f.manager.lens.style.clipPath,'','a lens fully on the image is not clipped');
+  unchanged(f);
 });

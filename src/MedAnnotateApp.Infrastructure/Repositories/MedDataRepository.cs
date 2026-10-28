@@ -222,6 +222,15 @@ public class MedDataRepository : IMedDataRepository
             .Where(item => item.MedDataId == medDataId && item.Email == user.Email).OrderBy(item => item.Id).ToListAsync();
     }
 
+    // Polled by open annotation pages: a single primary-key read that never takes the workflow lock.
+    public Task<bool> IsAssignedAsync(int medDataId, string userId, bool isStudent)
+    {
+        var image = context.MedDatas.AsNoTracking().Where(item => item.Id == medDataId);
+        return isStudent
+            ? image.AnyAsync(item => item.LockedByStudentUserId == userId)
+            : image.AnyAsync(item => item.LockedByUserId == userId);
+    }
+
     public async Task<bool> UpdateLock(int medDataId, string keywordStates, bool isAnnotationStarted, bool isStudent, string userId)
     {
         // Browser flags/state are not authoritative. Saved responses survive releasing a lock.

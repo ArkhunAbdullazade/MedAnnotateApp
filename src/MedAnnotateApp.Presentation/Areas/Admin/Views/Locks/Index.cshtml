@@ -93,7 +93,7 @@
                                         }
                                         <td class="text-end">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" form="release-one" name="selected" value="@LocksViewModel.Key(row)"
-                                                    data-confirm="@($"Release image #{row.ImageId} from {row.HolderName}? " + (row.HasPartialWork ? $"Their {row.TermsSaved} saved answer(s) stay in the data as an incomplete set." : "Nothing has been saved on it yet.") + " If their page is still open, their next save will ask them to reload.")">
+                                                    data-confirm="@($"Release image #{row.ImageId} from {row.HolderName}? " + (row.HasPartialWork ? $"Their {row.TermsSaved} saved answer(s) stay in the data as an incomplete set." : "Nothing has been saved on it yet.") + " If their page is still open, it locks and asks them to reload.")">
                                                 Release
                                             </button>
                                         </td>

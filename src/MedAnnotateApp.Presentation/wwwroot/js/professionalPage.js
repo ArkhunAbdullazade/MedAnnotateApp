@@ -1,23 +1,27 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
-  let dirty = false, saving = false, initialized = false;
+  let dirty = false, saving = false, initialized = false, navigating = false, released = false;
   const status = document.getElementById("annotation-status");
   let baseStatus = {message: status?.textContent || "", state: status?.dataset.state || "ready"};
-  let inspecting = false;
+  let inspecting = null;
+  const inspectionHints = {
+    magnifier: "Inspection only: outlines are temporarily hidden. Drag the lens or its edge. Click Magnifier again to return to drawing.",
+    zoom: "Zoom to Area: drag a box over the image, or click a point, to see it enlarged. Select Rectangle or Freehand to draw again."
+  };
   const renderStatus = () => {
     if (!status) return;
     const hint = inspecting && !["error", "saving"].includes(baseStatus.state);
-    status.textContent = hint ? "Inspection only: outlines are temporarily hidden. Drag the lens or its edge. Click Magnifier again to return to drawing." : baseStatus.message;
+    status.textContent = hint ? inspectionHints[inspecting] : baseStatus.message;
     status.dataset.state = hint ? "inspection" : baseStatus.state;
   };
   const showStatus = (message, state = "ready") => {
     baseStatus = {message, state};
     renderStatus();
   };
-  const inspectionChanged = active => {
+  const inspectionChanged = (active, kind = "magnifier") => {
     if (active && !inspecting && status) baseStatus = {message: status.textContent, state: status.dataset.state || "ready"};
-    inspecting = active;
+    inspecting = active ? kind : null;
     renderStatus();
   };
   const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -26,11 +30,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const response = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
     let result;
     try { result = await response.json(); } catch { throw new Error("Your session may have expired. Keep this page open and sign in again in another tab before retrying."); }
-    if (!response.ok || result.success === false) throw new Error(result.message || "The request could not be saved. Your work is still on this page.");
+    if (!response.ok || result.success === false)
+      throw Object.assign(new Error(result.message || "The request could not be saved. Your work is still on this page."), {status: response.status});
     return result;
   };
   window.addEventListener("beforeunload", e => {
-    if (dirty || saving) { e.preventDefault(); e.returnValue = ""; }
+    if (!navigating && (dirty || saving)) { e.preventDefault(); e.returnValue = ""; }
   });
   for (const id of ["end-button", "end-button-center"]) {
     document.getElementById(id)?.addEventListener("click", async () => {
@@ -38,7 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (dirty && !confirm("This term has unsaved annotations or comments. Discard them and log out?")) return;
       try {
         await request("/Identity/Logout", {method: "POST", body: JSON.stringify({isAnnotationStarted:window.hasAnnotatedCurrentImage === true,medDataId:window.annotatedMedData?.id})});
-        dirty = false;
+        dirty = false; navigating = true;
         location.href = "/Identity/Login";
       } catch (error) { showStatus(error.message, "error"); }
     });
@@ -62,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tools.rectButton.addEventListener("click", () => manager.switchMode("rectangle"));
   tools.freehandButton.addEventListener("click", () => manager.switchMode("freehand"));
   tools.magnifyButton.addEventListener("click", () => manager.switchMode("magnifier"));
+  tools.zoomButton.addEventListener("click", () => manager.switchMode("zoom"));
   let history = [], currentIndex = -1, reviewIndex = -1;
   let historyLoaded = false, historyLoading = false;
   let started = Date.now(), firstDraw = 0;
@@ -72,10 +78,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function buttons() {
     const complete = initialized && currentIndex === -1;
     next.textContent = complete ? "Next Image" : "Save and Next Term";
-    next.disabled = saving || !initialized || !manager.ready || (!complete && (reviewIndex !== -1 || !manager.annotations.length || manager.currentAction !== "none"));
-    skip.disabled = absent.disabled = saving || !initialized || !manager.ready || complete || reviewIndex !== -1 || manager.annotations.length > 0;
-    comments.disabled = !initialized || !manager.ready || saving || reviewIndex !== -1 || complete;
-    manager.readOnly = !initialized || !manager.ready || saving || reviewIndex !== -1 || complete;
+    next.disabled = released || saving || !initialized || !manager.ready || (!complete && (reviewIndex !== -1 || !manager.annotations.length || manager.currentAction !== "none"));
+    skip.disabled = absent.disabled = released || saving || !initialized || !manager.ready || complete || reviewIndex !== -1 || manager.annotations.length > 0;
+    comments.disabled = released || !initialized || !manager.ready || saving || reviewIndex !== -1 || complete;
+    manager.readOnly = released || !initialized || !manager.ready || saving || reviewIndex !== -1 || complete;
     occurrences.forEach(term => {
       const i = terms.findIndex(first => first.dataset.keyword === term.dataset.keyword);
       term.classList.remove("current_keyword", "annotated_keyword", "not_annotated_keyword", "skipped_keyword");
@@ -84,12 +90,13 @@ document.addEventListener("DOMContentLoaded", () => {
       term.setAttribute("aria-pressed", String(i === (reviewIndex === -1 ? currentIndex : reviewIndex)));
     });
   }
+  const prompt = () => currentIndex === -1 ? "All terms saved. Select Next Image to continue. You can select a saved term to review it." : `Annotate the current term: ${termName(currentIndex)}. Changes are not saved until you select Save and Next Term.`;
   function showCurrent() {
     reviewIndex = -1;
     manager.resetAnnotation(); comments.value = ""; dirty = false;
     currentIndex = pendingIndex(); started = Date.now(); firstDraw = 0;
     buttons();
-    showStatus(currentIndex === -1 ? "All terms saved. Select Next Image to continue. You can select a saved term to review it." : `Annotate the current term: ${termName(currentIndex)}. Changes are not saved until you select Save and Next Term.`);
+    showStatus(prompt());
     const current = terms[currentIndex], textBox = current?.closest?.(".header-text");
     if (textBox) {
       const phrase = current.getBoundingClientRect(), box = textBox.getBoundingClientRect();
@@ -123,21 +130,31 @@ document.addEventListener("DOMContentLoaded", () => {
     showStatus(status?.textContent || "This image could not be loaded.", "error");
     buttons();
   });
+  // Removing every shape and the comment returns the term to its untouched state.
+  function draftChanged(message) {
+    dirty = manager.annotations.length > 0 || comments.value.trim() !== "";
+    showStatus(dirty ? message : prompt(), dirty ? "unsaved" : "ready");
+  }
   manager.onAnnotationsChange = () => {
-    if (!manager.readOnly && initialized) {
-      dirty = true;
-      showStatus("Unsaved changes. Select Save and Next Term to save this term.", "unsaved");
-    }
+    if (!manager.readOnly && initialized) draftChanged("Unsaved changes. Select Save and Next Term to save this term.");
     buttons();
   };
-  comments.addEventListener("input", () => { dirty = true; showStatus("Unsaved comment.", "unsaved"); });
+  comments.addEventListener("input", () => draftChanged(comments.value.trim() ? "Unsaved comment." : "Unsaved changes. Select Save and Next Term to save this term."));
+  const watch = window.watchAssignment?.({imageId: assignmentId, busy: () => saving || navigating,
+    message: "It is no longer assigned to you, so nothing more can be saved on this page. Answers you already saved are kept.",
+    onReleased: () => {
+      released = true; dirty = false;
+      manager.stopInteraction();
+      buttons();
+      showStatus("This image was released, so nothing more can be saved on this page. Reload to continue.", "error");
+    }});
   occurrences.forEach(term => {
     const i = terms.findIndex(first => first.dataset.keyword === term.dataset.keyword);
     term.addEventListener("keydown", event => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); term.click(); }
     });
     term.addEventListener("click", () => {
-    if (saving || !initialized || !manager.ready) return;
+    if (released || saving || !initialized || !manager.ready) return;
     const record = saved(i);
     if (!record && i !== currentIndex) return;
     if (dirty && !confirm("Discard unsaved changes to review another term?")) return;
@@ -152,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
   async function save(action) {
-    if (saving || !initialized || !manager.ready || currentIndex < 0 || reviewIndex !== -1 || assignmentId !== window.annotatedMedData.id) return;
+    if (released || saving || !initialized || !manager.ready || currentIndex < 0 || reviewIndex !== -1 || assignmentId !== window.annotatedMedData.id) return;
     let coordinates = "";
     try { if (action === "Save and Next Term") coordinates = manager.getAllAnnotationsJSON(); }
     catch (error) { showStatus(error.message, "error"); return; }
@@ -164,16 +181,18 @@ document.addEventListener("DOMContentLoaded", () => {
       history.push({extractedKeyword:payload.ExtractedKeyword,boxCoordinates:coordinates,pressedButton:action,comment:payload.Comment});
       window.hasAnnotatedCurrentImage = true;
       saving = false; showCurrent();
-    } catch (error) { saving = false; buttons(); showStatus(error.message, "error"); }
+    } catch (error) { saving = false; buttons(); showStatus(error.message, "error"); lockLost(error); }
   }
+  // A conflict may mean the image was released, so confirm it now rather than at the next check.
+  const lockLost = error => { if (error.status === 409) watch?.check(); };
   next.addEventListener("click", async () => {
-    if (saving || !initialized || !manager.ready) return;
+    if (released || saving || !initialized || !manager.ready) return;
     if (currentIndex !== -1) { await save("Save and Next Term"); return; }
     saving = true; buttons(); showStatus("Loading the next image…", "saving");
     try {
       await request(`/MedData/NextImage?medDataId=${encodeURIComponent(assignmentId)}`,{method:"PUT"});
-      saving = false; dirty = false; location.reload();
-    } catch (error) { saving = false; buttons(); showStatus(error.message,"error"); }
+      saving = false; dirty = false; navigating = true; location.reload();
+    } catch (error) { saving = false; buttons(); showStatus(error.message,"error"); lockLost(error); }
   });
   skip.addEventListener("click", () => save("Uncertain/Skip"));
   absent.addEventListener("click", () => save("Not Visible/Abstract"));

@@ -1,6 +1,7 @@
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Infrastructure.Repositories;
+using MedAnnotateApp.Infrastructure.Services.Admin;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -159,6 +160,26 @@ public sealed class WorkflowLifecycleTests
         Assert.True(await database.Repository.UpdateLock(1, "", false, false, database.Owner.Id));
 
         Assert.Null((await database.Context.MedDatas.AsNoTracking().SingleAsync(image => image.Id == 1)).LockedAt);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AssignmentStatusFollowsTheHolderUntilTheStudyTeamReleasesIt(bool student)
+    {
+        await using var database = await LifecycleDatabase.CreateAsync();
+        var owner = student ? database.Student : database.Owner;
+        Assert.False(await database.Repository.IsAssignedAsync(1, owner.Id, student));
+        await database.AssignAsync(owner, student);
+
+        Assert.True(await database.Repository.IsAssignedAsync(1, owner.Id, student));
+        Assert.False(await database.Repository.IsAssignedAsync(1, owner.Id, !student));
+        Assert.False(await database.Repository.IsAssignedAsync(1, database.Other.Id, student));
+        Assert.False(await database.Repository.IsAssignedAsync(2, owner.Id, student));
+
+        var release = await new AssignmentAdminService(database.Context).ReleaseAsync(1, student, owner.Id, database.Other.Id);
+        Assert.True(release.Released);
+        Assert.False(await database.Repository.IsAssignedAsync(1, owner.Id, student));
     }
 
     private static AnnotatedMedData Response(string keyword) => new()

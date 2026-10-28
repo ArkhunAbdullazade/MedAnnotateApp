@@ -30,8 +30,15 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
 .annotation-workspace .comments-section { flex: 1 1 0; height: auto; min-height: 60px; overflow: hidden; }
 .comments-section label { flex: 0 0 auto; width: 100%; padding: 8px 12px; margin: 0; border-bottom: 1px solid #f0f0f0; color: #333; font-size: .85rem; font-weight: 600; }
 .comments-section textarea { flex: 1 1 0; min-height: 0; height: auto; line-height: 1.4; }
-.header-text { flex: 0 0 auto; min-height: 0; height: clamp(64px, 12vh, 96px); max-height: 20%; margin-bottom: 4px; overflow: auto; align-items: flex-start; }
-.header-text p, .header-text.text-scale p { white-space: pre-wrap; font-size: .85rem; line-height: 1.25; color: #595959 !important; }
+/* The description scrolls beside its text size and read-in-full controls. */
+.description-panel { display: flex; flex: 0 0 auto; width: 100%; min-height: 0; height: clamp(64px, 12vh, 96px); max-height: 20%; margin-bottom: 4px; background: #fff; border: 1px solid #a9000e; border-radius: 4px; box-shadow: 0 1px 5px rgba(0, 0, 0, .1); }
+.description-panel .header-text { flex: 1 1 auto; width: auto; min-width: 0; min-height: 0; height: auto; margin: 0; border: 0; border-radius: 4px 0 0 4px; box-shadow: none; overflow: auto; align-items: flex-start; cursor: zoom-in; }
+.header-text p { white-space: pre-wrap; font-size: var(--description-size, .85rem); line-height: 1.25; color: #595959 !important; }
+.description-tools { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 3px 4px; border-left: 1px solid #f1e4e5; }
+.description-tool { flex: 0 1 22px; display: inline-flex; align-items: center; justify-content: center; width: 28px; min-height: 16px; padding: 0; color: #333; background: #fff; border: 1px solid #d8d4d4; border-radius: 4px; font-size: .72rem; font-weight: 600; line-height: 1; cursor: pointer; transition: background-color .12s ease, border-color .12s ease; }
+.description-tool:hover:not(:disabled) { background-color: #f6f2f2; border-color: #bda7a9; }
+.description-tool:disabled { color: #b8b8b8; cursor: not-allowed; }
+.description-tool .bi { font-size: .78rem; }
 .annotation-instructions { flex: 0 0 auto; width: 100%; font-size: .73rem; line-height: 1.2; margin: 2px 0 4px; }
 .header-text .keyword { cursor: pointer; font-weight: bold; }
 .header-text .keyword:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -43,7 +50,8 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
 .annotation-workspace .main-content, .annotation-workspace .annotation-section { flex: 1 1 0; min-height: 0; height: auto; margin: 0; }
 .image-viewport { flex: 1 1 0; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; padding: 3px; }
 #image-container { border: 0; outline: 2px solid #a9000e; border-radius: 0; overflow: visible; flex: 0 0 auto; box-sizing: content-box; max-width: 100%; margin: 0; }
-#canvasContainer { border: 0; padding: 0; box-sizing: content-box; flex: 0 0 auto; display: block; overflow: visible; }
+#canvasContainer { position: relative; border: 0; padding: 0; box-sizing: content-box; flex: 0 0 auto; display: block; overflow: visible; }
+.zoom-selection { position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none; border: 2px dashed #1a6fe0; background: rgba(26, 111, 224, .14); box-shadow: 0 0 0 1px rgba(255, 255, 255, .85), inset 0 0 0 1px rgba(255, 255, 255, .6); }
 #mainCanvas { border: 0; padding: 0; display: block; max-width: none; box-sizing: content-box; touch-action: none; }
 .buttons-section { flex: 0 0 auto; flex-wrap: wrap; height: auto; gap: 6px; padding: 3px 0; margin: 4px 0 0; }
 .buttons-section .button, .buttons-section .primary-button { font-size: .85rem; padding: 6px 10px; }
@@ -59,6 +67,40 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
 .tools-container .tool-button.active:hover { background-color: #a9000e; border-color: #a9000e; color: #fff; }
 .tools-container .tool-button img { object-fit: contain; pointer-events: none; }
 .tools-container .tool-button.active img { filter: brightness(0) invert(1); }
+.tools-container .tool-button:disabled,
+.tools-container .tool-button:disabled:hover { opacity: .45; background-color: #fff; border-color: #d8d4d4; cursor: not-allowed; }
+.tools-container .tool-button:disabled img { filter: none; }
+
+/* Dialogs open in the browser's top layer, above the fixed tool strip, lens and label box. */
+/* The page sheets reset every margin, so the dialog's own centring is restored here. */
+.annotation-dialog { inset: 0; width: fit-content; height: fit-content; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; padding: 0; color: #212529; background: #fff; border: 0; border-radius: 8px; box-shadow: 0 20px 50px rgba(0, 0, 0, .35); overflow: hidden; }
+.annotation-dialog[open] { display: flex; flex-direction: column; animation: annotation-dialog-in .15s ease-out; }
+.annotation-dialog::backdrop { background: rgba(15, 18, 22, .72); }
+@keyframes annotation-dialog-in { from { opacity: 0; transform: translateY(6px) scale(.985); } }
+.annotation-dialog-header { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 18px; border-bottom: 1px solid #ececec; }
+.annotation-dialog-header > :first-child { flex: 1 1 auto; min-width: 0; }
+.annotation-dialog-title { margin: 0; color: #212529; font-size: 1rem; font-weight: 600; line-height: 1.3; }
+.annotation-dialog-note { margin: 2px 0 0; color: #6c757d; font-size: .8rem; line-height: 1.35; }
+.annotation-dialog-note:empty { display: none; }
+.annotation-dialog .btn-close { flex: 0 0 auto; padding: 8px; }
+.annotation-dialog .btn-close:focus { box-shadow: none; }
+.annotation-dialog :is(button, .btn-close):focus-visible { outline: 2px solid #a9000e; outline-offset: 2px; box-shadow: none; }
+.zoom-dialog-body { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px; background: #f1f3f5; overflow: auto; }
+.zoom-dialog-body canvas { display: block; max-width: none; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08); }
+.description-dialog { width: min(780px, calc(100vw - 32px)); }
+.description-dialog-text { flex: 1 1 auto; min-height: 0; padding: 18px 24px 22px; overflow: auto; color: #333; font-size: var(--description-size, 1.125rem); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.description-dialog-text:focus { outline: none; }
+.description-dialog-text .keyword { font-weight: 700; cursor: default; }
+.description-tools-row { flex-direction: row; gap: 4px; padding: 0; border: 0; }
+.description-tools-row .description-tool { flex: 0 0 auto; width: 34px; height: 30px; font-size: .8rem; }
+.released-dialog { width: min(440px, calc(100vw - 32px)); }
+.released-dialog-body { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 26px 22px; text-align: center; }
+.released-dialog-body p { margin: 0; color: #444; font-size: .92rem; line-height: 1.5; }
+.released-dialog-body .annotation-dialog-note { color: #6c757d; font-size: .8rem; }
+.released-dialog .annotation-dialog-title { font-size: 1.1rem; }
+.released-dialog-icon { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; margin-bottom: 4px; color: #a9000e; background: #fff1f2; border-radius: 50%; font-size: 1.3rem; }
+.annotation-dialog-action { margin-top: 10px; padding: 8px 18px; color: #fff; background: #a9000e; border: 0; border-radius: 4px; font-size: .92rem; font-weight: 500; cursor: pointer; transition: background-color .12s ease; }
+.annotation-dialog-action:hover { background: #8f000c; }
 .student-mode .annotation-section { overflow: hidden; align-items: stretch; }
 .student-mode .annotations-list { flex: 1 1 0; min-height: 0; height: auto; max-height: none; overflow: auto; }
 .student-mode .annotation-item { cursor: default; }
@@ -74,6 +116,8 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
   .floating-textbox { animation: none; }
   .annotation-item, .annotation-actions button { transition: none; }
   .tools-container .tool-button { transition: none; }
+  .description-tool, .annotation-dialog-action { transition: none; }
+  .annotation-dialog[open] { animation: none; }
 }
 .centered-container { height: calc(100% - 42px); min-height: 0; overflow: auto; }
 @media (max-width: 850px) {
@@ -86,6 +130,6 @@ main[role="main"] { height: 100%; min-height: 0; padding-bottom: 0 !important; }
   .buttons-section .button, .buttons-section .primary-button { font-size: .75rem; padding: 4px 6px; }
 }
 @media (max-height: 600px) {
-  .header-text { height: 72px; }
+  .description-panel { height: 72px; }
   .annotation-instructions { font-size: .68rem; }
 }
