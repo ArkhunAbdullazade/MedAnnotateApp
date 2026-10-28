@@ -17,10 +17,44 @@ namespace MedAnnotateApp.Presentation.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.32")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("MedAnnotateApp.Core.Models.AdminAction", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("AdminUserId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("MedDataId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetUserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("At");
+
+                    b.ToTable("AdminActions");
+                });
 
             modelBuilder.Entity("MedAnnotateApp.Core.Models.AnnotatedByStudentsMedData", b =>
                 {
@@ -41,6 +75,9 @@ namespace MedAnnotateApp.Presentation.Migrations
 
                     b.Property<string>("Coordinates")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Diagnosis")
                         .HasColumnType("text");
@@ -89,6 +126,10 @@ namespace MedAnnotateApp.Presentation.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("MedDataId");
+
                     b.ToTable("AnnotatedByStudentsMedDatas");
                 });
 
@@ -114,6 +155,9 @@ namespace MedAnnotateApp.Presentation.Migrations
 
                     b.Property<string>("Comment")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Diagnosis")
                         .HasColumnType("text");
@@ -168,6 +212,12 @@ namespace MedAnnotateApp.Presentation.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("MedDataId");
+
                     b.ToTable("AnnotatedMedDatas");
                 });
 
@@ -202,6 +252,9 @@ namespace MedAnnotateApp.Presentation.Migrations
                     b.Property<string>("KeywordStates")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("LockedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("LockedByStudentUserId")
                         .HasColumnType("text");
 
@@ -214,22 +267,29 @@ namespace MedAnnotateApp.Presentation.Migrations
                     b.Property<string>("Pmcid")
                         .HasColumnType("text");
 
-                    b.Property<string>("SourceUrl")
-                        .HasColumnType("text");
-
                     b.Property<string>("Sex")
                         .HasColumnType("text");
 
                     b.Property<string>("SkinTone")
                         .HasColumnType("text");
 
+                    b.Property<string>("SourceUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("Speciality")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("StudentLockedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TreatmentName")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LockedByStudentUserId");
+
+                    b.HasIndex("LockedByUserId");
 
                     b.ToTable("MedDatas");
                 });
@@ -272,6 +332,9 @@ namespace MedAnnotateApp.Presentation.Migrations
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)

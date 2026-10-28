@@ -104,6 +104,37 @@ public class IdentityServiceTests
         Assert.False((await fixture.Identity.ResetPasswordAsync(" ")).Succeeded);
     }
 
+    [Fact]
+    public async Task CreateAdminMakesAnAdminOnlyAccountAndNeverReusesAnAnnotatorEmail()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var annotator = new User { Email = "specialist@gmail.com", UserName = "specialist@gmail.com" };
+        Assert.True((await fixture.Identity.SignupAsync(annotator, "PersonalPassword1!", "Professional")).Succeeded);
+        Assert.NotNull(annotator.CreatedAt);
+
+        var created = await fixture.Identity.CreateAdminAsync(" lead@study.test ");
+        var duplicate = await fixture.Identity.CreateAdminAsync("specialist@gmail.com");
+
+        Assert.True(created.Succeeded);
+        var admin = await fixture.Users.FindByEmailAsync("lead@study.test");
+        Assert.NotNull(admin);
+        Assert.Equal(["Admin"], await fixture.Users.GetRolesAsync(admin));
+        Assert.True(await fixture.Users.CheckPasswordAsync(admin, created.TemporaryPassword!));
+        Assert.False(duplicate.Succeeded);
+        Assert.Equal(["Professional"], await fixture.Users.GetRolesAsync(annotator));
+        Assert.False((await fixture.Identity.CreateAdminAsync("not-an-email")).Succeeded);
+    }
+
+    [Fact]
+    public async Task SignupCannotGrantTheAdminRole()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var user = new User { Email = "person@gmail.com", UserName = "person@gmail.com" };
+
+        Assert.False((await fixture.Identity.SignupAsync(user, "PersonalPassword1!", "Admin")).Succeeded);
+        Assert.Null(await fixture.Users.FindByEmailAsync("person@gmail.com"));
+    }
+
     private sealed class IdentityFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -149,6 +180,7 @@ public class IdentityServiceTests
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
             Assert.True((await roles.CreateAsync(new IdentityRole("Professional"))).Succeeded);
             Assert.True((await roles.CreateAsync(new IdentityRole("Medical_Student"))).Succeeded);
+            Assert.True((await roles.CreateAsync(new IdentityRole("Admin"))).Succeeded);
             return new IdentityFixture(connection, provider, scope);
         }
 

@@ -19,6 +19,7 @@ public class AnnotatedByStudentsMedData
     // AnnotationData
     public string? Coordinates { get; set; }
     public string? TextualAnnotation { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // UserData
     public string? Email { get; set; }

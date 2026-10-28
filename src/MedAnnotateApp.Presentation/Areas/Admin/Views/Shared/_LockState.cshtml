@@ -1,0 +1,17 @@
+@model LockRow
+@switch (Model.State)
+{
+    case LockState.Active:
+        <span class="state state-active"><i class="bi bi-circle-fill" style="font-size:.5rem"></i>Active</span>
+        break;
+    case LockState.Idle:
+        <span class="state state-idle"><i class="bi bi-pause-circle"></i>Idle</span>
+        break;
+    default:
+        <span class="state state-stale"><i class="bi bi-exclamation-triangle"></i>Stale</span>
+        break;
+}
+@if (Model.HasPartialWork)
+{
+    <span class="state state-partial ms-1"><i class="bi bi-pencil-square"></i>Partial</span>
+}

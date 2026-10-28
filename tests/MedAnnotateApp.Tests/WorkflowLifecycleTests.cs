@@ -120,6 +120,47 @@ public sealed class WorkflowLifecycleTests
         Assert.Equal(1, (await database.AssignAsync(database.Other, student)).MedData?.Id);
     }
 
+    [Fact]
+    public async Task LockTimesFollowEachLockAndSavedRowsAreTimestamped()
+    {
+        await using var database = await LifecycleDatabase.CreateAsync();
+        var before = DateTime.UtcNow.AddSeconds(-1);
+        await database.AssignAsync(database.Owner);
+        await database.AssignAsync(database.Student, true);
+        var claimed = await database.Context.MedDatas.AsNoTracking().SingleAsync(image => image.Id == 1);
+        Assert.True(claimed.LockedAt >= before);
+        Assert.True(claimed.StudentLockedAt >= before);
+
+        // Returning to the page refreshes the time, so only abandoned locks look idle to the sweeper.
+        var stale = await database.Context.MedDatas.SingleAsync(image => image.Id == 1);
+        stale.LockedAt = DateTime.UtcNow.AddDays(-2);
+        await database.Context.SaveChangesAsync();
+        await database.AssignAsync(database.Owner);
+        Assert.True((await database.Context.MedDatas.AsNoTracking().SingleAsync(image => image.Id == 1)).LockedAt >= before);
+
+        Assert.True((await database.Repository.SaveProfessionalAsync(database.Owner, Response("lesion"))).Success);
+        Assert.True((await database.Repository.CompleteProfessionalAsync(1, database.Owner)).Success);
+        Assert.True((await database.Repository.SaveStudentAsync(database.Student,
+            [new AnnotatedByStudentsMedData { MedDataId = 1, Coordinates = Coordinates, TextualAnnotation = "lesion" }])).Success);
+
+        var completed = await database.Context.MedDatas.AsNoTracking().SingleAsync(image => image.Id == 1);
+        Assert.Null(completed.LockedAt);
+        Assert.Null(completed.StudentLockedAt);
+        Assert.True((await database.Context.AnnotatedMedDatas.SingleAsync()).CreatedAt >= before);
+        Assert.True((await database.Context.AnnotatedByStudentsMedDatas.SingleAsync()).CreatedAt >= before);
+    }
+
+    [Fact]
+    public async Task ReleasingAnEmptyLockClearsItsTime()
+    {
+        await using var database = await LifecycleDatabase.CreateAsync();
+        await database.AssignAsync(database.Owner);
+
+        Assert.True(await database.Repository.UpdateLock(1, "", false, false, database.Owner.Id));
+
+        Assert.Null((await database.Context.MedDatas.AsNoTracking().SingleAsync(image => image.Id == 1)).LockedAt);
+    }
+
     private static AnnotatedMedData Response(string keyword) => new()
     {
         MedDataId = 1, ExtractedKeyword = keyword, PressedButton = "Save and Next Term", BoxCoordinates = Coordinates

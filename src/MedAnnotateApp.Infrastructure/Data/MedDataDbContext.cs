@@ -15,6 +15,7 @@ public class MedDataDbContext : IdentityDbContext<User, IdentityRole, string>
     public DbSet<MedDataKeyword> MedDataKeywords => Set<MedDataKeyword>();
     public DbSet<AnnotatedMedData> AnnotatedMedDatas => Set<AnnotatedMedData>();
     public DbSet<AnnotatedByStudentsMedData> AnnotatedByStudentsMedDatas => Set<AnnotatedByStudentsMedData>();
+    public DbSet<AdminAction> AdminActions => Set<AdminAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,5 +33,15 @@ public class MedDataDbContext : IdentityDbContext<User, IdentityRole, string>
         modelBuilder.Entity<MedData>()
             .Property(medData => medData.IsAnnotated)
             .HasDefaultValue(false);
+
+        // Lock lookups run on every annotation page load; result lookups back the admin panel and exports.
+        modelBuilder.Entity<MedData>().HasIndex(medData => medData.LockedByUserId);
+        modelBuilder.Entity<MedData>().HasIndex(medData => medData.LockedByStudentUserId);
+        modelBuilder.Entity<AnnotatedMedData>().HasIndex(annotation => annotation.MedDataId);
+        modelBuilder.Entity<AnnotatedMedData>().HasIndex(annotation => annotation.Email);
+        modelBuilder.Entity<AnnotatedMedData>().HasIndex(annotation => annotation.CreatedAt);
+        modelBuilder.Entity<AnnotatedByStudentsMedData>().HasIndex(annotation => annotation.MedDataId);
+        modelBuilder.Entity<AnnotatedByStudentsMedData>().HasIndex(annotation => annotation.CreatedAt);
+        modelBuilder.Entity<AdminAction>().HasIndex(action => action.At);
     }
 }

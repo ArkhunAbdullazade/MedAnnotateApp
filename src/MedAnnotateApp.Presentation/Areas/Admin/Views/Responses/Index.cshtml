@@ -1,0 +1,154 @@
+@model ResponsesViewModel
+@{
+    var q = Model.Query;
+    ViewData["Title"] = "Responses";
+    ViewData["Subtitle"] = "Every saved answer, newest first. Filter, then download exactly what you see.";
+    var people = Model.People.Where(person => person.IsStudent == q.IsStudent).OrderBy(person => person.DisplayName).ToList();
+}
+@section Actions {
+    <div class="dropdown">
+        <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" @(Model.Responses.Total == 0 ? "disabled" : "")>
+            <i class="bi bi-download"></i> Download these @Model.Responses.Total rows
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="@AdminUi.With(Context.Request, "identity", "Pseudonymous", Url.Action("Download"))">CSV with annotator codes</a></li>
+            <li><a class="dropdown-item" href="@AdminUi.With(Context.Request, "identity", "Full", Url.Action("Download"))">CSV with names and emails</a></li>
+            <li><a class="dropdown-item" href="@AdminUi.With(Context.Request, "identity", "None", Url.Action("Download"))">CSV without annotator columns</a></li>
+        </ul>
+    </div>
+}
+
+<section class="admin-card">
+    <ul class="nav nav-tabs px-3 pt-2">
+        <li class="nav-item">
+            <a class="nav-link @(q.IsStudent ? "" : "active")" asp-action="Index" asp-route-role="specialist"><span class="series-dot specialist me-1"></span>Specialist answers</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(q.IsStudent ? "active" : "")" asp-action="Index" asp-route-role="student"><span class="series-dot student me-1"></span>Student groups</a>
+        </li>
+    </ul>
+    <form class="filter-bar" method="get">
+        <input type="hidden" name="role" value="@q.Role" />
+        <div class="grow">
+            <label class="form-label" for="term">@(q.IsStudent ? "Label contains" : "Term or comment contains")</label>
+            <input class="form-control form-control-sm" id="term" name="term" value="@q.Term" />
+        </div>
+        @if (!q.IsStudent)
+        {
+            <div>
+                <label class="form-label" for="button">Response</label>
+                <select class="form-select form-select-sm" id="button" name="button" data-autosubmit>
+                    <option value="">Any</option>
+                    @foreach (var button in AdminUi.Buttons)
+                    {
+                        <option value="@button" selected="@(button == q.Button)">@AdminUi.ButtonLabel(button)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label" for="completeness">Sets</label>
+                <select class="form-select form-select-sm" id="completeness" name="completeness" data-autosubmit>
+                    <option value="All" selected="@(q.Completeness == Completeness.All)">All answers</option>
+                    <option value="CompleteOnly" selected="@(q.Completeness == Completeness.CompleteOnly)">Complete sets only</option>
+                    <option value="IncompleteOnly" selected="@(q.Completeness == Completeness.IncompleteOnly)">Incomplete sets only</option>
+                </select>
+            </div>
+        }
+        <div>
+            <label class="form-label" for="annotatorId">@(q.IsStudent ? "Student" : "Specialist")</label>
+            <select class="form-select form-select-sm" id="annotatorId" name="annotatorId" data-autosubmit>
+                <option value="">Anyone</option>
+                @foreach (var person in people)
+                {
+                    <option value="@person.Id" selected="@(person.Id == q.AnnotatorId)">@person.DisplayName</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="speciality">Speciality</label>
+            <select class="form-select form-select-sm" id="speciality" name="speciality" data-autosubmit>
+                <option value="">All</option>
+                @foreach (var value in Model.Categories.Specialities)
+                {
+                    <option value="@value" selected="@(value == q.Speciality)">@AdminUi.Title(value)</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="modality">Modality</label>
+            <select class="form-select form-select-sm" id="modality" name="modality" data-autosubmit>
+                <option value="">All</option>
+                @foreach (var value in Model.Categories.Modalities)
+                {
+                    <option value="@value" selected="@(value == q.Modality)">@AdminUi.Title(value)</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="from">From (UTC)</label>
+            <input class="form-control form-control-sm" type="date" id="from" name="from" value="@q.From?.ToString("yyyy-MM-dd")" />
+        </div>
+        <div>
+            <label class="form-label" for="to">To (UTC)</label>
+            <input class="form-control form-control-sm" type="date" id="to" name="to" value="@q.To?.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Apply</button>
+            <a class="btn btn-sm btn-light" asp-action="Index" asp-route-role="@q.Role">Clear</a>
+        </div>
+    </form>
+
+    @if (Model.Responses.Total == 0)
+    {
+        <div class="empty-state"><i class="bi bi-card-checklist"></i>No responses match these filters.</div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table table-hover admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>@(q.IsStudent ? "Label" : "Term")</th>
+                        @if (!q.IsStudent) { <th>Response</th> }
+                        <th>@(q.IsStudent ? "Student" : "Specialist")</th>
+                        @if (!q.IsStudent) { <th>Comment</th><th class="num">First draw</th><th class="num">Drawing</th> }
+                        <th>Saved</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Responses.Items)
+                    {
+                        <tr>
+                            <td>
+                                <a class="fw-semibold" asp-controller="Images" asp-action="Details" asp-route-id="@row.MedDataId">#@row.MedDataId</a>
+                                <div class="muted small">@AdminUi.Title(row.Speciality ?? "") · @row.Modality</div>
+                            </td>
+                            <td class="fw-semibold">@row.Term</td>
+                            @if (!q.IsStudent)
+                            {
+                                <td><span class="badge @AdminUi.ButtonClass(row.Button)">@AdminUi.ButtonLabel(row.Button)</span></td>
+                            }
+                            <td>
+                                @if (row.AnnotatorId != null)
+                                {
+                                    <a asp-controller="Participants" asp-action="Details" asp-route-id="@row.AnnotatorId">@row.AnnotatorName</a>
+                                }
+                                else { @row.AnnotatorName }
+                                @if (!row.SetComplete) { <span class="state state-idle ms-1">incomplete set</span> }
+                            </td>
+                            @if (!q.IsStudent)
+                            {
+                                <td class="small"><div class="truncate" title="@row.Comment">@row.Comment</div></td>
+                                <td class="num">@AdminUi.Seconds(row.FirstDrawMs)</td>
+                                <td class="num">@AdminUi.Seconds(row.DrawingMs)</td>
+                            }
+                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.CreatedAt)" data-local="datetime"></time></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <partial name="_Pager" model='(Model.Responses.Page, Model.Responses.Pages, Model.Responses.Total, Model.Responses.PageSize, q.IsStudent ? "groups" : "answers")' />
+</section>

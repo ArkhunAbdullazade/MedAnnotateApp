@@ -1,0 +1,55 @@
+@model Paged<AdminActionRow>
+@{
+    ViewData["Title"] = "Admin log";
+    ViewData["Subtitle"] = "Every change made from this panel and every automatic release, newest first.";
+    string Describe(string action) => action switch
+    {
+        "release-specialist-lock" => "Released specialist lock",
+        "release-student-lock" => "Released student lock",
+        "auto-release-specialist-lock" => "Auto-released idle specialist lock",
+        "auto-release-student-lock" => "Auto-released idle student lock",
+        _ => action
+    };
+}
+
+<section class="admin-card">
+    @if (Model.Total == 0)
+    {
+        <div class="empty-state"><i class="bi bi-journal"></i>Nothing has been changed yet.</div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table admin-table align-middle">
+                <thead><tr><th>When</th><th>Who</th><th>What</th><th>Image</th><th>Participant</th><th>Details</th></tr></thead>
+                <tbody>
+                    @foreach (var row in Model.Items)
+                    {
+                        <tr>
+                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.At)" data-local="datetime"></time></td>
+                            <td>
+                                @if (row.Actor == "Automatic") { <span class="state state-open"><i class="bi bi-robot"></i>Automatic</span> }
+                                else { @row.Actor }
+                            </td>
+                            <td>@Describe(row.Action)</td>
+                            <td>
+                                @if (row.MedDataId is int imageId)
+                                {
+                                    <a asp-controller="Images" asp-action="Details" asp-route-id="@imageId">#@imageId</a>
+                                }
+                            </td>
+                            <td>
+                                @if (row.Target != null)
+                                {
+                                    <a asp-controller="Participants" asp-action="Details" asp-route-id="@row.Target.Id">@row.Target.Name</a>
+                                }
+                            </td>
+                            <td class="mono small muted">@row.Details</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <partial name="_Pager" model='(Model.Page, Model.Pages, Model.Total, Model.PageSize, "entries")' />
+</section>

@@ -1,0 +1,225 @@
+@model ImageDetail
+@{
+    var image = Model.Image;
+    ViewData["Title"] = $"Image #{image.Id}";
+    ViewData["Subtitle"] = string.Join(" · ", new[] { image.Pmcid, AdminUi.Title(image.Speciality ?? ""), image.Modality, image.BodyRegion }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    var overlay = new
+    {
+        answers = Model.Answers.Where(answer => !string.IsNullOrWhiteSpace(answer.Coordinates)).Select(answer => new
+        {
+            id = "a" + answer.Id, term = answer.Keyword, annotator = answer.AnnotatorName, role = "Specialist", coordinates = answer.Coordinates
+        }),
+        groups = Model.Groups.Select(group => new
+        {
+            id = "g" + group.Id, term = group.Label, annotator = group.AnnotatorName, role = "Student", coordinates = group.Coordinates
+        })
+    };
+    var returnUrl = AdminUi.CurrentUrl(Context.Request);
+}
+@section Actions {
+    @if (!string.IsNullOrWhiteSpace(image.SourceUrl))
+    {
+        <a class="btn btn-sm btn-outline-secondary" href="@image.SourceUrl" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> Source article</a>
+    }
+    <a class="btn btn-sm btn-outline-secondary" asp-action="Index"><i class="bi bi-arrow-left"></i> All images</a>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-xl-8">
+        <section class="admin-card h-100">
+            <div class="admin-card-header">
+                <h2 class="admin-card-title">Annotations on the image</h2>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Colour shapes by">
+                    <input type="radio" class="btn-check" name="colour-by" id="by-term" value="term" checked>
+                    <label class="btn btn-outline-secondary" for="by-term">Colour by term</label>
+                    <input type="radio" class="btn-check" name="colour-by" id="by-annotator" value="annotator">
+                    <label class="btn btn-outline-secondary" for="by-annotator">Colour by annotator</label>
+                </div>
+            </div>
+            <div class="admin-card-body">
+                @if (string.IsNullOrWhiteSpace(image.ImageUrl))
+                {
+                    <div class="empty-state"><i class="bi bi-link-45deg"></i>This image has no link.</div>
+                }
+                else
+                {
+                    <div class="d-flex flex-column flex-lg-row gap-3">
+                        <div class="flex-grow-1 text-center">
+                            <div class="image-stage" id="image-stage">
+                                <img id="admin-image" src="@image.ImageUrl" alt="Study image @image.Id" referrerpolicy="no-referrer" />
+                            </div>
+                            <div id="overlay-notes" class="small text-start mt-2"></div>
+                        </div>
+                        <div style="min-width: 14rem;">
+                            <div class="stat-label mb-2">Layers</div>
+                            <div id="layer-list"><span class="muted small">No shapes saved yet.</span></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+    <div class="col-xl-4 d-flex flex-column gap-3">
+        <section class="admin-card">
+            <div class="admin-card-header"><h2 class="admin-card-title">Assignment</h2></div>
+            <div class="admin-card-body d-flex flex-column gap-3">
+                @foreach (var (role, done, holder, student) in new[] { ("Specialist", image.IsAnnotated, Model.SpecialistLock, false), ("Student", image.IsAnnotatedByStudent, Model.StudentLock, true) })
+                {
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="role-pill"><span class="series-dot @role.ToLowerInvariant()"></span>@role</span>
+                            @if (done)
+                            {
+                                <span class="state state-done"><i class="bi bi-check-circle-fill"></i>Done</span>
+                            }
+                            else if (holder != null)
+                            {
+                                <span class="state state-partial"><i class="bi bi-lock-fill"></i>Locked</span>
+                            }
+                            else
+                            {
+                                <span class="state state-open"><i class="bi bi-circle"></i>Open</span>
+                            }
+                        </div>
+                        @if (holder != null)
+                        {
+                            var kept = student ? 0 : Model.Answers.Count(answer => answer.AnnotatorId == holder.UserId);
+                            <div class="small mt-2">
+                                <a asp-controller="Participants" asp-action="Details" asp-route-id="@holder.UserId">@holder.Name</a>
+                                <span class="muted">· opened <time datetime="@AdminUi.Iso(holder.LockedAt)" data-local="relative"></time></span>
+                            </div>
+                            <form method="post" asp-action="Release" asp-route-id="@image.Id" class="mt-2"
+                                  data-confirm="@($"Release image #{image.Id} from {holder.Name}? " + (kept > 0 ? $"Their {kept} saved answer(s) stay in the data as an incomplete set, and the next specialist will answer every term." : "Nothing has been saved on it yet.") + " If their page is still open, their next save will ask them to reload.")">
+                                <input type="hidden" name="student" value="@student.ToString().ToLowerInvariant()" />
+                                <input type="hidden" name="holderId" value="@holder.UserId" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-unlock"></i> Release @role.ToLowerInvariant() lock</button>
+                            </form>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+        <section class="admin-card">
+            <div class="admin-card-header"><h2 class="admin-card-title">Image details</h2></div>
+            <div class="admin-card-body">
+                <dl class="meta-list">
+                    <dt>Terms</dt><dd>@(Model.Keywords.Count == 0 ? "—" : string.Join(", ", Model.Keywords))</dd>
+                    <dt>Diagnosis</dt><dd>@(image.Diagnosis ?? "—")</dd>
+                    <dt>Treatment</dt><dd>@(image.TreatmentName ?? "—")</dd>
+                    <dt>Patient</dt><dd>@(string.Join(", ", new[] { image.Sex, image.Age, image.SkinTone }.Where(value => !string.IsNullOrWhiteSpace(value))) is { Length: > 0 } patient ? patient : "—")</dd>
+                    <dt>Description</dt>
+                    <dd class="small">
+                        @if ((image.ImageDescription?.Length ?? 0) > 280)
+                        {
+                            <details class="description">
+                                <summary>@image.ImageDescription![..240]… <span class="link-primary">Show all</span></summary>
+                                @image.ImageDescription
+                            </details>
+                        }
+                        else
+                        {
+                            @(image.ImageDescription ?? "—")
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </section>
+    </div>
+</div>
+
+<section class="admin-card mb-3">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">Specialist answers</h2>
+            <p class="admin-card-note">One row per term answer. Hover a row to highlight its shapes.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            @foreach (var set in Model.SpecialistSets)
+            {
+                <span class="state @(set.Complete ? "state-done" : "state-idle")" title="@(set.Complete ? "Answered every term" : "Incomplete set")">
+                    <i class="bi @(set.Complete ? "bi-check-circle-fill" : "bi-hourglass-split")"></i>@set.Name · @set.Answered/@set.Total
+                </span>
+            }
+        </div>
+    </div>
+    @if (Model.Answers.Count == 0)
+    {
+        <div class="empty-state"><i class="bi bi-card-checklist"></i>No specialist answers yet.</div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table admin-table align-middle" id="answer-table">
+                <thead>
+                    <tr><th>Term</th><th>Response</th><th>Specialist</th><th>Comment</th><th class="num">First draw</th><th class="num">Drawing</th><th>Saved</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var answer in Model.Answers)
+                    {
+                        <tr data-shape="a@(answer.Id)">
+                            <td class="fw-semibold">@answer.Keyword</td>
+                            <td><span class="badge @AdminUi.ButtonClass(answer.Button)">@AdminUi.ButtonLabel(answer.Button)</span></td>
+                            <td>
+                                @if (answer.AnnotatorId != null)
+                                {
+                                    <a asp-controller="Participants" asp-action="Details" asp-route-id="@answer.AnnotatorId">@answer.AnnotatorName</a>
+                                }
+                                else { @answer.AnnotatorName }
+                                @if (!answer.SetComplete) { <span class="state state-idle ms-1">incomplete set</span> }
+                            </td>
+                            <td class="small">@answer.Comment</td>
+                            <td class="num">@AdminUi.Seconds(answer.FirstDrawMs)</td>
+                            <td class="num">@AdminUi.Seconds(answer.DrawingMs)</td>
+                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(answer.CreatedAt)" data-local="datetime"></time></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">Student groups</h2>
+            <p class="admin-card-note">Labelled groups submitted together by one student</p>
+        </div>
+    </div>
+    @if (Model.Groups.Count == 0)
+    {
+        <div class="empty-state"><i class="bi bi-mortarboard"></i>No student annotations yet.</div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table admin-table align-middle">
+                <thead><tr><th>Label</th><th>Student</th><th>Saved</th></tr></thead>
+                <tbody>
+                    @foreach (var group in Model.Groups)
+                    {
+                        <tr data-shape="g@(group.Id)">
+                            <td class="fw-semibold">@group.Label</td>
+                            <td>
+                                @if (group.AnnotatorId != null)
+                                {
+                                    <a asp-controller="Participants" asp-action="Details" asp-route-id="@group.AnnotatorId">@group.AnnotatorName</a>
+                                }
+                                else { @group.AnnotatorName }
+                            </td>
+                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(group.CreatedAt)" data-local="datetime"></time></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<script type="application/json" id="overlay-data">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(overlay))</script>
+
+@section Scripts {
+    <script src="~/js/annotationGeometry.js" asp-append-version="true"></script>
+    <script src="~/js/admin/adminOverlay.js" asp-append-version="true"></script>
+}

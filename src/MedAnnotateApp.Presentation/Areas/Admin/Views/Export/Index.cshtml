@@ -1,0 +1,83 @@
+@model OverviewStats
+@{
+    ViewData["Title"] = "Export";
+    ViewData["Subtitle"] = "Download the study data at any time. Exports read a consistent snapshot and never pause annotators.";
+}
+
+<div class="row g-3">
+    <div class="col-xl-7">
+        <section class="admin-card">
+            <div class="admin-card-header">
+                <div>
+                    <h2 class="admin-card-title">Full results archive</h2>
+                    <p class="admin-card-note">A ZIP with images, specialist answers, student groups, participants, progress and a README</p>
+                </div>
+            </div>
+            <form class="admin-card-body" method="get" asp-action="Download">
+                <fieldset class="mb-4">
+                    <legend class="stat-label mb-2">Specialist answers</legend>
+                    @foreach (var (value, label, note) in new[]
+                    {
+                        ("All", "All answers", "Complete and incomplete sets, each row flagged with SetComplete"),
+                        ("CompleteOnly", "Complete sets only", "Only specialists who answered every term of an image"),
+                        ("IncompleteOnly", "Incomplete sets only", "Answers left behind by released locks; no student rows")
+                    })
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="completeness" id="completeness-@value" value="@value" checked="@(value == "All")" />
+                            <label class="form-check-label" for="completeness-@value">@label <span class="d-block muted small">@note</span></label>
+                        </div>
+                    }
+                </fieldset>
+                <fieldset class="mb-4">
+                    <legend class="stat-label mb-2">Annotator identity</legend>
+                    @foreach (var (value, label, note) in new[]
+                    {
+                        ("Pseudonymous", "Pseudonymous codes", "SPEC-001 / STU-001 with position and experience; safe to share with collaborators"),
+                        ("Full", "Full identity", "Adds names, emails, universities and ORCID iDs: personal data"),
+                        ("None", "No annotator columns", "Answers only, no participants file")
+                    })
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="identity" id="identity-@value" value="@value" checked="@(value == "Pseudonymous")" />
+                            <label class="form-check-label" for="identity-@value">@label <span class="d-block muted small">@note</span></label>
+                        </div>
+                    }
+                </fieldset>
+                <fieldset class="mb-4">
+                    <legend class="stat-label mb-2">Format</legend>
+                    <div class="btn-group" role="group" aria-label="Format">
+                        <input type="radio" class="btn-check" name="format" id="format-csv" value="Csv" checked>
+                        <label class="btn btn-outline-secondary btn-sm" for="format-csv"><i class="bi bi-filetype-csv"></i> CSV (opens in Excel)</label>
+                        <input type="radio" class="btn-check" name="format" id="format-json" value="Json">
+                        <label class="btn btn-outline-secondary btn-sm" for="format-json"><i class="bi bi-filetype-json"></i> JSON</label>
+                    </div>
+                </fieldset>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-download"></i> Download archive</button>
+            </form>
+        </section>
+    </div>
+    <div class="col-xl-5 d-flex flex-column gap-3">
+        <section class="admin-card">
+            <div class="admin-card-header"><h2 class="admin-card-title">What is in the data now</h2></div>
+            <div class="admin-card-body">
+                <dl class="meta-list">
+                    <dt>Images</dt><dd>@Model.TotalImages</dd>
+                    <dt>Specialist answers</dt><dd>@Model.SpecialistResponses</dd>
+                    <dt>Specialist images done</dt><dd>@Model.Specialist.Done of @Model.Specialist.Eligible</dd>
+                    <dt>Student groups</dt><dd>@Model.StudentGroups</dd>
+                    <dt>Student images done</dt><dd>@Model.Student.Done of @Model.Student.Eligible</dd>
+                    <dt>Participants</dt><dd>@Model.Specialists specialists, @Model.Students students</dd>
+                </dl>
+                <p class="muted small mt-3 mb-0">Counts as of <time datetime="@AdminUi.Iso(Model.GeneratedAt)" data-local="datetime"></time>; the download itself is always current.</p>
+            </div>
+        </section>
+        <section class="admin-card">
+            <div class="admin-card-header"><h2 class="admin-card-title">Need a specific slice?</h2></div>
+            <div class="admin-card-body">
+                <p class="mb-2">Use <a asp-controller="Responses" asp-action="Index">Responses</a> to filter by response, term, person, category or dates, then download exactly those rows as CSV.</p>
+                <p class="muted small mb-0">Coordinates are JSON in original image pixels; the README in every archive explains each column.</p>
+            </div>
+        </section>
+    </div>
+</div>

@@ -1,0 +1,14 @@
+@model (bool Done, PersonRef? Holder)
+@if (Model.Done)
+{
+    <span class="state state-done"><i class="bi bi-check-circle-fill"></i>Done</span>
+}
+else if (Model.Holder != null)
+{
+    <span class="state state-partial"><i class="bi bi-pencil"></i>In progress</span>
+    <div class="small mt-1"><a asp-controller="Participants" asp-action="Details" asp-route-id="@Model.Holder.Id">@Model.Holder.Name</a></div>
+}
+else
+{
+    <span class="state state-open"><i class="bi bi-circle"></i>Open</span>
+}

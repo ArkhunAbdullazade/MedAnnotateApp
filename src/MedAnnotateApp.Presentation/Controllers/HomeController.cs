@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
+using MedAnnotateApp.Infrastructure.Services;
 using MedAnnotateApp.Presentation.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -31,6 +32,11 @@ public class HomeController : Controller
     {
         if (User.Identity?.IsAuthenticated == true)
         {
+            if (User.IsInRole(IdentityService.AdminRole))
+            {
+                return RedirectToAction("Index", "Dashboard", new { area = "Admin" });
+            }
+
             if (User.IsInRole("Medical_Student"))
             {
                 return RedirectToAction(nameof(Student));

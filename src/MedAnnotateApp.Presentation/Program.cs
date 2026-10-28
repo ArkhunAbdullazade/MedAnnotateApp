@@ -6,6 +6,7 @@ using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Infrastructure.Repositories;
 using MedAnnotateApp.Infrastructure.Services;
+using MedAnnotateApp.Infrastructure.Services.Admin;
 using MedAnnotateApp.Infrastructure.Settings;
 using MedAnnotateApp.Presentation.Models;
 using Microsoft.AspNetCore.DataProtection;
@@ -17,16 +18,17 @@ using Microsoft.EntityFrameworkCore;
 
 const string SeedDataFileName = "mockPMCMIDdata7.xlsx";
 const string ResetPasswordCommand = "reset-password";
+const string CreateAdminCommand = "create-admin";
 
-// Operator-only shell command, never an HTTP endpoint: `dotnet MedAnnotateApp.Presentation.dll reset-password <email>`.
-var resetPasswordEmail = args is [ResetPasswordCommand, var email] ? email : null;
-if (args.Length > 0 && args[0] == ResetPasswordCommand && resetPasswordEmail is null)
+// Operator-only shell commands, never HTTP endpoints: `dotnet MedAnnotateApp.Presentation.dll reset-password|create-admin <email>`.
+var operatorEmail = args is [ResetPasswordCommand or CreateAdminCommand, var email] ? email : null;
+if (args.Length > 0 && args[0] is ResetPasswordCommand or CreateAdminCommand && operatorEmail is null)
 {
-    Console.Error.WriteLine($"Usage: {ResetPasswordCommand} <account-email>");
+    Console.Error.WriteLine($"Usage: {ResetPasswordCommand}|{CreateAdminCommand} <account-email>");
     Environment.ExitCode = 2;
     return;
 }
-var isOperatorCommand = resetPasswordEmail is not null;
+var isOperatorCommand = operatorEmail is not null;
 
 var builder = WebApplication.CreateBuilder(isOperatorCommand ? [] : args);
 if (builder.Environment.IsDevelopment())
@@ -162,6 +164,12 @@ builder.Services.AddScoped<IMedDataRepository, MedDataRepository>();
 builder.Services.AddScoped<IAnnotatedMedDataRepository, AnnotatedMedDataRepository>();
 builder.Services.AddScoped<IAnnotatedByStudentsMedDataRepository, AnnotatedByStudentsMedDataRepository>();
 builder.Services.AddScoped<IExcelLoaderService, ExcelLoaderService>();
+builder.Services.AddMemoryCache();
+builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.Section));
+builder.Services.AddScoped<AdminQueryService>();
+builder.Services.AddScoped<AssignmentAdminService>();
+builder.Services.AddScoped<ResultsExportService>();
+if (!isOperatorCommand) builder.Services.AddHostedService<LockSweeper>();
 
 var app = builder.Build();
 
@@ -169,11 +177,18 @@ if (isOperatorCommand)
 {
     // Runs before database initialization, so it can never migrate or seed the target database.
     using var scope = app.Services.CreateScope();
-    var (succeeded, temporaryPassword, errors) = await scope.ServiceProvider
-        .GetRequiredService<IIdentityService>().ResetPasswordAsync(resetPasswordEmail);
-    Console.WriteLine(succeeded
-        ? $"Temporary password: {temporaryPassword}{Environment.NewLine}Share it privately. Saved work and assignments are unchanged."
-        : string.Join(Environment.NewLine, errors ?? []));
+    var identityService = scope.ServiceProvider.GetRequiredService<IIdentityService>();
+    var isCreateAdmin = args[0] == CreateAdminCommand;
+    if (isCreateAdmin)
+        await EnsureRolesAsync(scope.ServiceProvider);
+    var (succeeded, temporaryPassword, errors) = isCreateAdmin
+        ? await identityService.CreateAdminAsync(operatorEmail)
+        : await identityService.ResetPasswordAsync(operatorEmail);
+    Console.WriteLine(!succeeded
+        ? string.Join(Environment.NewLine, errors ?? [])
+        : isCreateAdmin
+            ? $"Admin account created. Password: {temporaryPassword}{Environment.NewLine}Sign in through the access gate; the panel is at /Admin."
+            : $"Temporary password: {temporaryPassword}{Environment.NewLine}Share it privately. Saved work and assignments are unchanged.");
     Environment.ExitCode = succeeded ? 0 : 1;
     return;
 }
@@ -225,8 +240,8 @@ app.Use(async (context, next) =>
     {
         if (path is "/identity/login" or "/identity/signup" or "/identity/authorizationaccess")
         {
-            var redirectPath = context.User.IsInRole("Medical_Student")
-                ? "/Home/Student"
+            var redirectPath = context.User.IsInRole(IdentityService.AdminRole) ? "/Admin"
+                : context.User.IsInRole("Medical_Student") ? "/Home/Student"
                 : "/Home/Professional";
 
             context.Response.Redirect(redirectPath);
@@ -247,6 +262,9 @@ app.Use(async (context, next) =>
     context.Response.Redirect(hasAuthSession ? "/Identity/Login" : "/Identity/AuthorizationAccess");
 });
 
+app.MapControllerRoute(
+    name: "admin",
+    pattern: "{area:exists}/{controller=Dashboard}/{action=Index}/{id?}");
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Identity}/{action=AuthorizationAccess}/{id?}");
@@ -272,7 +290,7 @@ async Task InitializeDatabaseAsync(WebApplication application)
         else if ((await context.Database.GetPendingMigrationsAsync()).Any())
             throw new InvalidOperationException("Database migrations are pending. Back up the database and apply the reviewed migration script before starting production.");
 
-        await EnsureRolesAsync(services, logger);
+        await EnsureRolesAsync(services);
 
         if (!application.Configuration.GetValue<bool>("Database:SeedExcel") || await context.MedDatas.AnyAsync())
         {
@@ -309,10 +327,10 @@ async Task InitializeDatabaseAsync(WebApplication application)
     }
 }
 
-static async Task EnsureRolesAsync(IServiceProvider services, ILogger logger)
+static async Task EnsureRolesAsync(IServiceProvider services)
 {
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-    string[] roles = ["Medical_Student", "Professional"];
+    string[] roles = ["Medical_Student", "Professional", IdentityService.AdminRole];
 
     foreach (var roleName in roles)
     {

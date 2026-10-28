@@ -7,6 +7,8 @@ namespace MedAnnotateApp.Infrastructure.Services;
 
 public class IdentityService : IIdentityService
 {
+    public const string AdminRole = "Admin";
+
     private readonly UserManager<User> userManager;
     private readonly SignInManager<User> signInManager;
 
@@ -28,6 +30,7 @@ public class IdentityService : IIdentityService
             return (false, ["Choose a valid research participant position."]);
         }
 
+        user.CreatedAt = DateTime.UtcNow;
         var result = await userManager.CreateAsync(user, password);
         if (!result.Succeeded)
         {
@@ -104,8 +107,7 @@ public class IdentityService : IIdentityService
             return (false, null, ["No account uses that email address."]);
         }
 
-        // Random letters and digits plus a fixed mixed suffix always satisfy the Identity password policy.
-        var temporaryPassword = RandomNumberGenerator.GetString("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789", 16) + "-7a";
+        var temporaryPassword = NewTemporaryPassword();
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, token, temporaryPassword);
         if (!result.Succeeded)
@@ -117,4 +119,40 @@ public class IdentityService : IIdentityService
         await userManager.ResetAccessFailedCountAsync(user);
         return (true, temporaryPassword, null);
     }
+
+    // Operator-only: admin accounts never come from signup and never hold an annotator role, so they cannot add study data.
+    public async Task<(bool Succeeded, string? TemporaryPassword, IEnumerable<string>? Errors)> CreateAdminAsync(string? email)
+    {
+        email = email?.Trim();
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            return (false, null, ["Give the admin's email address."]);
+        }
+
+        if (await userManager.FindByEmailAsync(email) != null)
+        {
+            return (false, null, ["An account already uses that email address. Admin accounts need their own address."]);
+        }
+
+        var temporaryPassword = NewTemporaryPassword();
+        var admin = new User { Email = email, UserName = email, FullName = "Study administrator", CreatedAt = DateTime.UtcNow };
+        var result = await userManager.CreateAsync(admin, temporaryPassword);
+        if (!result.Succeeded)
+        {
+            return (false, null, result.Errors.Select(error => error.Description).ToArray());
+        }
+
+        var roleResult = await userManager.AddToRoleAsync(admin, AdminRole);
+        if (roleResult.Succeeded)
+        {
+            return (true, temporaryPassword, null);
+        }
+
+        await userManager.DeleteAsync(admin);
+        return (false, null, roleResult.Errors.Select(error => error.Description).ToArray());
+    }
+
+    // Random letters and digits plus a fixed mixed suffix always satisfy the Identity password policy.
+    private static string NewTemporaryPassword() =>
+        RandomNumberGenerator.GetString("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789", 16) + "-7a";
 }

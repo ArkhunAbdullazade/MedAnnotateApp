@@ -10,6 +10,8 @@ namespace MedAnnotateApp.Infrastructure.Repositories;
 
 public class MedDataRepository : IMedDataRepository
 {
+    // Also shown when the study team released the lock from the admin panel while the page was open.
+    private const string NoLongerAssigned = "This image is no longer assigned to you (the study team may have released it). Reload the page to continue.";
     private readonly MedDataDbContext context;
 
     public MedDataRepository(MedDataDbContext context) => this.context = context;
@@ -50,15 +52,12 @@ public class MedDataRepository : IMedDataRepository
             if (assigned == null && matchingIds.Contains(image.Id))
                 assigned = image;
             else if (isStudent)
-                image.LockedByStudentUserId = null;
+                ClearStudentLock(image);
             else
             {
                 // Keep partial work reserved for its author, even while other filters are selected.
                 if (!await HasProfessionalResponsesAsync(image.Id, ownerEmail))
-                {
-                    image.LockedByUserId = null;
-                    image.KeywordStates = null;
-                }
+                    ClearProfessionalLock(image);
             }
         }
 
@@ -67,11 +66,16 @@ public class MedDataRepository : IMedDataRepository
             .OrderBy(image => image.Id).FirstOrDefaultAsync();
         if (assigned != null)
         {
+            // Every page load by the holder refreshes the lock time, so only abandoned locks look idle.
             if (isStudent)
+            {
                 assigned.LockedByStudentUserId = userId;
+                assigned.StudentLockedAt = DateTime.UtcNow;
+            }
             else
             {
                 assigned.LockedByUserId = userId;
+                assigned.LockedAt = DateTime.UtcNow;
                 assigned.KeywordStates = await BuildKeywordStatesAsync(assigned.Id, ownerEmail);
             }
         }
@@ -115,7 +119,7 @@ public class MedDataRepository : IMedDataRepository
         {
             if (source.IsAnnotated && existing.Any(item => SameResponse(item, annotation)))
                 return new(true);
-            return Failure("This image is no longer assigned to you. Reload before continuing.", true);
+            return Failure(NoLongerAssigned, true);
         }
         if (existing.Count > 0)
         {
@@ -129,6 +133,7 @@ public class MedDataRepository : IMedDataRepository
             return Failure("The image dimensions differ from earlier annotations. Stop and ask the research administrator to check the source image.", true);
 
         annotation.ExtractedKeyword = keyword;
+        annotation.CreatedAt = DateTime.UtcNow;
         CopySourceAndResearcher(source, user, annotation);
         await context.AnnotatedMedDatas.AddAsync(annotation);
         await context.SaveChangesAsync();
@@ -154,10 +159,9 @@ public class MedDataRepository : IMedDataRepository
         if (source.IsAnnotated)
             return new(true);
         if (source.LockedByUserId != user.Id)
-            return Failure("This image is no longer assigned to you. Reload before continuing.", true);
+            return Failure(NoLongerAssigned, true);
         source.IsAnnotated = true;
-        source.LockedByUserId = null;
-        source.KeywordStates = null;
+        ClearProfessionalLock(source);
         await context.SaveChangesAsync();
         await transaction.CommitAsync();
         return new(true);
@@ -191,14 +195,18 @@ public class MedDataRepository : IMedDataRepository
             return Failure("This image already has saved annotations. Existing research data was not overwritten.", true);
         }
         if (source.IsAnnotatedByStudent || source.LockedByStudentUserId != user.Id)
-            return Failure("This image is no longer assigned to you. Reload before continuing.", true);
+            return Failure(NoLongerAssigned, true);
         if (!await DimensionsAgreeAsync(source.Id, annotations.Select(item => item.Coordinates!)))
             return Failure("All annotations must use the same original image dimensions. Reload the image and check the source.", true);
+        var savedAt = DateTime.UtcNow;
         foreach (var annotation in annotations)
+        {
+            annotation.CreatedAt = savedAt;
             CopySourceAndResearcher(source, user, annotation);
+        }
         await context.AnnotatedByStudentsMedDatas.AddRangeAsync(annotations);
         source.IsAnnotatedByStudent = true;
-        source.LockedByStudentUserId = null;
+        ClearStudentLock(source);
         await context.SaveChangesAsync();
         await transaction.CommitAsync();
         return new(true);
@@ -222,17 +230,14 @@ public class MedDataRepository : IMedDataRepository
         if (image == null || (isStudent ? image.LockedByStudentUserId : image.LockedByUserId) != userId)
             return false;
         if (isStudent)
-            image.LockedByStudentUserId = null;
+            ClearStudentLock(image);
         else
         {
             var email = await context.Users.Where(user => user.Id == userId).Select(user => user.Email).SingleOrDefaultAsync();
             if (await HasProfessionalResponsesAsync(image.Id, email))
                 image.KeywordStates = await BuildKeywordStatesAsync(image.Id, email);
             else
-            {
-                image.LockedByUserId = null;
-                image.KeywordStates = null;
-            }
+                ClearProfessionalLock(image);
         }
         await context.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -247,9 +252,8 @@ public class MedDataRepository : IMedDataRepository
         var email = await context.Users.Where(user => user.Id == userId).Select(user => user.Email).SingleOrDefaultAsync();
         foreach (var image in images)
         {
-            if (isStudent) image.LockedByStudentUserId = null;
-            else if (!await HasProfessionalResponsesAsync(image.Id, email))
-            { image.LockedByUserId = null; image.KeywordStates = null; }
+            if (isStudent) ClearStudentLock(image);
+            else if (!await HasProfessionalResponsesAsync(image.Id, email)) ClearProfessionalLock(image);
         }
         await context.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -259,6 +263,19 @@ public class MedDataRepository : IMedDataRepository
         query.Where(image => image.Speciality != null && filters.Specialities.Contains(image.Speciality.Trim().ToLower())
             && image.BodyRegion != null && filters.BodyRegions.Contains(image.BodyRegion.Trim().ToLower())
             && image.Modality != null && filters.Modalities.Contains(image.Modality.Trim().ToLower()));
+
+    internal static void ClearProfessionalLock(MedData image)
+    {
+        image.LockedByUserId = null;
+        image.LockedAt = null;
+        image.KeywordStates = null;
+    }
+
+    internal static void ClearStudentLock(MedData image)
+    {
+        image.LockedByStudentUserId = null;
+        image.StudentLockedAt = null;
+    }
 
     private static ImageSelectionFilters UserFilters(User user) =>
         ImageSelectionFilters.Parse(user.Speciality, user.BodyRegion, user.ImageModality);
@@ -316,13 +333,15 @@ public class MedDataRepository : IMedDataRepository
         }));
     }
 
-    private async Task<IDbContextTransaction> BeginWorkflowAsync()
+    private Task<IDbContextTransaction> BeginWorkflowAsync() => BeginWorkflowAsync(context);
+
+    internal static async Task<IDbContextTransaction> BeginWorkflowAsync(MedDataDbContext context, CancellationToken cancellationToken = default)
     {
-        var transaction = await context.Database.BeginTransactionAsync();
+        var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         // A short workflow lock makes claims/saves/releases atomic across PostgreSQL app instances.
         // It needs no new column and is automatically released on commit or rollback.
         if (context.Database.IsNpgsql())
-            await context.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(58021014)");
+            await context.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(58021014)", cancellationToken);
         return transaction;
     }
 

@@ -1,0 +1,89 @@
+@model ParticipantsViewModel
+@{
+    ViewData["Title"] = "Participants";
+    ViewData["Subtitle"] = "Everyone who signed up, with their progress and current work. Admin accounts are not listed.";
+}
+
+<section class="admin-card">
+    <form class="filter-bar" method="get">
+        <div class="grow">
+            <label class="form-label" for="search">Search</label>
+            <input class="form-control form-control-sm" id="search" name="search" value="@Model.Search" placeholder="Name, email, university or code" />
+        </div>
+        <div>
+            <label class="form-label" for="role">Role</label>
+            <select class="form-select form-select-sm" id="role" name="role" data-autosubmit>
+                <option value="">Everyone</option>
+                <option value="specialist" selected="@(Model.Role == "specialist")">Specialists</option>
+                <option value="student" selected="@(Model.Role == "student")">Students</option>
+            </select>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Apply</button>
+            <a class="btn btn-sm btn-light" asp-action="Index">Clear</a>
+        </div>
+    </form>
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty-state"><i class="bi bi-people"></i>@(Model.Total == 0 ? "Nobody has signed up yet." : "Nobody matches these filters.")</div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table table-hover admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Participant</th>
+                        <th>Role</th>
+                        <th>Selections</th>
+                        <th class="num">Completed</th>
+                        <th class="num">Partial</th>
+                        <th class="num">Answers</th>
+                        <th class="num">Left for them</th>
+                        <th>Current lock</th>
+                        <th>Last active</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var person = row.Person;
+                        <tr>
+                            <td>
+                                <a class="fw-semibold" asp-action="Details" asp-route-id="@person.Id">@person.DisplayName</a>
+                                <div class="muted small">@person.Email</div>
+                            </td>
+                            <td>
+                                <span class="role-pill"><span class="series-dot @(person.IsStudent ? "student" : "specialist")"></span>@AdminUi.RoleLabel(person.Role)</span>
+                                <div class="muted small text-nowrap">@(person.IsStudent ? "" : $"{person.ClinicalExperience} y experience")</div>
+                            </td>
+                            <td class="small selections">
+                                <div class="truncate" title="@person.Speciality">@person.Speciality</div>
+                                <div class="muted truncate" title="@person.ImageModality · @person.BodyRegion">@person.ImageModality · @person.BodyRegion</div>
+                            </td>
+                            <td class="num">@row.ImagesCompleted</td>
+                            <td class="num">@(row.PartialImages > 0 ? row.PartialImages.ToString() : "—")</td>
+                            <td class="num">@row.Responses</td>
+                            <td class="num">
+                                @if (row.OpenImagesLeft == 0)
+                                {
+                                    <span class="state state-stale"><i class="bi bi-hourglass-bottom"></i>0</span>
+                                }
+                                else { @row.OpenImagesLeft }
+                            </td>
+                            <td>
+                                @foreach (var imageId in row.LockedImages)
+                                {
+                                    <a class="me-1" asp-controller="Images" asp-action="Details" asp-route-id="@imageId">#@imageId</a>
+                                }
+                                @if (row.LockedImages.Count == 0) { <span class="muted">—</span> }
+                            </td>
+                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.LastActiveAt)" data-local="relative"></time></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="pager"><span>@Model.Rows.Count of @Model.Total participants</span></div>
+    }
+</section>

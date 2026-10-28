@@ -1,0 +1,107 @@
+@model ParticipantDetail
+@{
+    var row = Model.Row;
+    var person = row.Person;
+    ViewData["Title"] = person.DisplayName;
+    ViewData["Subtitle"] = $"{AdminUi.RoleLabel(person.Role)} · {person.Code}";
+}
+@section Actions {
+    <a class="btn btn-sm btn-outline-secondary" asp-controller="Responses" asp-action="Index" asp-route-role="@(person.IsStudent ? "student" : "specialist")" asp-route-annotatorId="@person.Id">
+        <i class="bi bi-card-checklist"></i> Their responses
+    </a>
+    @if (row.LockedImages.Count > 0)
+    {
+        <form method="post" asp-action="ReleaseLocks" asp-route-id="@person.Id" class="d-inline"
+              data-confirm="@($"Release all {row.LockedImages.Count} lock(s) held by {person.DisplayName}? Saved answers stay in the data; the images go back into the pool.")">
+            <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-unlock"></i> Release their locks</button>
+        </form>
+    }
+    <a class="btn btn-sm btn-outline-secondary" asp-action="Index"><i class="bi bi-arrow-left"></i> All participants</a>
+}
+
+<div class="admin-grid admin-grid-tiles mb-3">
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-check2-all"></i>Images completed</div>
+        <div class="stat-value">@row.ImagesCompleted</div>
+        <div class="stat-sub">@row.Responses @(person.IsStudent ? "groups" : "term answers") saved</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-hourglass-split"></i>@(person.IsStudent ? "Images in progress" : "Incomplete sets")</div>
+        <div class="stat-value">@(person.IsStudent ? row.LockedImages.Count : row.PartialImages)</div>
+        <div class="stat-sub">@row.LockedImages.Count lock(s) held now</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-inboxes"></i>Left for them</div>
+        <div class="stat-value">@row.OpenImagesLeft</div>
+        <div class="stat-sub">Open images matching their selections</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-clock-history"></i>Last active</div>
+        <div class="stat-value fs-5 mt-2"><time datetime="@AdminUi.Iso(row.LastActiveAt)" data-local="relative"></time></div>
+        <div class="stat-sub">Signed up <time datetime="@AdminUi.Iso(person.CreatedAt)" data-local="date"></time></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-4">
+        <section class="admin-card h-100">
+            <div class="admin-card-header"><h2 class="admin-card-title">Profile</h2></div>
+            <div class="admin-card-body">
+                <dl class="meta-list">
+                    <dt>Email</dt><dd>@person.Email</dd>
+                    <dt>Position</dt><dd>@person.Position</dd>
+                    <dt>University</dt><dd>@(person.University ?? "—")</dd>
+                    @if (!person.IsStudent)
+                    {
+                        <dt>Experience</dt><dd>@person.ClinicalExperience years</dd>
+                    }
+                    <dt>ORCID</dt><dd>@(string.IsNullOrWhiteSpace(person.OrcidId) ? "—" : person.OrcidId)</dd>
+                    <dt>Specialities</dt><dd>@person.Speciality</dd>
+                    <dt>Modalities</dt><dd>@person.ImageModality</dd>
+                    <dt>Body regions</dt><dd>@person.BodyRegion</dd>
+                    <dt>Export code</dt><dd class="mono">@person.Code</dd>
+                </dl>
+            </div>
+        </section>
+    </div>
+    <div class="col-xl-8">
+        <section class="admin-card h-100">
+            <div class="admin-card-header">
+                <div>
+                    <h2 class="admin-card-title">Images worked on</h2>
+                    <p class="admin-card-note">Current locks first, then the most recent saves</p>
+                </div>
+            </div>
+            @if (Model.Work.Count == 0)
+            {
+                <div class="empty-state"><i class="bi bi-image"></i>No saved work yet.</div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-hover admin-table align-middle">
+                        <thead><tr><th>Image</th><th>Status</th><th class="num">@(person.IsStudent ? "Groups" : "Terms answered")</th><th>Last save</th></tr></thead>
+                        <tbody>
+                            @foreach (var work in Model.Work)
+                            {
+                                <tr>
+                                    <td>
+                                        <a class="fw-semibold" asp-controller="Images" asp-action="Details" asp-route-id="@work.ImageId">#@work.ImageId</a>
+                                        <div class="muted small">@AdminUi.Title(work.Speciality ?? "") @(work.Modality is { } modality ? "· " + modality : "")</div>
+                                    </td>
+                                    <td>
+                                        @if (work.Locked) { <span class="state state-partial"><i class="bi bi-lock-fill"></i>Locked now</span> }
+                                        @if (work.Complete) { <span class="state state-done"><i class="bi bi-check-circle-fill"></i>Complete</span> }
+                                        else if (!work.Locked && work.Answered > 0) { <span class="state state-idle"><i class="bi bi-hourglass-split"></i>Incomplete set</span> }
+                                    </td>
+                                    <td class="num">@(person.IsStudent ? work.Answered.ToString() : $"{work.Answered} / {work.Total}")</td>
+                                    <td class="text-nowrap"><time datetime="@AdminUi.Iso(work.LastSaveAt)" data-local="datetime"></time></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+</div>

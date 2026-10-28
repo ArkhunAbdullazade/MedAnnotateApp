@@ -11,4 +11,5 @@ public class User : IdentityUser
     public string? ImageModality { get; set; }
     public int ClinicalExperience { get; set; }
     public string? OrcidId { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }

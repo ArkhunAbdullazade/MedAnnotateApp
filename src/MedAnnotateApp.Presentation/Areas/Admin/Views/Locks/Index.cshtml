@@ -1,0 +1,108 @@
+@model LocksViewModel
+@{
+    ViewData["Title"] = "Locks";
+    ViewData["Subtitle"] = $"Images currently reserved for one person. Empty locks are released automatically after {AdminUi.Hours(Model.StaleAfter)} without the holder opening them.";
+    var tabs = new[] { ("Specialist", false), ("Student", true) };
+}
+
+<div class="admin-grid admin-grid-tiles mb-3">
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-lock"></i>All locks</div>
+        <div class="stat-value">@Model.Locks.Count</div>
+        <div class="stat-sub">@Model.Locks.Count(row => !row.Student) specialist · @Model.Locks.Count(row => row.Student) student</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-circle-fill text-success" style="font-size:.5rem"></i>Active</div>
+        <div class="stat-value">@Model.Locks.Count(row => row.State == LockState.Active)</div>
+        <div class="stat-sub">Opened or saved in the last 30 minutes</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-exclamation-triangle text-danger"></i>Stale</div>
+        <div class="stat-value">@Model.Locks.Count(row => row.State == LockState.Stale)</div>
+        <div class="stat-sub">Untouched for over @AdminUi.Hours(Model.StaleAfter)</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-pencil-square text-primary"></i>Partial work</div>
+        <div class="stat-value">@Model.Locks.Count(row => row.HasPartialWork)</div>
+        <div class="stat-sub">Never auto-released; kept as incomplete sets if you release them</div>
+    </div>
+</div>
+
+@* Row buttons submit this form (form="release-one"), so a single release never includes ticked boxes. *@
+<form method="post" asp-action="Release" id="release-one"></form>
+
+<section class="admin-card">
+    <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+        @foreach (var (label, student) in tabs)
+        {
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(student ? "" : "active")" data-bs-toggle="tab" data-bs-target="#tab-@label.ToLowerInvariant()" type="button" role="tab">
+                    <span class="series-dot @label.ToLowerInvariant() me-1"></span>@label locks <span class="badge text-bg-light">@Model.Locks.Count(row => row.Student == student)</span>
+                </button>
+            </li>
+        }
+    </ul>
+    <div class="tab-content">
+        @foreach (var (label, student) in tabs)
+        {
+            var rows = Model.Locks.Where(row => row.Student == student).ToList();
+            var tableId = $"locks-{label.ToLowerInvariant()}";
+            <div class="tab-pane fade @(student ? "" : "show active")" id="tab-@label.ToLowerInvariant()" role="tabpanel">
+                @if (rows.Count == 0)
+                {
+                    <div class="empty-state"><i class="bi bi-unlock"></i>No @label.ToLowerInvariant() holds a lock right now.</div>
+                    continue;
+                }
+                <form method="post" asp-action="Release" data-confirm="Release the selected locks? Saved specialist answers stay in the data as incomplete sets, and the images go back into the pool." data-confirm-button="Release selected">
+                    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                        <span class="muted small">Sorted with the locks that most need attention first.</span>
+                        <button type="submit" class="btn btn-sm btn-danger" id="bulk-@tableId" disabled>
+                            <i class="bi bi-unlock"></i> Release selected (<span data-count>0</span>)
+                        </button>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="table table-hover admin-table align-middle" id="@tableId">
+                            <thead>
+                                <tr>
+                                    <th style="width:2rem"><input class="form-check-input" type="checkbox" aria-label="Select all" data-select-all="#@tableId tbody" data-bulk-button="#bulk-@tableId" /></th>
+                                    <th>Image</th>
+                                    <th>Holder</th>
+                                    <th>Status</th>
+                                    <th>Last opened</th>
+                                    @if (!student) { <th>Last save</th><th class="num">Terms saved</th> }
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in rows)
+                                {
+                                    <tr>
+                                        <td><input class="form-check-input" type="checkbox" name="selected" value="@LocksViewModel.Key(row)" aria-label="Select image @row.ImageId" /></td>
+                                        <td>
+                                            <a class="fw-semibold" asp-controller="Images" asp-action="Details" asp-route-id="@row.ImageId">#@row.ImageId</a>
+                                            <div class="muted small">@AdminUi.Title(row.Speciality ?? "—") · @row.Modality</div>
+                                        </td>
+                                        <td><a asp-controller="Participants" asp-action="Details" asp-route-id="@row.HolderId">@row.HolderName</a></td>
+                                        <td><partial name="_LockState" model="row" /></td>
+                                        <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.LockedAt)" data-local="relative"></time></td>
+                                        @if (!student)
+                                        {
+                                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.LastSaveAt)" data-local="relative"></time></td>
+                                            <td class="num">@row.TermsSaved / @row.TermsTotal</td>
+                                        }
+                                        <td class="text-end">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" form="release-one" name="selected" value="@LocksViewModel.Key(row)"
+                                                    data-confirm="@($"Release image #{row.ImageId} from {row.HolderName}? " + (row.HasPartialWork ? $"Their {row.TermsSaved} saved answer(s) stay in the data as an incomplete set." : "Nothing has been saved on it yet.") + " If their page is still open, their next save will ask them to reload.")">
+                                                Release
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        }
+    </div>
+</section>

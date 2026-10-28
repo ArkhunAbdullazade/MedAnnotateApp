@@ -22,6 +22,7 @@ public class AnnotatedMedData
     public string? PressedButton { get; set; }
     public string? Timestamps { get; set; }
     public string? Comment { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // UserData
     public string? Email { get; set; }

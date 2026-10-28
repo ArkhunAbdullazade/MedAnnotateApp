@@ -1,0 +1,111 @@
+@model ImagesViewModel
+@{
+    ViewData["Title"] = "Images";
+    ViewData["Subtitle"] = "Every study image with its specialist and student status. Click a row for the annotations.";
+    var q = Model.Query;
+    var statusOptions = new[] { ("", "Any"), ("open", "Open"), ("in-progress", "In progress"), ("done", "Done") };
+}
+
+<section class="admin-card">
+    <form class="filter-bar" method="get">
+        <div class="grow">
+            <label class="form-label" for="search">Search</label>
+            <input class="form-control form-control-sm" id="search" name="search" value="@q.Search" placeholder="Image ID, PMCID, diagnosis, description or term" />
+        </div>
+        @foreach (var (name, label, values, selected) in new[]
+        {
+            ("speciality", "Speciality", Model.Categories.Specialities, q.Speciality),
+            ("modality", "Modality", Model.Categories.Modalities, q.Modality),
+            ("bodyRegion", "Body region", Model.Categories.BodyRegions, q.BodyRegion)
+        })
+        {
+            <div>
+                <label class="form-label" for="@name">@label</label>
+                <select class="form-select form-select-sm" id="@name" name="@name" data-autosubmit>
+                    <option value="">All</option>
+                    @foreach (var value in values)
+                    {
+                        <option value="@value" selected="@(value == selected)">@AdminUi.Title(value)</option>
+                    }
+                </select>
+            </div>
+        }
+        <div>
+            <label class="form-label" for="specialistStatus">Specialist</label>
+            <select class="form-select form-select-sm" id="specialistStatus" name="specialistStatus" data-autosubmit>
+                @foreach (var (value, label) in statusOptions.Append(("partial", "Has saved answers, not done")))
+                {
+                    <option value="@value" selected="@(value == (q.SpecialistStatus ?? ""))">@label</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="studentStatus">Student</label>
+            <select class="form-select form-select-sm" id="studentStatus" name="studentStatus" data-autosubmit>
+                @foreach (var (value, label) in statusOptions)
+                {
+                    <option value="@value" selected="@(value == (q.StudentStatus ?? ""))">@label</option>
+                }
+            </select>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Apply</button>
+            <a class="btn btn-sm btn-light" asp-action="Index">Clear</a>
+        </div>
+    </form>
+
+    @if (Model.Images.Total == 0)
+    {
+        <div class="empty-state"><i class="bi bi-images"></i>No images match these filters.</div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table table-hover admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th></th>
+                        <th>Category</th>
+                        <th>Specialist</th>
+                        <th>Student</th>
+                        <th class="num">Terms</th>
+                        <th class="num">Answers</th>
+                        <th class="num">Groups</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var image in Model.Images.Items)
+                    {
+                        <tr>
+                            <td class="text-nowrap">
+                                <a class="fw-semibold" asp-action="Details" asp-route-id="@image.Id">#@image.Id</a>
+                                <div class="muted small">@image.Pmcid</div>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(image.ImageUrl))
+                                {
+                                    <a asp-action="Details" asp-route-id="@image.Id"><img class="thumb" src="@image.ImageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" /></a>
+                                }
+                                else
+                                {
+                                    <span class="state state-stale"><i class="bi bi-link-45deg"></i>No link</span>
+                                }
+                            </td>
+                            <td>
+                                <div>@AdminUi.Title(image.Speciality ?? "—")</div>
+                                <div class="muted small">@image.Modality · @image.BodyRegion</div>
+                            </td>
+                            <td><partial name="_RoleStatus" model="(image.SpecialistDone, image.SpecialistHolder)" /></td>
+                            <td><partial name="_RoleStatus" model="(image.StudentDone, image.StudentHolder)" /></td>
+                            <td class="num">@image.Keywords</td>
+                            <td class="num">@image.SpecialistResponses</td>
+                            <td class="num">@image.StudentGroups</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <partial name="_Pager" model='(Model.Images.Page, Model.Images.Pages, Model.Images.Total, Model.Images.PageSize, "images")' />
+</section>

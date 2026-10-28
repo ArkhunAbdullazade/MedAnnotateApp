@@ -1,0 +1,35 @@
+@model (int Page, int Pages, int Total, int PageSize, string Noun)
+@{
+    var first = Model.Total == 0 ? 0 : (Model.Page - 1) * Model.PageSize + 1;
+    var last = Math.Min(Model.Total, Model.Page * Model.PageSize);
+}
+<div class="pager">
+    <span>@first–@last of @Model.Total @Model.Noun</span>
+    @if (Model.Pages > 1)
+    {
+        <nav aria-label="Pages">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@AdminUi.With(Context.Request, "page", (Model.Page - 1).ToString())" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
+                </li>
+                @foreach (var number in Enumerable.Range(1, Model.Pages).Where(number => number == 1 || number == Model.Pages || Math.Abs(number - Model.Page) <= 2))
+                {
+                    if (number == Model.Pages && Model.Page + 3 < Model.Pages)
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+                    <li class="page-item @(number == Model.Page ? "active" : "")">
+                        <a class="page-link" href="@AdminUi.With(Context.Request, "page", number.ToString())">@number</a>
+                    </li>
+                    if (number == 1 && Model.Page - 3 > 1)
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+                }
+                <li class="page-item @(Model.Page >= Model.Pages ? "disabled" : "")">
+                    <a class="page-link" href="@AdminUi.With(Context.Request, "page", (Model.Page + 1).ToString())" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
+                </li>
+            </ul>
+        </nav>
+    }
+</div>

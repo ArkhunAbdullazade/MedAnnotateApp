@@ -1,0 +1,204 @@
+@model DashboardViewModel
+@{
+    var s = Model.Stats;
+    ViewData["Title"] = "Overview";
+    ViewData["Subtitle"] = "Live study progress. Figures refresh at most once a minute.";
+    var chartData = new
+    {
+        activity = s.Activity.Select(bucket => new { hour = AdminUi.Iso(bucket.HourUtc), specialist = bucket.Specialist, student = bucket.Student }),
+        signups = s.Signups.Select(bucket => new { hour = AdminUi.Iso(bucket.HourUtc), specialist = bucket.Specialist, student = bucket.Student }),
+        mix = s.ResponseMix.Select(bin => new { label = AdminUi.ButtonLabel(bin.Label), count = bin.Count }),
+        firstDraw = s.FirstDrawSeconds.Select(bin => new { label = bin.Label, count = bin.Count }),
+        drawing = s.DrawingSeconds.Select(bin => new { label = bin.Label, count = bin.Count }),
+        categories = s.Categories.ToDictionary(pair => pair.Key, pair => pair.Value.Select(item => new
+        {
+            value = item.Value,
+            specialist = new { done = item.Specialist.Done, active = item.Specialist.InProgress, open = item.Specialist.Open },
+            student = new { done = item.Student.Done, active = item.Student.InProgress, open = item.Student.Open }
+        }))
+    };
+}
+@section Actions {
+    <span class="muted small">Updated <time datetime="@AdminUi.Iso(s.GeneratedAt)" data-local="relative"></time></span>
+    <a class="btn btn-sm btn-outline-secondary" asp-action="Index" asp-route-fresh="true"><i class="bi bi-arrow-clockwise"></i> Refresh</a>
+}
+
+<div class="admin-grid admin-grid-tiles mb-3">
+    @foreach (var (label, role, progress) in new[] { ("Specialist progress", "specialist", s.Specialist), ("Student progress", "student", s.Student) })
+    {
+        <div class="admin-card stat-tile">
+            <div class="stat-label"><span class="series-dot @role"></span>@label</div>
+            <div class="stat-value">@progress.Done <small>/ @progress.Eligible images</small></div>
+            <div class="stat-sub">@AdminUi.Percent(progress.Done, progress.Eligible) done · @progress.InProgress in progress · @progress.Open open</div>
+            <div class="progress-split" role="img" aria-label="@progress.Done done, @progress.InProgress in progress, @progress.Open open">
+                <span class="done" style="width:@AdminUi.Share(progress.Done, progress.Eligible).ToString(System.Globalization.CultureInfo.InvariantCulture)%"></span>
+                <span class="active" style="width:@AdminUi.Share(progress.InProgress, progress.Eligible).ToString(System.Globalization.CultureInfo.InvariantCulture)%"></span>
+                <span class="open" style="flex:1"></span>
+            </div>
+        </div>
+    }
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-check2-all"></i>Done by both roles</div>
+        <div class="stat-value">@s.DoneByBoth <small>/ @s.TotalImages</small></div>
+        <div class="stat-sub">@s.SpecialistResponses specialist answers · @s.StudentGroups student groups</div>
+    </div>
+    <div class="admin-card stat-tile">
+        <div class="stat-label"><i class="bi bi-people"></i>Participants</div>
+        <div class="stat-value">@(s.Specialists + s.Students)</div>
+        <div class="stat-sub"><span class="series-dot specialist"></span> @s.Specialists specialists · <span class="series-dot student"></span> @s.Students students</div>
+        <div class="stat-sub"><i class="bi bi-broadcast text-success"></i> @s.ActiveNow active in the last 15 min</div>
+    </div>
+    <a class="admin-card stat-tile text-reset text-decoration-none" asp-controller="Locks" asp-action="Index">
+        <div class="stat-label"><i class="bi bi-lock"></i>Locks to review</div>
+        <div class="stat-value">@s.StaleLocks <small>stale</small></div>
+        <div class="stat-sub">@s.PartialLocks with partial specialist work · stale after @AdminUi.Hours(Model.StaleAfter)</div>
+    </a>
+</div>
+
+<div class="admin-grid admin-grid-2 mb-3">
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">Annotation activity</h2>
+                <p class="admin-card-note">Saved specialist answers and student groups, in your local time</p>
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Activity range">
+                <input type="radio" class="btn-check" name="activity-range" id="range-days" value="days" checked>
+                <label class="btn btn-outline-secondary" for="range-days">Per day</label>
+                <input type="radio" class="btn-check" name="activity-range" id="range-hours" value="hours">
+                <label class="btn btn-outline-secondary" for="range-hours">Last 48 h</label>
+            </div>
+        </div>
+        <div class="admin-card-body"><div class="chart-box"><canvas id="activity-chart" aria-label="Annotation activity chart"></canvas></div></div>
+    </section>
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">Specialist answers by response</h2>
+                <p class="admin-card-note">Every saved term answer, including incomplete sets</p>
+            </div>
+        </div>
+        <div class="admin-card-body"><div class="chart-box"><canvas id="mix-chart" aria-label="Answers by response chart"></canvas></div></div>
+    </section>
+</div>
+
+<section class="admin-card mb-3">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">Progress by category</h2>
+            <p class="admin-card-note">Images per value, split into done, in progress and open for the chosen role</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <select class="form-select form-select-sm w-auto" id="category-dimension" aria-label="Category">
+                @foreach (var key in s.Categories.Keys)
+                {
+                    <option value="@key">@key</option>
+                }
+            </select>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Role">
+                <input type="radio" class="btn-check" name="category-role" id="category-specialist" value="specialist" checked>
+                <label class="btn btn-outline-secondary" for="category-specialist">Specialists</label>
+                <input type="radio" class="btn-check" name="category-role" id="category-student" value="student">
+                <label class="btn btn-outline-secondary" for="category-student">Students</label>
+            </div>
+        </div>
+    </div>
+    <div class="admin-card-body">
+        <div class="legend mb-2"><span><i class="done"></i>Done</span><span><i class="active"></i>In progress</span><span><i class="open"></i>Open</span></div>
+        <div class="chart-box tall" id="category-box"><canvas id="category-chart" aria-label="Progress by category chart"></canvas></div>
+    </div>
+</section>
+
+<div class="admin-grid admin-grid-2 mb-3">
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">Time until first drawing</h2>
+                <p class="admin-card-note">From opening a term to the first shape (saved answers with a drawing)</p>
+            </div>
+        </div>
+        <div class="admin-card-body"><div class="chart-box"><canvas id="first-draw-chart" aria-label="Time until first drawing chart"></canvas></div></div>
+    </section>
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">Drawing time</h2>
+                <p class="admin-card-note">From the first shape until the answer was saved</p>
+            </div>
+        </div>
+        <div class="admin-card-body"><div class="chart-box"><canvas id="drawing-chart" aria-label="Drawing time chart"></canvas></div></div>
+    </section>
+</div>
+
+<div class="admin-grid admin-grid-2">
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">Sign-ups</h2>
+                <p class="admin-card-note">Accounts created over time, by role</p>
+            </div>
+        </div>
+        <div class="admin-card-body"><div class="chart-box"><canvas id="signup-chart" aria-label="Sign-ups chart"></canvas></div></div>
+    </section>
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">Things to check</h2>
+                <p class="admin-card-note">Gaps that would leave images or people without work</p>
+            </div>
+        </div>
+        <div class="admin-card-body">
+            <ul class="warning-list">
+                @if (s.UnreachableSpecialistImages > 0 && s.Specialists > 0)
+                {
+                    <li><i class="bi bi-exclamation-triangle text-warning"></i><span><strong>@s.UnreachableSpecialistImages</strong> open specialist images match no specialist's selections, so nobody will be offered them.</span></li>
+                }
+                @if (s.UnreachableStudentImages > 0 && s.Students > 0)
+                {
+                    <li><i class="bi bi-exclamation-triangle text-warning"></i><span><strong>@s.UnreachableStudentImages</strong> open student images match no student's selections.</span></li>
+                }
+                @if (s.NothingLeft.Count > 0)
+                {
+                    <li>
+                        <i class="bi bi-hourglass-bottom text-primary"></i>
+                        <span><strong>@s.NothingLeft.Count</strong> participant(s) have no images left for their selections:
+                            @foreach (var person in s.NothingLeft.Take(8))
+                            {
+                                <a class="me-1" asp-controller="Participants" asp-action="Details" asp-route-id="@person.Id">@person.Name</a>
+                            }
+                            @if (s.NothingLeft.Count > 8) { <span class="muted">and @(s.NothingLeft.Count - 8) more</span> }
+                        </span>
+                    </li>
+                }
+                @if (s.ImagesMissingUrl > 0)
+                {
+                    <li><i class="bi bi-link-45deg text-danger"></i><span><strong>@s.ImagesMissingUrl</strong> images have no link and are never shown.</span></li>
+                }
+                @if (s.ImagesMissingKeywords > 0)
+                {
+                    <li><i class="bi bi-tags text-secondary"></i><span><strong>@s.ImagesMissingKeywords</strong> images have no terms, so only students see them.</span></li>
+                }
+                @if (s.StaleLocks > 0)
+                {
+                    <li><i class="bi bi-lock text-danger"></i><span><a asp-controller="Locks" asp-action="Index"><strong>@s.StaleLocks</strong> stale lock(s)</a> are waiting for a decision.</span></li>
+                }
+                @if (s.Specialists + s.Students == 0)
+                {
+                    <li><i class="bi bi-info-circle text-secondary"></i><span>No participants have signed up yet.</span></li>
+                }
+            </ul>
+            @if (s.UnreachableSpecialistImages + s.UnreachableStudentImages + s.NothingLeft.Count + s.ImagesMissingUrl + s.ImagesMissingKeywords + s.StaleLocks == 0 && s.Specialists + s.Students > 0)
+            {
+                <div class="empty-state py-3"><i class="bi bi-check-circle"></i>Nothing needs attention right now.</div>
+            }
+        </div>
+    </section>
+</div>
+
+<script type="application/json" id="overview-data">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartData))</script>
+
+@section Scripts {
+    <script src="~/lib/chart.js/dist/chart.umd.min.js"></script>
+    <script src="~/js/admin/adminCharts.js" asp-append-version="true"></script>
+    <script src="~/js/admin/dashboard.js" asp-append-version="true"></script>
+}

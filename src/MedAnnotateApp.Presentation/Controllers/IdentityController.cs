@@ -316,6 +316,11 @@ public class IdentityController : Controller
             User.Identity?.Name,
             User.Identity?.IsAuthenticated);
 
+        if (User.IsInRole(IdentityService.AdminRole))
+        {
+            return RedirectToAction("Index", "Dashboard", new { area = "Admin" });
+        }
+
         if (User.IsInRole("Medical_Student"))
         {
             return RedirectToAction("Student", "Home");
