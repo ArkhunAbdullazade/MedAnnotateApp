@@ -21,7 +21,7 @@
     {
         <div class="admin-table-wrap">
             <table class="table admin-table align-middle">
-                <thead><tr><th>When</th><th>Who</th><th>What</th><th>Image</th><th>Participant</th><th>Details</th></tr></thead>
+                <thead><tr><th>When</th><th>Who</th><th>What</th><th>Image</th><th>Participant</th><th class="d-none d-lg-table-cell">Details</th></tr></thead>
                 <tbody>
                     @foreach (var row in Model.Items)
                     {
@@ -44,7 +44,7 @@
                                     <a asp-controller="Participants" asp-action="Details" asp-route-id="@row.Target.Id">@row.Target.Name</a>
                                 }
                             </td>
-                            <td class="mono small muted">@row.Details</td>
+                            <td class="mono small muted d-none d-lg-table-cell">@row.Details</td>
                         </tr>
                     }
                 </tbody>

@@ -11,13 +11,13 @@
 
   Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   Chart.defaults.font.size = 12;
-  Chart.defaults.color = "#6b6f7a";
-  Chart.defaults.borderColor = "#eceef1";
+  Chart.defaults.color = "#646464";
+  Chart.defaults.borderColor = "#f0f0f0";
   Chart.defaults.plugins.legend.labels.boxWidth = 10;
   Chart.defaults.plugins.legend.labels.boxHeight = 10;
   Chart.defaults.plugins.legend.labels.useBorderRadius = true;
   Chart.defaults.plugins.legend.labels.borderRadius = 2;
-  Chart.defaults.plugins.tooltip.backgroundColor = "#16181d";
+  Chart.defaults.plugins.tooltip.backgroundColor = "#333333";
   Chart.defaults.plugins.tooltip.padding = 10;
   Chart.defaults.plugins.tooltip.cornerRadius = 8;
   Chart.defaults.maintainAspectRatio = false;
@@ -26,8 +26,8 @@
     label, data: values, backgroundColor: background, borderRadius: 4, borderSkipped: "start",
     maxBarThickness: 28, borderWidth: 0, ...extra
   });
-  const integerAxis = { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eceef1" }, border: { display: false } };
-  const plainAxis = { grid: { display: false }, border: { color: "#c3c2b7" } };
+  const integerAxis = { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#f0f0f0" }, border: { display: false } };
+  const plainAxis = { grid: { display: false }, border: { color: "#d9d9d9" } };
 
   // Activity: grouped bars per local day, or the last 48 hours.
   const activityCanvas = document.getElementById("activity-chart");
@@ -70,7 +70,7 @@
         tooltip: { callbacks: { label: context => ` ${context.parsed.x} answers (${mixTotal ? Math.round(context.parsed.x * 100 / mixTotal) : 0}%)` } }
       },
       // Headroom on the right keeps the direct labels inside the chart.
-      scales: { x: { ...integerAxis, grace: "25%" }, y: { ...plainAxis, ticks: { color: "#16181d" } } }
+      scales: { x: { ...integerAxis, grace: "25%" }, y: { ...plainAxis, ticks: { color: "#333333" } } }
     },
     plugins: [valueLabels(value => `${value} · ${mixTotal ? Math.round(value * 100 / mixTotal) : 0}%`)]
   });
@@ -85,7 +85,7 @@
       indexAxis: "y",
       interaction: { mode: "index", intersect: false },
       plugins: { legend: { display: false } },
-      scales: { x: { ...integerAxis, stacked: true }, y: { ...plainAxis, stacked: true, ticks: { color: "#16181d", autoSkip: false } } }
+      scales: { x: { ...integerAxis, stacked: true }, y: { ...plainAxis, stacked: true, ticks: { color: "#333333", autoSkip: false } } }
     }
   });
   function showCategories() {
@@ -137,7 +137,7 @@
         const { ctx } = chart;
         ctx.save();
         ctx.font = `600 12px ${Chart.defaults.font.family}`;
-        ctx.fillStyle = "#16181d";
+        ctx.fillStyle = "#333333";
         ctx.textBaseline = "middle";
         chart.getDatasetMeta(0).data.forEach((element, index) => {
           const value = chart.data.datasets[0].data[index];

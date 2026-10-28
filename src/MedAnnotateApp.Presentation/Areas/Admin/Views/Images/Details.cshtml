@@ -50,7 +50,7 @@
                             </div>
                             <div id="overlay-notes" class="small text-start mt-2"></div>
                         </div>
-                        <div style="min-width: 14rem;">
+                        <div class="layer-panel">
                             <div class="stat-label mb-2">Layers</div>
                             <div id="layer-list"><span class="muted small">No shapes saved yet.</span></div>
                         </div>
@@ -152,14 +152,14 @@
         <div class="admin-table-wrap">
             <table class="table admin-table align-middle" id="answer-table">
                 <thead>
-                    <tr><th>Term</th><th>Response</th><th>Specialist</th><th>Comment</th><th class="num">First draw</th><th class="num">Drawing</th><th>Saved</th></tr>
+                    <tr><th>Term</th><th>Response</th><th>Specialist</th><th class="d-none d-md-table-cell">Comment</th><th class="num d-none d-lg-table-cell">First draw</th><th class="num d-none d-lg-table-cell">Drawing</th><th class="d-none d-sm-table-cell">Saved</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var answer in Model.Answers)
                     {
                         <tr data-shape="a@(answer.Id)">
                             <td class="fw-semibold">@answer.Keyword</td>
-                            <td><span class="badge @AdminUi.ButtonClass(answer.Button)">@AdminUi.ButtonLabel(answer.Button)</span></td>
+                            <td><span class="answer @AdminUi.ButtonClass(answer.Button)"><i class="bi @AdminUi.ButtonIcon(answer.Button)" aria-hidden="true"></i>@AdminUi.ButtonLabel(answer.Button)</span></td>
                             <td>
                                 @if (answer.AnnotatorId != null)
                                 {
@@ -168,10 +168,10 @@
                                 else { @answer.AnnotatorName }
                                 @if (!answer.SetComplete) { <span class="state state-idle ms-1">incomplete set</span> }
                             </td>
-                            <td class="small">@answer.Comment</td>
-                            <td class="num">@AdminUi.Seconds(answer.FirstDrawMs)</td>
-                            <td class="num">@AdminUi.Seconds(answer.DrawingMs)</td>
-                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(answer.CreatedAt)" data-local="datetime"></time></td>
+                            <td class="small d-none d-md-table-cell">@answer.Comment</td>
+                            <td class="num d-none d-lg-table-cell">@AdminUi.Seconds(answer.FirstDrawMs)</td>
+                            <td class="num d-none d-lg-table-cell">@AdminUi.Seconds(answer.DrawingMs)</td>
+                            <td class="text-nowrap d-none d-sm-table-cell"><time datetime="@AdminUi.Iso(answer.CreatedAt)" data-local="datetime"></time></td>
                         </tr>
                     }
                 </tbody>

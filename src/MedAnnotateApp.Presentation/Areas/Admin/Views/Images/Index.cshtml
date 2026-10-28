@@ -7,7 +7,12 @@
 }
 
 <section class="admin-card">
-    <form class="filter-bar" method="get">
+    <div class="filter-toggle d-sm-none">
+        <button class="btn btn-sm btn-outline-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#image-filters" aria-expanded="false" aria-controls="image-filters">
+            <i class="bi bi-funnel" aria-hidden="true"></i> Filters@(new[] { q.Search, q.Speciality, q.Modality, q.BodyRegion, q.SpecialistStatus, q.StudentStatus }.Count(value => !string.IsNullOrWhiteSpace(value)) is var active && active > 0 ? $" ({active} on)" : "")
+        </button>
+    </div>
+    <form class="filter-bar collapse d-sm-flex" id="image-filters" method="get">
         <div class="grow">
             <label class="form-label" for="search">Search</label>
             <input class="form-control form-control-sm" id="search" name="search" value="@q.Search" placeholder="Image ID, PMCID, diagnosis, description or term" />
@@ -48,9 +53,9 @@
                 }
             </select>
         </div>
-        <div class="d-flex gap-2">
+        <div class="filter-actions">
             <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Apply</button>
-            <a class="btn btn-sm btn-light" asp-action="Index">Clear</a>
+            <a class="btn btn-sm btn-outline-secondary" asp-action="Index">Clear</a>
         </div>
     </form>
 
@@ -66,12 +71,12 @@
                     <tr>
                         <th>Image</th>
                         <th></th>
-                        <th>Category</th>
+                        <th class="d-none d-sm-table-cell">Category</th>
                         <th>Specialist</th>
                         <th>Student</th>
-                        <th class="num">Terms</th>
-                        <th class="num">Answers</th>
-                        <th class="num">Groups</th>
+                        <th class="num d-none d-md-table-cell">Terms</th>
+                        <th class="num d-none d-md-table-cell">Answers</th>
+                        <th class="num d-none d-md-table-cell">Groups</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -92,15 +97,15 @@
                                     <span class="state state-stale"><i class="bi bi-link-45deg"></i>No link</span>
                                 }
                             </td>
-                            <td>
+                            <td class="d-none d-sm-table-cell">
                                 <div>@AdminUi.Title(image.Speciality ?? "—")</div>
                                 <div class="muted small">@image.Modality · @image.BodyRegion</div>
                             </td>
                             <td><partial name="_RoleStatus" model="(image.SpecialistDone, image.SpecialistHolder)" /></td>
                             <td><partial name="_RoleStatus" model="(image.StudentDone, image.StudentHolder)" /></td>
-                            <td class="num">@image.Keywords</td>
-                            <td class="num">@image.SpecialistResponses</td>
-                            <td class="num">@image.StudentGroups</td>
+                            <td class="num d-none d-md-table-cell">@image.Keywords</td>
+                            <td class="num d-none d-md-table-cell">@image.SpecialistResponses</td>
+                            <td class="num d-none d-md-table-cell">@image.StudentGroups</td>
                         </tr>
                     }
                 </tbody>

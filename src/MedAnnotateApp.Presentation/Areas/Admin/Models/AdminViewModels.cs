@@ -45,12 +45,21 @@ public static class AdminUi
         _ => button
     };
 
+    // Same hues as the response chart on the overview.
     public static string ButtonClass(string? button) => button switch
     {
-        "Save and Next Term" => "text-bg-primary",
-        "Uncertain/Skip" => "text-bg-warning",
-        "Not Visible/Abstract" => "text-bg-secondary",
-        _ => "text-bg-light"
+        "Save and Next Term" => "answer-saved",
+        "Uncertain/Skip" => "answer-uncertain",
+        "Not Visible/Abstract" => "answer-notvisible",
+        _ => "answer-none"
+    };
+
+    public static string ButtonIcon(string? button) => button switch
+    {
+        "Save and Next Term" => "bi-check2",
+        "Uncertain/Skip" => "bi-question-circle",
+        "Not Visible/Abstract" => "bi-eye-slash",
+        _ => "bi-dash"
     };
 
     public static string Seconds(long? milliseconds) => milliseconds switch
@@ -69,6 +78,10 @@ public static class AdminUi
         value == null ? "" : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture);
 
     public static string Hours(TimeSpan span) => span.TotalHours.ToString("0.#", CultureInfo.InvariantCulture) + " h";
+
+    // Selections are stored as "a,b,c"; show them as a readable list.
+    public static string List(string? value) =>
+        string.Join(", ", (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
     public static string Title(string value) => value.Length == 0 ? value : char.ToUpperInvariant(value[0]) + value[1..];
 

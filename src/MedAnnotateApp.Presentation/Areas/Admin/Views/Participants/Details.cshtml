@@ -56,9 +56,9 @@
                         <dt>Experience</dt><dd>@person.ClinicalExperience years</dd>
                     }
                     <dt>ORCID</dt><dd>@(string.IsNullOrWhiteSpace(person.OrcidId) ? "—" : person.OrcidId)</dd>
-                    <dt>Specialities</dt><dd>@person.Speciality</dd>
-                    <dt>Modalities</dt><dd>@person.ImageModality</dd>
-                    <dt>Body regions</dt><dd>@person.BodyRegion</dd>
+                    <dt>Specialities</dt><dd>@AdminUi.List(person.Speciality)</dd>
+                    <dt>Modalities</dt><dd>@AdminUi.List(person.ImageModality)</dd>
+                    <dt>Body regions</dt><dd>@AdminUi.List(person.BodyRegion)</dd>
                     <dt>Export code</dt><dd class="mono">@person.Code</dd>
                 </dl>
             </div>

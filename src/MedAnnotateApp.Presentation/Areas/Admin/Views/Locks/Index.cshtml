@@ -54,7 +54,7 @@
                     continue;
                 }
                 <form method="post" asp-action="Release" data-confirm="Release the selected locks? Saved specialist answers stay in the data as incomplete sets, and the images go back into the pool." data-confirm-button="Release selected">
-                    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                    <div class="d-none d-sm-flex justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
                         <span class="muted small">Sorted with the locks that most need attention first.</span>
                         <button type="submit" class="btn btn-sm btn-danger" id="bulk-@tableId" disabled>
                             <i class="bi bi-unlock"></i> Release selected (<span data-count>0</span>)
@@ -64,12 +64,12 @@
                         <table class="table table-hover admin-table align-middle" id="@tableId">
                             <thead>
                                 <tr>
-                                    <th style="width:2rem"><input class="form-check-input" type="checkbox" aria-label="Select all" data-select-all="#@tableId tbody" data-bulk-button="#bulk-@tableId" /></th>
+                                    <th class="d-none d-sm-table-cell" style="width:2rem"><input class="form-check-input" type="checkbox" aria-label="Select all" data-select-all="#@tableId tbody" data-bulk-button="#bulk-@tableId" /></th>
                                     <th>Image</th>
                                     <th>Holder</th>
                                     <th>Status</th>
-                                    <th>Last opened</th>
-                                    @if (!student) { <th>Last save</th><th class="num">Terms saved</th> }
+                                    <th class="d-none d-sm-table-cell">Last opened</th>
+                                    @if (!student) { <th class="d-none d-md-table-cell">Last save</th><th class="num d-none d-sm-table-cell">Terms saved</th> }
                                     <th></th>
                                 </tr>
                             </thead>
@@ -77,18 +77,18 @@
                                 @foreach (var row in rows)
                                 {
                                     <tr>
-                                        <td><input class="form-check-input" type="checkbox" name="selected" value="@LocksViewModel.Key(row)" aria-label="Select image @row.ImageId" /></td>
+                                        <td class="d-none d-sm-table-cell"><input class="form-check-input" type="checkbox" name="selected" value="@LocksViewModel.Key(row)" aria-label="Select image @row.ImageId" /></td>
                                         <td>
                                             <a class="fw-semibold" asp-controller="Images" asp-action="Details" asp-route-id="@row.ImageId">#@row.ImageId</a>
                                             <div class="muted small">@AdminUi.Title(row.Speciality ?? "—") · @row.Modality</div>
                                         </td>
                                         <td><a asp-controller="Participants" asp-action="Details" asp-route-id="@row.HolderId">@row.HolderName</a></td>
                                         <td><partial name="_LockState" model="row" /></td>
-                                        <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.LockedAt)" data-local="relative"></time></td>
+                                        <td class="text-nowrap d-none d-sm-table-cell"><time datetime="@AdminUi.Iso(row.LockedAt)" data-local="relative"></time></td>
                                         @if (!student)
                                         {
-                                            <td class="text-nowrap"><time datetime="@AdminUi.Iso(row.LastSaveAt)" data-local="relative"></time></td>
-                                            <td class="num">@row.TermsSaved / @row.TermsTotal</td>
+                                            <td class="text-nowrap d-none d-md-table-cell"><time datetime="@AdminUi.Iso(row.LastSaveAt)" data-local="relative"></time></td>
+                                            <td class="num d-none d-sm-table-cell">@row.TermsSaved / @row.TermsTotal</td>
                                         }
                                         <td class="text-end">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" form="release-one" name="selected" value="@LocksViewModel.Key(row)"
