@@ -107,7 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function initialize() {
     if (initialized || historyLoading) return;
     if (!terms.length || terms.length !== expectedTermCount) {
-      showStatus("Some annotation terms could not be found separately in the description. Ask the research team to refine this image's keywords. No responses have been saved.", "error");
+      showStatus(`Some annotation terms could not be found separately in the description, so this image can't be annotated. Report image #${assignmentId} to the study team. No responses have been saved.`, "error");
       buttons();
       return;
     }

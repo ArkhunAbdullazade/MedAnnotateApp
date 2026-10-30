@@ -62,7 +62,7 @@ public class IdentityService : IIdentityService
             return (false, ["Password is required."]);
         }
 
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await userManager.FindByEmailAsync(email.Trim());
         if (user == null)
         {
             return (false, ["Email or password is incorrect. Please try again."]);

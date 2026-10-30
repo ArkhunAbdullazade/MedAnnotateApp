@@ -179,7 +179,7 @@ test('specialist saving status takes priority over the inspection hint', async (
 test('a missing description keyword blocks annotation and completion controls', async () => {
   const {elements, calls, manager} = await page([new Element('lesion', 'lesion')], 2);
   assert.equal(elements['annotation-status'].dataset.state, 'error');
-  assert.match(elements['annotation-status'].textContent, /refine this image's keywords/);
+  assert.match(elements['annotation-status'].textContent, /Report image #\d+ to the study team/);
   assert.equal(elements['next-button'].disabled, true);
   assert.equal(elements['skip-button'].disabled, true);
   assert.equal(elements['not-present-button'].disabled, true);

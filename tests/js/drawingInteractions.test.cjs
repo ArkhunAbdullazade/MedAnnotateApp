@@ -72,6 +72,37 @@ test('creating a box or freehand outline notifies once and preserves original-im
   f.manager.loadCoordinates(before);assert.equal(f.manager.getAllAnnotationsJSON(),before);
 });
 
+test('a shaky click or tiny stroke under three screen pixels never becomes a shape',()=>{
+  const f=fixture();
+  // The fixture shows the image at half size, so three screen pixels are six image pixels.
+  gesture(f.manager,f.event,[200,200],[205,205]);
+  assert.equal(f.manager.annotations.length,0);assert.equal(f.changes(),0);
+  gesture(f.manager,f.event,[200,200],[300,204]);
+  assert.equal(f.manager.annotations.length,0);
+  gesture(f.manager,f.event,[200,200],[206,206]);
+  assert.equal(f.manager.annotations.length,1);assert.equal(f.changes(),1);
+  f.manager.setAnnotations([]);f.manager.switchMode('freehand');
+  f.manager.handleMouseDown(f.event(400,400));
+  for(const point of [[403,400],[403,403]])f.manager.handleMouseMove(f.event(...point));
+  f.manager.handleMouseUp(f.event(403,403));
+  assert.equal(f.manager.annotations.length,0);assert.equal(f.manager.currentAction,'none');
+});
+
+test('a corner beside the image edge resizes instead of deleting the shape',()=>{
+  const f=fixture();f.manager.setAnnotations([{type:'rectangle',cx:1100,cy:100,width:200,height:200,rotation:0}]);
+  gesture(f.manager,f.event,[1100,100]);
+  const handles=f.manager.getAnnotationHandles(f.manager.annotations[0]);
+  // In the corner of the image the delete handle is clamped to within eight screen pixels of the top-right corner.
+  assert.ok(f.manager.isPointNearHandle({x:1195,y:5},handles.tr)&&f.manager.isPointNearHandle({x:1195,y:5},handles.delete));
+  f.manager.handleMouseDown(f.event(1195,5));
+  assert.equal(f.manager.currentAction,'resize');assert.equal(f.manager.annotations.length,1);
+  f.manager.handleMouseUp(f.event(1195,5));
+  const moved=f.manager.annotations[0];f.manager.selectedAnnotation=moved;
+  const after=f.manager.getAnnotationHandles(moved);
+  gesture(f.manager,f.event,[after.delete.x,after.delete.y]);
+  assert.equal(f.manager.annotations.length,0);
+});
+
 test('box movement, fixed-corner resize, rotation and deletion each notify once with known coordinates',()=>{
   const f=fixture();f.manager.setAnnotations([rectangle()]);
   gesture(f.manager,f.event,[300,250],[400,300]);

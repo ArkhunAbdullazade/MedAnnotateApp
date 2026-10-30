@@ -101,11 +101,11 @@ public sealed class ResultsExportService
             .ToDictionary(group => group.Key, group => string.Join("; ", group.Select(item => item.Keyword!.Trim()).Distinct()));
         using var table = Entry(zip, "images", format);
         table.Header("ImageId", "Pmcid", "ImageUrl", "SourceUrl", "ImageDescription", "Sex", "Age", "SkinTone", "BodyRegion", "Diagnosis",
-            "TreatmentName", "Speciality", "Modality", "Terms", "SpecialistCompleted", "StudentCompleted");
+            "TreatmentName", "Speciality", "Modality", "Terms", "SpecialistCompleted", "StudentCompleted", "Excluded");
         await foreach (var image in context.MedDatas.AsNoTracking().OrderBy(image => image.Id).AsAsyncEnumerable().WithCancellation(cancellationToken))
             table.Row(image.Id, image.Pmcid, image.ImageUrl, image.SourceUrl, image.ImageDescription, image.Sex, image.Age, image.SkinTone,
                 image.BodyRegion, image.Diagnosis, image.TreatmentName, image.Speciality, image.Modality, keywords.GetValueOrDefault(image.Id),
-                image.IsAnnotated, image.IsAnnotatedByStudent);
+                image.IsAnnotated, image.IsAnnotatedByStudent, image.ExcludedAt != null);
     }
 
     private async Task WriteSpecialistAsync(ZipArchive zip, ExportOptions options, People people, HashSet<(int, string)> completeSets,
@@ -129,7 +129,7 @@ public sealed class ResultsExportService
                 continue;
             var (first, drawing) = ResponseTimings.Parse(answer.Timestamps);
             table.Row([
-                answer.Id, answer.MedDataId, answer.ExtractedKeyword, answer.PressedButton, answer.BoxCoordinates, Text(answer.Comment, table),
+                answer.Id, answer.MedDataId, answer.ExtractedKeyword, answer.PressedButton, answer.BoxCoordinates, answer.Comment,
                 first, drawing, answer.CreatedAt, complete,
                 .. AnnotatorValues(options.Identity, people.ByEmail(answer.Email), answer.Position, answer.ClinicalExperience),
                 answer.Speciality, answer.Modality, answer.BodyRegion, answer.Diagnosis]);
@@ -153,7 +153,7 @@ public sealed class ResultsExportService
         var groups = AdminQueryService.FilterStudent(context.AnnotatedByStudentsMedDatas.AsNoTracking(), query, annotatorEmail).OrderBy(group => group.Id);
         await foreach (var group in groups.AsAsyncEnumerable().WithCancellation(cancellationToken))
             table.Row([
-                group.Id, group.MedDataId, Text(group.TextualAnnotation, table), group.Coordinates, group.CreatedAt,
+                group.Id, group.MedDataId, group.TextualAnnotation, group.Coordinates, group.CreatedAt,
                 .. AnnotatorValues(options.Identity, people.ByEmail(group.Email), group.Position, group.ClinicalExperience),
                 group.Speciality, group.Modality, group.BodyRegion, group.Diagnosis]);
     }
@@ -226,8 +226,11 @@ public sealed class ResultsExportService
 
             Coordinates are JSON in original image pixels: {"version":1,"coordinateSystem":"image-pixels",
             "imageWidth":W,"imageHeight":H,"annotations":[{"type":"rectangle"|"freehand","points":[[x,y],...]}]}.
+            They use the upright image as the browser showed it. If your tool reports a different size for the file,
+            apply the file's EXIF rotation first, then scale by imageWidth and imageHeight.
             Times are UTC (ISO 8601). Rows saved before timestamps were recorded have an empty SavedAtUtc.
-            CSV: free-text cells starting with = + or @ get a leading ' so spreadsheets do not run them; JSON keeps them unchanged.
+            CSV: text cells starting with = + - @ tab or carriage return get a leading ' so spreadsheets do not run them; JSON keeps them unchanged.
+            images.Excluded is true for images the study team removed from the study; their saved answers are still included.
             """);
     }
 
@@ -244,9 +247,6 @@ public sealed class ResultsExportService
         IdentityMode.Pseudonymous => [person?.Code ?? "REMOVED", position, experience],
         _ => []
     };
-
-    private static object? Text(string? value, TableWriter table) =>
-        table.Format == ExportFormat.Csv && value is ['=' or '+' or '@', ..] ? "'" + value : value;
 
     private async Task<IDbContextTransaction?> BeginSnapshotAsync(CancellationToken cancellationToken)
     {
@@ -292,7 +292,7 @@ public sealed class ResultsExportService
         {
             if (format == ExportFormat.Csv)
             {
-                writer.Write(string.Join(",", values.Select(value => Csv(Text(value)))));
+                writer.Write(string.Join(",", values.Select(value => Csv(value is string text ? Neutralize(text) : Text(value)))));
                 writer.Write("\r\n");
                 return;
             }
@@ -341,6 +341,9 @@ public sealed class ResultsExportService
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString()
         };
+
+        // Participants type names, institutions and comments, and spreadsheets run cells starting with these as formulas.
+        private static string Neutralize(string value) => value is ['=' or '+' or '-' or '@' or '\t' or '\r', ..] ? "'" + value : value;
 
         private static string Csv(string? value) =>
             value == null ? "" : value.IndexOfAny([',', '"', '\r', '\n']) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;

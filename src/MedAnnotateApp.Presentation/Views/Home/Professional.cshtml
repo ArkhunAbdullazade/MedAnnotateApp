@@ -8,7 +8,7 @@
 
 <link rel="stylesheet" href="~/css/professionalPage.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/css/annotationWorkspace.css" asp-append-version="true" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+<link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
 @Html.AntiForgeryToken()
 
 @if (Model != null)
@@ -139,7 +139,7 @@ else
     </button>
 </div>
 
-<script type="text/javascript" defer>
+<script nonce="@Context.Items[SecurityHeaders.NonceKey]">
     window.annotatedMedData = @Html.Raw(Json.Serialize(AnnotationImage.From(Model)));
 </script>
 <script src="~/js/annotationGeometry.js" asp-append-version="true"></script>

@@ -61,6 +61,15 @@
                     <dt>Body regions</dt><dd>@AdminUi.List(person.BodyRegion)</dd>
                     <dt>Export code</dt><dd class="mono">@person.Code</dd>
                 </dl>
+                <form method="post" asp-action="CorrectEmail" asp-route-id="@person.Id" class="mt-3"
+                      data-confirm-input="email" data-confirm-button="Correct email"
+                      data-confirm="@($"Change this participant's email from {person.Email} to {{typed}}? Only do this after confirming the right address with them. The old address stops working at once, they keep their password, and all their saved work moves to the new address.")">
+                    <label class="form-label" for="corrected-email">Correct a mistyped email</label>
+                    <div class="input-group input-group-sm">
+                        <input class="form-control" id="corrected-email" name="email" type="email" maxlength="256" autocomplete="off" required placeholder="correct.address@example.org" />
+                        <button class="btn btn-outline-danger" type="submit">Correct email</button>
+                    </div>
+                </form>
             </div>
         </section>
     </div>

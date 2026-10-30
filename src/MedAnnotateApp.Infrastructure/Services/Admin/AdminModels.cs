@@ -86,7 +86,7 @@ public sealed class ImageQuery
 public sealed record ImageRow(
     int Id, string? Pmcid, string? ImageUrl, string? Speciality, string? Modality, string? BodyRegion, string? Diagnosis,
     bool SpecialistDone, bool StudentDone, PersonRef? SpecialistHolder, PersonRef? StudentHolder,
-    int Keywords, int SpecialistResponses, int StudentGroups);
+    int Keywords, int SpecialistResponses, int StudentGroups, bool Removed);
 
 public sealed record CategoryOptions(IReadOnlyList<string> Specialities, IReadOnlyList<string> Modalities, IReadOnlyList<string> BodyRegions);
 

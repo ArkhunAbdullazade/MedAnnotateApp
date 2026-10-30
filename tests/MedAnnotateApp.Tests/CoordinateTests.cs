@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MedAnnotateApp.Core.Services;
 
 namespace MedAnnotateApp.Tests;
@@ -44,6 +45,25 @@ public class CoordinateTests
     {
         var json = Valid.Replace("rectangle", "freehand").Replace("[300,200],[900,200],[900,600],[300,600]", "[0,0],[1200,0],[1200,800],[0,800],[0,0]");
         Assert.True(AnnotationCoordinates.TryValidate(json, out _));
+    }
+
+    // Node writes shapes through the real canvas and geometry code, so a shape the page accepts can't be refused on save.
+    [Fact]
+    public async Task EveryShapeTheBrowserCanSerializeIsAcceptedOnTheServer()
+    {
+        var root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "MedAnnotateApp.sln"))) root = Path.GetDirectoryName(root)!;
+        using var node = Process.Start(new ProcessStartInfo("node", "tests/js/fuzzShapes.cjs 10000")
+        {
+            WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true
+        })!;
+        var errors = node.StandardError.ReadToEndAsync();
+        var lines = new List<string>();
+        while (await node.StandardOutput.ReadLineAsync() is { } line) lines.Add(line);
+        await node.WaitForExitAsync();
+        Assert.True(node.ExitCode == 0, await errors);
+        Assert.Equal(10000, lines.Count);
+        Assert.All(lines, line => Assert.True(AnnotationCoordinates.TryValidate(line, out _), line));
     }
 
     [Fact]

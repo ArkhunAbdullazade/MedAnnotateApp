@@ -24,4 +24,13 @@ public class ImagesController(AdminQueryService queries, AssignmentAdminService 
         Flash(result.Message, result.Released);
         return BackTo(returnUrl, nameof(Details), new { id });
     }
+
+    [HttpPost]
+    public async Task<IActionResult> SetRemoved(int id, bool removed)
+    {
+        var result = await assignments.SetRemovedAsync(id, removed, AdminId);
+        queries.InvalidateOverview();
+        Flash(result.Message, result.Released);
+        return RedirectToAction(nameof(Details), new { id });
+    }
 }

@@ -38,7 +38,7 @@
         <div>
             <label class="form-label" for="specialistStatus">Specialist</label>
             <select class="form-select form-select-sm" id="specialistStatus" name="specialistStatus" data-autosubmit>
-                @foreach (var (value, label) in statusOptions.Append(("partial", "Has saved answers, not done")))
+                @foreach (var (value, label) in statusOptions.Append(("partial", "Has saved answers, not done")).Append(("removed", "Removed from study")))
                 {
                     <option value="@value" selected="@(value == (q.SpecialistStatus ?? ""))">@label</option>
                 }
@@ -86,6 +86,7 @@
                             <td class="text-nowrap">
                                 <a class="fw-semibold" asp-action="Details" asp-route-id="@image.Id">#@image.Id</a>
                                 <div class="muted small">@image.Pmcid</div>
+                                @if (image.Removed) { <span class="state state-stale"><i class="bi bi-slash-circle"></i>Removed</span> }
                             </td>
                             <td>
                                 @if (!string.IsNullOrWhiteSpace(image.ImageUrl))

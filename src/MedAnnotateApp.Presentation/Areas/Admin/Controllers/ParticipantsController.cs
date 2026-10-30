@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MedAnnotateApp.Presentation.Areas.Admin.Controllers;
 
-public class ParticipantsController(AdminQueryService queries, AssignmentAdminService assignments) : AdminController
+public class ParticipantsController(AdminQueryService queries, AssignmentAdminService assignments, ParticipantAdminService participants) : AdminController
 {
     public async Task<IActionResult> Index(string? role, string? search, CancellationToken cancellationToken)
     {
@@ -34,6 +34,15 @@ public class ParticipantsController(AdminQueryService queries, AssignmentAdminSe
         var released = await assignments.ReleaseAllForUserAsync(id, AdminId);
         queries.InvalidateOverview();
         Flash(released == 0 ? "This participant holds no locks." : $"Released {released} lock(s). Saved answers were kept.", released > 0);
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CorrectEmail(string id, string? email)
+    {
+        var result = await participants.CorrectEmailAsync(id, email, AdminId);
+        queries.InvalidateOverview();
+        Flash(result.Message, result.Released);
         return RedirectToAction(nameof(Details), new { id });
     }
 }

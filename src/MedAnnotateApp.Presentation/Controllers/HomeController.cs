@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Security.Claims;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Infrastructure.Services;
@@ -65,12 +64,6 @@ public class HomeController : Controller
     {
         try
         {
-            logger.LogDebug(
-                "Professional action. Authenticated: {Authenticated}, User: {User}, Roles: {Roles}",
-                User.Identity?.IsAuthenticated,
-                User.Identity?.Name,
-                string.Join(", ", User.Claims.Where(claim => claim.Type == ClaimTypes.Role).Select(claim => claim.Value)));
-
             var user = await userManager.GetUserAsync(User);
             if (user == null)
             {

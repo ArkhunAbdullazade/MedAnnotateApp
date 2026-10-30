@@ -141,15 +141,16 @@ public sealed class AdminQueryService
         images = FilterCategories(images, query.Speciality, query.Modality, query.BodyRegion);
         images = query.SpecialistStatus switch
         {
-            "open" => images.Where(image => !image.IsAnnotated && image.LockedByUserId == null),
+            "open" => images.Where(image => image.ExcludedAt == null && !image.IsAnnotated && image.LockedByUserId == null),
             "in-progress" => images.Where(image => !image.IsAnnotated && image.LockedByUserId != null),
+            "removed" => images.Where(image => image.ExcludedAt != null),
             "partial" => images.Where(image => !image.IsAnnotated && context.AnnotatedMedDatas.Any(answer => answer.MedDataId == image.Id)),
             "done" => images.Where(image => image.IsAnnotated),
             _ => images
         };
         images = query.StudentStatus switch
         {
-            "open" => images.Where(image => !image.IsAnnotatedByStudent && image.LockedByStudentUserId == null),
+            "open" => images.Where(image => image.ExcludedAt == null && !image.IsAnnotatedByStudent && image.LockedByStudentUserId == null),
             "in-progress" => images.Where(image => !image.IsAnnotatedByStudent && image.LockedByStudentUserId != null),
             "done" => images.Where(image => image.IsAnnotatedByStudent),
             _ => images
@@ -160,7 +161,7 @@ public sealed class AdminQueryService
         var rows = await images.OrderBy(image => image.Id).Skip((page - 1) * PageSize).Take(PageSize).Select(image => new
         {
             image.Id, image.Pmcid, image.ImageUrl, image.Speciality, image.Modality, image.BodyRegion, image.Diagnosis,
-            image.IsAnnotated, image.IsAnnotatedByStudent, image.LockedByUserId, image.LockedByStudentUserId,
+            image.IsAnnotated, image.IsAnnotatedByStudent, image.LockedByUserId, image.LockedByStudentUserId, image.ExcludedAt,
             Keywords = image.MedDataKeywords!.Count(keyword => keyword.Keyword != null && keyword.Keyword.Trim() != ""),
             SpecialistResponses = context.AnnotatedMedDatas.Count(answer => answer.MedDataId == image.Id),
             StudentGroups = context.AnnotatedByStudentsMedDatas.Count(group => group.MedDataId == image.Id)
@@ -168,7 +169,7 @@ public sealed class AdminQueryService
         var people = await AdminData.LoadPeopleAsync(context, cancellationToken);
         return new Paged<ImageRow>(rows.Select(row => new ImageRow(row.Id, row.Pmcid, row.ImageUrl, row.Speciality, row.Modality,
             row.BodyRegion, row.Diagnosis, row.IsAnnotated, row.IsAnnotatedByStudent, people.Ref(row.LockedByUserId),
-            people.Ref(row.LockedByStudentUserId), row.Keywords, row.SpecialistResponses, row.StudentGroups)).ToList(), page, PageSize, total);
+            people.Ref(row.LockedByStudentUserId), row.Keywords, row.SpecialistResponses, row.StudentGroups, row.ExcludedAt != null)).ToList(), page, PageSize, total);
     }
 
     public async Task<ImageDetail?> GetImageAsync(int id, CancellationToken cancellationToken = default)
@@ -442,8 +443,9 @@ public sealed class AdminQueryService
         return images;
     }
 
+    // Removed images are out of the study, so progress, reach and "left for them" all ignore them.
     private async Task<List<ImageFact>> ImageFactsAsync(CancellationToken cancellationToken) =>
-        (await context.MedDatas.AsNoTracking().Select(image => new
+        (await context.MedDatas.AsNoTracking().Where(image => image.ExcludedAt == null).Select(image => new
         {
             image.Id, image.Speciality, image.Modality, image.BodyRegion,
             HasUrl = image.ImageUrl != null && image.ImageUrl.Trim() != "",

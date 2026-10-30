@@ -43,7 +43,9 @@
       event.preventDefault();
       pending = form;
       pendingSubmitter = submitter;
-      document.getElementById("confirm-body").textContent = message;
+      // A form can show what was typed into it, so the admin checks the exact value before it is applied.
+      const typed = form.dataset.confirmInput ? form.elements[form.dataset.confirmInput].value.trim() : "";
+      document.getElementById("confirm-body").textContent = message.replace("{typed}", typed);
       document.getElementById("confirm-ok").textContent = (submitter && submitter.dataset.confirmButton) || form.dataset.confirmButton || "Release";
       modal.show();
     });

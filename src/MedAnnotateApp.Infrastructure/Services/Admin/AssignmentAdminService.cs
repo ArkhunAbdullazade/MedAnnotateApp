@@ -97,13 +97,42 @@ public sealed class AssignmentAdminService
         return released;
     }
 
+    /// <summary>
+    /// Takes an unusable image out of the study, or puts it back. Without this, a dead link would be handed to the
+    /// next person forever, because assignment always takes the lowest open image. Saved answers are never deleted.
+    /// </summary>
+    public async Task<ReleaseResult> SetRemovedAsync(int imageId, bool removed, string adminUserId, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await MedDataRepository.BeginWorkflowAsync(context, cancellationToken);
+        var image = await context.MedDatas.FindAsync([imageId], cancellationToken);
+        if (image == null) return new ReleaseResult(false, $"Image {imageId} does not exist.");
+        if (image.ExcludedAt != null == removed)
+            return new ReleaseResult(false, $"Image {imageId} is already {(removed ? "removed from" : "in")} the study; nothing changed.");
+
+        var specialist = image.LockedByUserId;
+        var student = image.LockedByStudentUserId;
+        image.ExcludedAt = removed ? DateTime.UtcNow : null;
+        if (removed)
+        {
+            MedDataRepository.ClearProfessionalLock(image);
+            MedDataRepository.ClearStudentLock(image);
+        }
+        context.AdminActions.Add(Audit(adminUserId, removed ? "remove-image" : "restore-image", image.Id, null,
+            new { releasedSpecialist = specialist, releasedStudent = student }));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new ReleaseResult(true, removed
+            ? $"Removed image {imageId} from the study. Saved answers were kept, and it won't be assigned again."
+            : $"Restored image {imageId}. It can be assigned again.");
+    }
+
     private async Task<int> SavedResponsesAsync(int imageId, string holderId, CancellationToken cancellationToken)
     {
         var email = await context.Users.Where(user => user.Id == holderId).Select(user => user.Email).SingleOrDefaultAsync(cancellationToken);
         return email == null ? 0 : await context.AnnotatedMedDatas.CountAsync(answer => answer.MedDataId == imageId && answer.Email == email, cancellationToken);
     }
 
-    private static AdminAction Audit(string? adminUserId, string action, int imageId, string? targetUserId, object details) => new()
+    internal static AdminAction Audit(string? adminUserId, string action, int? imageId, string? targetUserId, object details) => new()
     {
         At = DateTime.UtcNow, AdminUserId = adminUserId, Action = action, MedDataId = imageId, TargetUserId = targetUserId,
         Details = JsonSerializer.Serialize(details)

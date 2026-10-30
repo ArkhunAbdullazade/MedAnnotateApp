@@ -311,11 +311,6 @@ public class IdentityController : Controller
 
     private IActionResult RedirectToRoleBasedPage()
     {
-        logger.LogDebug(
-            "RedirectToRoleBasedPage called. User: {User}, Authenticated: {Authenticated}",
-            User.Identity?.Name,
-            User.Identity?.IsAuthenticated);
-
         if (User.IsInRole(IdentityService.AdminRole))
         {
             return RedirectToAction("Index", "Dashboard", new { area = "Admin" });
@@ -331,7 +326,7 @@ public class IdentityController : Controller
             return RedirectToAction("Professional", "Home");
         }
 
-        logger.LogWarning("User has no role assigned: {User}", User.Identity?.Name);
+        logger.LogWarning("User {UserId} has no role assigned.", userManager.GetUserId(User));
         TempData["Errors"] = new List<string> { "Your account doesn't have any assigned roles. Please contact the administrator." };
         return RedirectToAction("AccessDenied", "Identity");
     }

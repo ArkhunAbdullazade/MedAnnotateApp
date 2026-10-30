@@ -25,5 +25,8 @@ public class MedData
     
     public string? KeywordStates { get; set; }
 
+    // Set when the study team removes an unusable image, such as a dead link. It is never assigned while set.
+    public DateTime? ExcludedAt { get; set; }
+
     public ICollection<MedDataKeyword>? MedDataKeywords { get; set; }
 }

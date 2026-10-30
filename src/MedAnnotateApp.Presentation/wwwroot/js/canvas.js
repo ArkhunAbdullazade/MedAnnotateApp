@@ -917,7 +917,11 @@ class CanvasManager {
   
     setupImageLoad() {
       const loaded = () => {
-        if (!this.sourceImage.naturalWidth || !this.sourceImage.naturalHeight) return;
+        if (!this.sourceImage.naturalWidth || !this.sourceImage.naturalHeight) {
+          this.ready = false;
+          this.reportImageError(`This image has no usable size, so it cannot be annotated. ${this.reportHint()}`);
+          return;
+        }
         const identity = this.sourceImage.currentSrc || this.sourceImage.src;
         if (identity !== this.imageIdentity) {
           this.ready = false;
@@ -935,11 +939,11 @@ class CanvasManager {
       this.sourceImage.addEventListener("load", loaded);
       this.sourceImage.addEventListener("error", () => {
         this.ready = false;
-        this.reportImageError("This image could not be loaded. Annotations cannot be saved. Reload the page or report the image ID.");
+        this.reportImageError(`This image could not be loaded, so annotations cannot be saved. ${this.reportHint()}`);
       });
       if (this.sourceImage.complete) {
         if (this.sourceImage.naturalWidth) loaded();
-        else this.reportImageError("This image could not be loaded. Reload the page or report the image ID.");
+        else this.reportImageError(`This image could not be loaded. ${this.reportHint()}`);
       }
       window.addEventListener("resize", () => this.resizeDisplay());
       if (typeof ResizeObserver !== "undefined") {
@@ -969,6 +973,11 @@ class CanvasManager {
       imageContainer.style.height = `${height}px`;
       this.drawCanvas();
       this.updateToolsPosition(imageContainer);
+    }
+
+    // The study team removes an unusable image by its ID, and that ID appears nowhere else on the page.
+    reportHint() {
+      return `Reload the page. If this keeps happening, report image #${window.annotatedMedData?.id ?? "unknown"} to the study team.`;
     }
 
     reportImageError(message) {
@@ -1010,10 +1019,11 @@ class CanvasManager {
           const handles = this.getAnnotationHandles(selected);
           if (this.isPointNearHandle(point, handles.rotate)) {
             cursor = "grab"; hint = "Drag to rotate.";
-          } else if (this.isPointNearHandle(point, handles.delete)) {
-            cursor = "pointer"; hint = "Delete this annotation.";
           } else {
             corner = corner || ['tl', 'tr', 'bl', 'br'].find(key => this.isPointNearHandle(point, handles[key]));
+            if (!corner && this.isPointNearHandle(point, handles.delete)) {
+              cursor = "pointer"; hint = "Delete this annotation.";
+            }
           }
         } else if (point && selected && selected.type === "freehand") {
           const handle = this.getFreehandDeleteHandle(selected), size = this.screenPixels(12);
@@ -1071,38 +1081,39 @@ class CanvasManager {
           return;
         }
         
+        // Check resize handles before delete: at the image edge the delete handle is pushed next to a corner,
+        // and a mistaken resize is harmless while a mistaken delete loses the shape.
+        for (const corner of ['tl', 'tr', 'bl', 'br']) {
+          if (this.isPointNearHandle({ x: mouseX, y: mouseY }, handles[corner])) {
+            this.currentAction = "resize";
+            this.activeHandle = corner;
+            this.resizingFixedCorner = {
+              tl: 'br', tr: 'bl', bl: 'tr', br: 'tl'
+            }[corner];
+
+            // Store the original annotation with all properties
+            this.originalAnnotation = JSON.parse(JSON.stringify(this.selectedAnnotation));
+
+            // Store fixed corner location in rotated space
+            const fixedCornerPos = handles[this.resizingFixedCorner];
+            this.fixedCornerX = fixedCornerPos.x;
+            this.fixedCornerY = fixedCornerPos.y;
+
+            return;
+          }
+        }
+
         // Check delete handle
         if (this.isPointNearHandle({ x: mouseX, y: mouseY }, handles.delete)) {
           this.annotations = this.annotations.filter(a => a !== this.selectedAnnotation);
           this.selectedAnnotation = null;
           this.drawCanvas();
-          
+
           // Notify about annotation change
           if (this.onAnnotationsChange) {
             this.onAnnotationsChange();
           }
           return;
-        }
-        
-        // Check resize handles
-        for (const corner of ['tl', 'tr', 'bl', 'br']) {
-          if (this.isPointNearHandle({ x: mouseX, y: mouseY }, handles[corner])) {
-            this.currentAction = "resize";
-            this.activeHandle = corner;
-            this.resizingFixedCorner = { 
-              tl: 'br', tr: 'bl', bl: 'tr', br: 'tl'
-            }[corner];
-            
-            // Store the original annotation with all properties
-            this.originalAnnotation = JSON.parse(JSON.stringify(this.selectedAnnotation));
-            
-            // Store fixed corner location in rotated space
-            const fixedCornerPos = handles[this.resizingFixedCorner];
-            this.fixedCornerX = fixedCornerPos.x;
-            this.fixedCornerY = fixedCornerPos.y;
-            
-            return;
-          }
         }
       }
       
@@ -1187,9 +1198,9 @@ class CanvasManager {
             const rotatedMouseX = translatedMouseX * cos - translatedMouseY * sin;
             const rotatedMouseY = translatedMouseX * sin + translatedMouseY * cos;
             
-            // Calculate dimensions in rotated space - allow very small sizes (5px minimum)
-            const width = Math.max(1, Math.abs(rotatedMouseX));
-            const height = Math.max(1, Math.abs(rotatedMouseY));
+            // Calculate dimensions in rotated space, never below what the page lets a new shape be
+            const width = Math.max(this.minimumShapeSize(), Math.abs(rotatedMouseX));
+            const height = Math.max(this.minimumShapeSize(), Math.abs(rotatedMouseY));
             
             // Calculate center point
             // First determine the direction of resize based on which corner is being dragged
@@ -1285,7 +1296,7 @@ class CanvasManager {
           const width = Math.abs(mouseX - this.rectStart.x);
           const height = Math.abs(mouseY - this.rectStart.y);
           
-          if (width >= 1 && height >= 1) {
+          if (width >= this.minimumShapeSize() && height >= this.minimumShapeSize()) {
             const cx = (mouseX + this.rectStart.x) / 2;
             const cy = (mouseY + this.rectStart.y) / 2;
             
@@ -1315,6 +1326,10 @@ class CanvasManager {
           // Keep sampled image-space vertices. The previous adaptive reduction to
           // 25 points could move a research boundary by an unbounded distance.
           const simplified = this.freehandPoints.map(p => ({...p}));
+          const bounds = this.getBoundingBox(simplified);
+          if (bounds.maxX - bounds.minX < this.minimumShapeSize() || bounds.maxY - bounds.minY < this.minimumShapeSize()) {
+            this.resetDrawingState(); this.drawCanvas(); return;
+          }
           const first = simplified[0];
           simplified.push({ ...first });
           if (AnnotationGeometry.area(simplified.map(p => [p.x,p.y])) < 1 || simplified.length > 20000) {
@@ -1352,6 +1367,11 @@ class CanvasManager {
       if (changed && this.onAnnotationsChange) this.onAnnotationsChange();
     }
   
+    // A shaky click must not become a saved shape too small to see, and validation needs at least one image pixel.
+    minimumShapeSize() {
+      return Math.max(1, this.screenPixels(3));
+    }
+
     // Utility functions
     clamp(val, min, max) {
       return Math.min(Math.max(val, min), max);

@@ -6,7 +6,7 @@
 
 <link rel="stylesheet" href="~/css/studentPage.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/css/annotationWorkspace.css" asp-append-version="true" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+<link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
 @Html.AntiForgeryToken()
 
 @if (Model != null)
@@ -109,7 +109,7 @@ else
     <button type="button" id="end-button" class="end-button">Log Out</button>
 </div>
 
-<script>
+<script nonce="@Context.Items[SecurityHeaders.NonceKey]">
     // Flag to identify student page for canvas.js processing
     window.isStudentPage = true;
     

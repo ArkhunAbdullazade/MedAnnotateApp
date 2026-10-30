@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Net;
+using System.Security.Cryptography;
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Core.Repositories;
 using MedAnnotateApp.Core.Services;
@@ -19,8 +20,9 @@ using Microsoft.EntityFrameworkCore;
 const string SeedDataFileName = "mockPMCMIDdata7.xlsx";
 const string ResetPasswordCommand = "reset-password";
 const string CreateAdminCommand = "create-admin";
+const string CheckTermsCommand = "check-terms";
 
-// Operator-only shell commands, never HTTP endpoints: `dotnet MedAnnotateApp.Presentation.dll reset-password|create-admin <email>`.
+// Operator-only shell commands, never HTTP endpoints: `dotnet MedAnnotateApp.Presentation.dll reset-password|create-admin <email>` or `check-terms`.
 var operatorEmail = args is [ResetPasswordCommand or CreateAdminCommand, var email] ? email : null;
 if (args.Length > 0 && args[0] is ResetPasswordCommand or CreateAdminCommand && operatorEmail is null)
 {
@@ -28,9 +30,11 @@ if (args.Length > 0 && args[0] is ResetPasswordCommand or CreateAdminCommand && 
     Environment.ExitCode = 2;
     return;
 }
-var isOperatorCommand = operatorEmail is not null;
+var isCheckTerms = args is [CheckTermsCommand];
+var isOperatorCommand = operatorEmail is not null || isCheckTerms;
 
 var builder = WebApplication.CreateBuilder(isOperatorCommand ? [] : args);
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 if (builder.Environment.IsDevelopment())
 {
     // Keep workstation database credentials outside tracked configuration files.
@@ -168,10 +172,39 @@ builder.Services.AddMemoryCache();
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.Section));
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<AssignmentAdminService>();
+builder.Services.AddScoped<ParticipantAdminService>();
 builder.Services.AddScoped<ResultsExportService>();
 if (!isOperatorCommand) builder.Services.AddHostedService<LockSweeper>();
+// Only CSS and JavaScript: HTML holds antiforgery tokens, which must never be compressed over HTTPS (BREACH).
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ["text/css", "text/javascript", "application/javascript"];
+});
 
 var app = builder.Build();
+
+if (isCheckTerms)
+{
+    // Read-only, and before database initialization, like the commands below.
+    using var scope = app.Services.CreateScope();
+    var images = await scope.ServiceProvider.GetRequiredService<MedDataDbContext>().MedDatas.AsNoTracking()
+        .Where(image => image.ExcludedAt == null)
+        .Select(image => new { image.Id, image.ImageDescription, Terms = image.MedDataKeywords!.OrderBy(keyword => keyword.Id).Select(keyword => keyword.Keyword).ToList() })
+        .OrderBy(image => image.Id).ToListAsync();
+    var problems = 0;
+    foreach (var image in images)
+    {
+        var terms = image.Terms.Where(term => !string.IsNullOrWhiteSpace(term)).Select(term => term!.Trim()).Distinct().ToList<string?>();
+        var unmatched = DescriptionKeywords.UnmatchedTerms(image.ImageDescription, terms);
+        if (unmatched.Count == 0) continue;
+        problems++;
+        Console.WriteLine($"Image {image.Id}: {string.Join(" | ", unmatched)}");
+    }
+    Console.WriteLine($"{problems} of {images.Count} images have terms specialists could not answer, so those images would block whoever receives them.");
+    Environment.ExitCode = problems == 0 ? 0 : 1;
+    return;
+}
 
 if (isOperatorCommand)
 {
@@ -209,9 +242,18 @@ app.Use(async (context, next) =>
     context.Response.Headers.XContentTypeOptions = "nosniff";
     context.Response.Headers.XFrameOptions = "DENY";
     context.Response.Headers["Referrer-Policy"] = "same-origin";
+    var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+    context.Items[SecurityHeaders.NonceKey] = nonce;
+    context.Response.Headers.ContentSecurityPolicy = SecurityHeaders.Policy(nonce);
     await next();
 });
-app.UseStaticFiles();
+app.UseResponseCompression();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // asp-append-version gives changed files a new ?v= address, so those can be cached for good.
+    OnPrepareResponse = file => file.Context.Response.Headers.CacheControl =
+        file.Context.Request.Query.ContainsKey("v") ? "public,max-age=31536000,immutable" : "public,max-age=86400"
+});
 app.UseRouting();
 app.UseRateLimiter();
 app.UseSession();
@@ -221,13 +263,6 @@ app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-
-    logger.LogDebug(
-        "Current path: {Path}, Authenticated: {Authenticated}, User: {User}",
-        path,
-        context.User.Identity?.IsAuthenticated,
-        context.User.Identity?.Name);
 
     if (ShouldAllowPath(path))
     {

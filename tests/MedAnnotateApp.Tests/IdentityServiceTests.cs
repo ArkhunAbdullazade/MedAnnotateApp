@@ -1,6 +1,8 @@
 using MedAnnotateApp.Core.Models;
 using MedAnnotateApp.Infrastructure.Data;
+using MedAnnotateApp.Infrastructure.Repositories;
 using MedAnnotateApp.Infrastructure.Services;
+using MedAnnotateApp.Infrastructure.Services.Admin;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -105,6 +107,104 @@ public class IdentityServiceTests
     }
 
     [Fact]
+    public async Task LoginIgnoresSpacesAroundTheEmail()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var user = new User { Email = "specialist@gmail.com", UserName = "specialist@gmail.com" };
+        Assert.True((await fixture.Users.CreateAsync(user, "PersonalPassword1!")).Succeeded);
+
+        Assert.True((await fixture.Identity.LoginAsync(" specialist@gmail.com ", "PersonalPassword1!")).Succeeded);
+    }
+
+    [Fact]
+    public async Task EmailCorrectionMovesSavedWorkAndSwitchesTheLogin()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var user = new User { Email = "typo@gmial.com", UserName = "typo@gmial.com", FullName = "Dr Typo", Speciality = "cardiology", BodyRegion = "thorax", ImageModality = "ct" };
+        Assert.True((await fixture.Users.CreateAsync(user, "PersonalPassword1!")).Succeeded);
+        Assert.True((await fixture.Users.AddToRoleAsync(user, "Professional")).Succeeded);
+        var other = new User { Email = "other@gmail.com", UserName = "other@gmail.com" };
+        Assert.True((await fixture.Users.CreateAsync(other, "PersonalPassword1!")).Succeeded);
+        var stamp = user.SecurityStamp;
+        var db = fixture.Database;
+        db.MedDatas.AddRange(new MedData { Id = 1, ImageUrl = "https://images.example.test/1.png", Speciality = "cardiology", BodyRegion = "thorax", Modality = "ct" });
+        db.MedDataKeywords.AddRange(new MedDataKeyword { MedDataId = 1, Keyword = "lesion" }, new MedDataKeyword { MedDataId = 1, Keyword = "margin" });
+        db.AnnotatedMedDatas.AddRange(
+            new AnnotatedMedData { MedDataId = 1, Email = user.Email, ExtractedKeyword = "lesion", PressedButton = "Uncertain/Skip" },
+            new AnnotatedMedData { MedDataId = 1, Email = other.Email, ExtractedKeyword = "lesion", PressedButton = "Uncertain/Skip" });
+        db.AnnotatedByStudentsMedDatas.Add(new AnnotatedByStudentsMedData { MedDataId = 1, Email = user.Email, TextualAnnotation = "lesion" });
+        await db.SaveChangesAsync();
+        var repository = new MedDataRepository(db);
+        Assert.Equal(1, (await repository.GetNthMedDataBySpecialityAndPositionAsync(user.Speciality, "professional", user.BodyRegion, user.ImageModality, user.Id)).MedData?.Id);
+        var service = new ParticipantAdminService(db, fixture.Users);
+
+        var result = await service.CorrectEmailAsync(user.Id, " right@gmail.com ", "admin-id");
+
+        Assert.True(result.Released);
+        db.ChangeTracker.Clear();
+        Assert.Equal(["other@gmail.com", "right@gmail.com"], (await db.AnnotatedMedDatas.AsNoTracking().Select(item => item.Email!).ToListAsync()).Order());
+        Assert.Equal("right@gmail.com", (await db.AnnotatedByStudentsMedDatas.AsNoTracking().SingleAsync()).Email);
+        var changed = await fixture.Users.FindByEmailAsync("right@gmail.com");
+        Assert.Equal(user.Id, changed!.Id);
+        Assert.Equal("right@gmail.com", changed.UserName);
+        Assert.NotEqual(stamp, changed.SecurityStamp);
+        Assert.Null(await fixture.Users.FindByEmailAsync("typo@gmial.com"));
+        Assert.False((await fixture.Identity.LoginAsync("typo@gmial.com", "PersonalPassword1!")).Succeeded);
+        Assert.True((await fixture.Identity.LoginAsync("right@gmail.com", "PersonalPassword1!")).Succeeded);
+
+        // Their partial work follows them: the saved term still counts and the next term is still open.
+        var saved = await repository.GetProfessionalAnnotationsAsync(1, changed);
+        Assert.Equal("lesion", Assert.Single(saved!).ExtractedKeyword);
+        Assert.True((await repository.SaveProfessionalAsync(changed, new AnnotatedMedData { MedDataId = 1, ExtractedKeyword = "margin", PressedButton = "Uncertain/Skip" })).Success);
+        Assert.True((await repository.CompleteProfessionalAsync(1, changed)).Success);
+
+        var audit = await db.AdminActions.AsNoTracking().SingleAsync();
+        Assert.Equal(("correct-email", user.Id, "admin-id"), (audit.Action, audit.TargetUserId, audit.AdminUserId));
+        Assert.DoesNotContain("@", audit.Details);
+    }
+
+    [Theory]
+    [InlineData("other@gmail.com")]
+    [InlineData("OTHER@gmail.com")]
+    [InlineData("not-an-address")]
+    [InlineData("name@gmail")]
+    [InlineData("")]
+    [InlineData("typo@gmial.com")]
+    public async Task EmailCorrectionRefusesBadOrTakenAddressesAndChangesNothing(string email)
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var user = new User { Email = "typo@gmial.com", UserName = "typo@gmial.com" };
+        Assert.True((await fixture.Users.CreateAsync(user, "PersonalPassword1!")).Succeeded);
+        Assert.True((await fixture.Users.CreateAsync(new User { Email = "other@gmail.com", UserName = "other@gmail.com" }, "PersonalPassword1!")).Succeeded);
+        var db = fixture.Database;
+        db.MedDatas.Add(new MedData { Id = 1 });
+        db.AnnotatedMedDatas.Add(new AnnotatedMedData { MedDataId = 1, Email = user.Email, ExtractedKeyword = "lesion" });
+        await db.SaveChangesAsync();
+
+        var result = await new ParticipantAdminService(db, fixture.Users).CorrectEmailAsync(user.Id, email, "admin-id");
+
+        Assert.False(result.Released);
+        db.ChangeTracker.Clear();
+        Assert.Equal("typo@gmial.com", (await db.Users.AsNoTracking().SingleAsync(item => item.Id == user.Id)).Email);
+        Assert.Equal("typo@gmial.com", (await db.AnnotatedMedDatas.AsNoTracking().SingleAsync()).Email);
+        Assert.Empty(await db.AdminActions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task EmailCorrectionRefusesAdminAccounts()
+    {
+        await using var fixture = await IdentityFixture.CreateAsync();
+        var admin = await fixture.Identity.CreateAdminAsync("lead@gmail.com");
+        var account = await fixture.Users.FindByEmailAsync("lead@gmail.com");
+
+        var result = await new ParticipantAdminService(fixture.Database, fixture.Users).CorrectEmailAsync(account!.Id, "new@gmail.com", "admin-id");
+
+        Assert.True(admin.Succeeded);
+        Assert.False(result.Released);
+        Assert.NotNull(await fixture.Users.FindByEmailAsync("lead@gmail.com"));
+    }
+
+    [Fact]
     public async Task CreateAdminMakesAnAdminOnlyAccountAndNeverReusesAnAnnotatorEmail()
     {
         await using var fixture = await IdentityFixture.CreateAsync();
@@ -142,6 +242,7 @@ public class IdentityServiceTests
         private readonly IServiceScope scope;
         public DefaultHttpContext Context { get; }
         public UserManager<User> Users { get; }
+        public MedDataDbContext Database { get; }
         public IdentityService Identity { get; }
 
         private IdentityFixture(SqliteConnection connection, ServiceProvider provider, IServiceScope scope)
@@ -152,6 +253,7 @@ public class IdentityServiceTests
             Context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
             scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = Context;
             Users = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            Database = scope.ServiceProvider.GetRequiredService<MedDataDbContext>();
             var signIn = scope.ServiceProvider.GetRequiredService<SignInManager<User>>();
             // Pin the request on this fixture; IHttpContextAccessor uses an AsyncLocal
             // that does not flow back out of the asynchronous fixture factory.

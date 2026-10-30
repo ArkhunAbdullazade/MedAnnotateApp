@@ -6,6 +6,26 @@ namespace MedAnnotateApp.Tests;
 
 public sealed class DescriptionKeywordsTests
 {
+    [Theory]
+    [InlineData("A lesion with a clear margin.", new[] { "lesion", "margin" }, new string[0])]
+    [InlineData("A Lesion here.", new[] { "lesion" }, new string[0])]
+    [InlineData("A lesion here.", new[] { "lesion", "nodule" }, new[] { "nodule" })]
+    [InlineData("A lung mass here.", new[] { "lung", "lung mass" }, new[] { "lung" })]
+    [InlineData("A lung mass and the lung.", new[] { "lung", "lung mass" }, new string[0])]
+    [InlineData("The lung here.", new[] { "lung", "Lung" }, new[] { "Lung" })]
+    [InlineData(null, new[] { "lesion" }, new[] { "lesion" })]
+    public void UnmatchedTermsListWhatThePageCouldNeverOffer(string? description, string[] terms, string[] expected) =>
+        Assert.Equal(expected, DescriptionKeywords.UnmatchedTerms(description, terms));
+
+    [Fact]
+    public void TextAfterTheLastTermIsKept()
+    {
+        var html = Render("Before lesion after.", ["lesion"]);
+        Assert.StartsWith("Before <span", html);
+        Assert.EndsWith("lesion</span> after.", html);
+    }
+
+
     [Fact]
     public void TermsStayInTheirOriginalTextAndFollowDescriptionOrder()
     {

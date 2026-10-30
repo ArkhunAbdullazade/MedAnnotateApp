@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using MedAnnotateApp.Core.Models;
+using MedAnnotateApp.Core.Services;
 using MedAnnotateApp.Infrastructure.Data;
 using MedAnnotateApp.Infrastructure.Repositories;
 using MedAnnotateApp.Infrastructure.Services.Admin;
@@ -241,6 +242,104 @@ public sealed class AdminServicesTests
         Assert.Equal(2, lines.Length);
         Assert.Contains(",margin,", lines[1]);
     }
+
+    [Theory]
+    [InlineData("=SUM(A1)")]
+    [InlineData("+1+1")]
+    [InlineData("-1+1")]
+    [InlineData("@SUM(A1)")]
+    [InlineData("\tcell")]
+    public async Task CsvNeutralizesFormulasInEveryTextCellButJsonKeepsThem(string dangerous)
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        db.First.FullName = dangerous;
+        db.First.University = dangerous;
+        await db.Context.SaveChangesAsync();
+        await db.AssignAsync(db.First);
+        Assert.True((await db.Repository.SaveProfessionalAsync(db.First, Answer("lesion", dangerous))).Success);
+
+        var csv = await ReadArchiveAsync(await db.Export.CreateArchiveAsync(new ExportOptions { Identity = IdentityMode.Full }));
+        var json = await ReadArchiveAsync(await db.Export.CreateArchiveAsync(new ExportOptions { Identity = IdentityMode.Full, Format = ExportFormat.Json }));
+
+        Assert.Contains("'" + dangerous, csv["specialist_responses.csv"]);
+        Assert.Contains("'" + dangerous, csv["participants.csv"]);
+        Assert.DoesNotContain("," + dangerous, csv["participants.csv"]);
+        using var answers = JsonDocument.Parse(json["specialist_responses.json"]);
+        Assert.Equal(dangerous, answers.RootElement[0].GetProperty("Comment").GetString());
+    }
+
+    [Fact]
+    public async Task ExportsKeepCoordinatesByteForByte()
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        await db.AssignAsync(db.First);
+        Assert.True((await db.Repository.SaveProfessionalAsync(db.First, Answer("lesion"))).Success);
+
+        var csv = await ReadArchiveAsync(await db.Export.CreateArchiveAsync(new ExportOptions()));
+        var json = await ReadArchiveAsync(await db.Export.CreateArchiveAsync(new ExportOptions { Format = ExportFormat.Json }));
+
+        Assert.Contains("\"" + Coordinates.Replace("\"", "\"\"") + "\"", csv["specialist_responses.csv"]);
+        using var answers = JsonDocument.Parse(json["specialist_responses.json"]);
+        Assert.Equal(Coordinates, answers.RootElement[0].GetProperty("Coordinates").GetString());
+    }
+
+    [Fact]
+    public async Task RemovedImageIsNeverAssignedAndKeepsItsAnswers()
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        await db.AssignAsync(db.First);
+        await db.AssignAsync(db.Student, true);
+        Assert.True((await db.Repository.SaveProfessionalAsync(db.First, Answer("lesion"))).Success);
+
+        var removed = await db.Assignments.SetRemovedAsync(1, true, db.Admin.Id);
+
+        Assert.True(removed.Released);
+        Assert.False((await db.Assignments.SetRemovedAsync(1, true, db.Admin.Id)).Released);
+        var image = await db.Context.MedDatas.AsNoTracking().SingleAsync(item => item.Id == 1);
+        Assert.NotNull(image.ExcludedAt);
+        Assert.Null(image.LockedByUserId);
+        Assert.Null(image.LockedByStudentUserId);
+        Assert.Equal(1, await db.Context.AnnotatedMedDatas.CountAsync());
+        Assert.False(await db.Repository.IsAssignedAsync(1, db.First.Id, false));
+        var late = await db.Repository.SaveProfessionalAsync(db.First, Answer("margin"));
+        Assert.False(late.Success);
+        Assert.True(late.Conflict);
+
+        // The lowest open image is skipped for everyone, and it no longer counts in progress.
+        var (next, counter) = await db.AssignAsync(db.First);
+        Assert.Equal(2, next?.Id);
+        Assert.Equal("0/1", counter);
+        Assert.Equal(2, (await db.AssignAsync(db.Student, true)).MedData?.Id);
+        var overview = await db.Queries.GetOverviewAsync(true);
+        Assert.Equal(2, overview.TotalImages);
+        var row = Assert.Single((await db.Queries.GetImagesAsync(new ImageQuery { SpecialistStatus = "removed" })).Items);
+        Assert.True(row.Removed);
+        var audit = await db.Context.AdminActions.AsNoTracking().SingleAsync();
+        Assert.Equal("remove-image", audit.Action);
+        Assert.Equal(1, audit.MedDataId);
+
+        var archive = await ReadArchiveAsync(await db.Export.CreateArchiveAsync(new ExportOptions()));
+        Assert.Contains(",true", archive["images.csv"].Split("\r\n")[1]);
+
+        Assert.True((await db.Assignments.SetRemovedAsync(1, false, db.Admin.Id)).Released);
+        db.Context.ChangeTracker.Clear();
+        // The first specialist's other assignment is empty, so the restored image with their partial work can come back.
+        Assert.Null((await db.Context.MedDatas.AsNoTracking().SingleAsync(item => item.Id == 1)).ExcludedAt);
+        Assert.Equal("restore-image", (await db.Context.AdminActions.AsNoTracking().OrderBy(item => item.Id).LastAsync()).Action);
+    }
+
+    [Theory]
+    [InlineData("name@gmail")]
+    [InlineData("name")]
+    [InlineData("name@example..org")]
+    [InlineData("na me@example.org")]
+    [InlineData("")]
+    public void EmailFormatRefusesIncompleteAddresses(string email) => Assert.False(EmailFormat.IsValid(email));
+
+    [Theory]
+    [InlineData("name@gmail.com")]
+    [InlineData("first.last+tag@med.example.edu.tr")]
+    public void EmailFormatAcceptsCompleteAddresses(string email) => Assert.True(EmailFormat.IsValid(email));
 
     [Theory]
     [InlineData("(1200,3400)", 1200L, 3400L)]

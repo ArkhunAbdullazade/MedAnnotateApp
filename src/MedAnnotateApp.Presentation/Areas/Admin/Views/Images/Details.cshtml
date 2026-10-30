@@ -21,7 +21,22 @@
     {
         <a class="btn btn-sm btn-outline-secondary" href="@image.SourceUrl" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> Source article</a>
     }
+    <form method="post" asp-action="SetRemoved" asp-route-id="@image.Id" class="d-inline"
+          data-confirm-button="@(image.ExcludedAt == null ? "Remove" : "Restore")"
+          data-confirm="@(image.ExcludedAt == null
+              ? $"Remove image #{image.Id} from the study? Use this for an image nobody can annotate, such as a dead link. Anyone working on it is locked out of it, saved answers are kept, and it won't be assigned again until restored."
+              : $"Restore image #{image.Id}? It can be assigned to annotators again.")">
+        <input type="hidden" name="removed" value="@((image.ExcludedAt == null).ToString().ToLowerInvariant())" />
+        <button class="btn btn-sm @(image.ExcludedAt == null ? "btn-outline-danger" : "btn-outline-secondary")" type="submit">
+            <i class="bi @(image.ExcludedAt == null ? "bi-slash-circle" : "bi-arrow-counterclockwise")"></i> @(image.ExcludedAt == null ? "Remove from study" : "Restore to study")
+        </button>
+    </form>
     <a class="btn btn-sm btn-outline-secondary" asp-action="Index"><i class="bi bi-arrow-left"></i> All images</a>
+}
+
+@if (image.ExcludedAt != null)
+{
+    <div class="alert alert-warning py-2" role="status"><i class="bi bi-slash-circle" aria-hidden="true"></i> Removed from the study <time datetime="@AdminUi.Iso(image.ExcludedAt)" data-local="datetime"></time>. It isn't assigned to anyone, and saved answers are kept.</div>
 }
 
 <div class="row g-3 mb-3">

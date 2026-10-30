@@ -26,7 +26,7 @@ public class MedDataRepository : IMedDataRepository
         var isStudent = string.Equals(position, "medical student", StringComparison.OrdinalIgnoreCase);
         await using var transaction = await BeginWorkflowAsync();
         var matching = ApplyFilters(context.MedDatas, filters)
-            .Where(image => image.ImageUrl != null && image.ImageUrl.Trim() != "");
+            .Where(image => image.ExcludedAt == null && image.ImageUrl != null && image.ImageUrl.Trim() != "");
         if (!isStudent)
             matching = matching.Where(image => image.MedDataKeywords!.Any(keyword => keyword.Keyword != null && keyword.Keyword.Trim() != ""));
 
