@@ -919,7 +919,7 @@ class CanvasManager {
       const loaded = () => {
         if (!this.sourceImage.naturalWidth || !this.sourceImage.naturalHeight) {
           this.ready = false;
-          this.reportImageError(`This image has no usable size, so it cannot be annotated. ${this.reportHint()}`);
+          this.reportImageError("This image has no usable size, so it cannot be annotated. Reload the page.");
           return;
         }
         const identity = this.sourceImage.currentSrc || this.sourceImage.src;
@@ -939,11 +939,11 @@ class CanvasManager {
       this.sourceImage.addEventListener("load", loaded);
       this.sourceImage.addEventListener("error", () => {
         this.ready = false;
-        this.reportImageError(`This image could not be loaded, so annotations cannot be saved. ${this.reportHint()}`);
+        this.reportImageError("This image could not be loaded, so annotations cannot be saved. Check your connection and reload the page.");
       });
       if (this.sourceImage.complete) {
         if (this.sourceImage.naturalWidth) loaded();
-        else this.reportImageError(`This image could not be loaded. ${this.reportHint()}`);
+        else this.reportImageError("This image could not be loaded. Check your connection and reload the page.");
       }
       window.addEventListener("resize", () => this.resizeDisplay());
       if (typeof ResizeObserver !== "undefined") {
@@ -973,11 +973,6 @@ class CanvasManager {
       imageContainer.style.height = `${height}px`;
       this.drawCanvas();
       this.updateToolsPosition(imageContainer);
-    }
-
-    // The study team removes an unusable image by its ID, and that ID appears nowhere else on the page.
-    reportHint() {
-      return `Reload the page. If this keeps happening, report image #${window.annotatedMedData?.id ?? "unknown"} to the study team.`;
     }
 
     reportImageError(message) {

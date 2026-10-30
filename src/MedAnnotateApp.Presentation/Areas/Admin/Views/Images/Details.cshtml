@@ -24,7 +24,7 @@
     <form method="post" asp-action="SetRemoved" asp-route-id="@image.Id" class="d-inline"
           data-confirm-button="@(image.ExcludedAt == null ? "Remove" : "Restore")"
           data-confirm="@(image.ExcludedAt == null
-              ? $"Remove image #{image.Id} from the study? Use this for an image nobody can annotate, such as a dead link. Anyone working on it is locked out of it, saved answers are kept, and it won't be assigned again until restored."
+              ? $"Remove image #{image.Id} from the study? Use this for an image that shouldn't be annotated. Anyone working on it is locked out of it, saved answers are kept, and it won't be assigned again until restored."
               : $"Restore image #{image.Id}? It can be assigned to annotators again.")">
         <input type="hidden" name="removed" value="@((image.ExcludedAt == null).ToString().ToLowerInvariant())" />
         <button class="btn btn-sm @(image.ExcludedAt == null ? "btn-outline-danger" : "btn-outline-secondary")" type="submit">
