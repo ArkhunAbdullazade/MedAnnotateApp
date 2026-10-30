@@ -10,10 +10,24 @@
             <div class="admin-card-header">
                 <div>
                     <h2 class="admin-card-title">Full results archive</h2>
-                    <p class="admin-card-note">A ZIP with images, specialist answers, student groups, participants, progress and a README</p>
+                    <p class="admin-card-note">A ZIP with the image list, specialist answers, student groups, participants, progress and a README</p>
                 </div>
             </div>
             <form class="admin-card-body" method="get" asp-action="Download">
+                <fieldset class="mb-4 option-list">
+                    <legend class="stat-label mb-2">What to include</legend>
+                    @foreach (var (value, label, note) in new[]
+                    {
+                        ("false", "Results only", "The data files with links to the images; downloads in moments. Good for checks during the study"),
+                        ("true", "Results and every image file", "Adds an images folder holding all study images, named by image ID. This is the copy to keep after the study, because the image links stop working once the study's storage is deleted. It can take many minutes and is as large as all the images together: leave the tab open and check that the download finishes")
+                    })
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="includeImages" id="includeImages-@value" value="@value" checked="@(value == "false")" />
+                            <label class="form-check-label" for="includeImages-@value">@label <span class="d-block muted small">@note</span></label>
+                        </div>
+                    }
+                </fieldset>
                 <fieldset class="mb-4 option-list">
                     <legend class="stat-label mb-2">Specialist answers</legend>
                     @foreach (var (value, label, note) in new[]

@@ -153,6 +153,7 @@ public sealed class ExportOptions
     public Completeness Completeness { get; set; }
     public IdentityMode Identity { get; set; }
     public ExportFormat Format { get; set; }
+    public bool IncludeImages { get; set; }
 }
 
-public sealed class ExportBusyException() : Exception("Another export is still running. Try again in a minute.");
+public sealed class ExportBusyException(string message = "Another export is still running. Try again in a minute.") : Exception(message);

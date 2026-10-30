@@ -174,6 +174,8 @@ builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<AssignmentAdminService>();
 builder.Services.AddScoped<ParticipantAdminService>();
 builder.Services.AddScoped<ResultsExportService>();
+// No overall timeout: the service limits each attempt itself.
+builder.Services.AddHttpClient<ImageArchiveService>(client => client.Timeout = Timeout.InfiniteTimeSpan);
 if (!isOperatorCommand) builder.Services.AddHostedService<LockSweeper>();
 // Only CSS and JavaScript: HTML holds antiforgery tokens, which must never be compressed over HTTPS (BREACH).
 builder.Services.AddResponseCompression(options =>

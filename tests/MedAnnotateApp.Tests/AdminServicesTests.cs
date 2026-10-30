@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using MedAnnotateApp.Core.Models;
@@ -225,6 +227,145 @@ public sealed class AdminServicesTests
         Assert.Empty(groups.RootElement.EnumerateArray());
         using var images = JsonDocument.Parse(files["images.json"]);
         Assert.Equal(3, images.RootElement.GetArrayLength());
+    }
+
+    [Theory]
+    [InlineData(ExportFormat.Csv, ".csv")]
+    [InlineData(ExportFormat.Json, ".json")]
+    public async Task ImageArchiveHoldsResultsAndTheExactBytesOfEveryImage(ExportFormat format, string extension)
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        db.Context.MedDatas.Find(3)!.ExcludedAt = DateTime.UtcNow;
+        await db.Context.SaveChangesAsync();
+        var files = new Dictionary<int, byte[]> { [1] = Jpeg(1), [2] = Png(2), [3] = Jpeg(3) };
+
+        var archive = await WriteImageArchiveAsync(db, new ImageServer(request => files[IdOf(request)]), new ExportOptions { Format = format, IncludeImages = true });
+
+        using var zip = new ZipArchive(new MemoryStream(archive), ZipArchiveMode.Read);
+        Assert.Equal(["README.txt", "images" + extension, "images/1.jpg", "images/2.png", "images/3.jpg", "images_manifest" + extension,
+            "participants" + extension, "progress" + extension, "specialist_responses" + extension, "student_annotations" + extension],
+            zip.Entries.Select(entry => entry.FullName).Order(StringComparer.Ordinal));
+        Assert.Equal(files[1], EntryBytes(zip, "images/1.jpg"));
+        Assert.Equal(files[2], EntryBytes(zip, "images/2.png"));
+        Assert.Equal(files[3], EntryBytes(zip, "images/3.jpg"));
+        var manifest = Encoding.UTF8.GetString(EntryBytes(zip, "images_manifest" + extension));
+        Assert.Contains(Convert.ToHexStringLower(SHA256.HashData(files[2])), manifest);
+        Assert.Contains("images/", Encoding.UTF8.GetString(EntryBytes(zip, "README.txt")));
+    }
+
+    [Fact]
+    public async Task ImageArchiveRetriesAndNamesEveryImageItCouldNotFetch()
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        var calls = new Dictionary<int, int>();
+        var server = new ImageServer(request =>
+        {
+            var id = IdOf(request);
+            calls[id] = calls.GetValueOrDefault(id) + 1;
+            return id switch
+            {
+                1 when calls[id] == 1 => throw new HttpRequestException("connection reset"),
+                1 => Jpeg(1),
+                2 => HttpStatusCode.NotFound,
+                _ => Encoding.UTF8.GetBytes("<html>sign in</html>")
+            };
+        });
+
+        var archive = await WriteImageArchiveAsync(db, server, new ExportOptions { IncludeImages = true });
+
+        using var zip = new ZipArchive(new MemoryStream(archive), ZipArchiveMode.Read);
+        Assert.Equal(2, calls[1]);
+        Assert.Equal(1, calls[2]);
+        Assert.Equal(Jpeg(1), EntryBytes(zip, "images/1.jpg"));
+        Assert.Single(zip.Entries, entry => entry.FullName.StartsWith("images/"));
+        var missing = Encoding.UTF8.GetString(EntryBytes(zip, "MISSING_IMAGES.txt"));
+        Assert.Contains("2\thttp-404\thttps://images.example.test/2.png", missing);
+        Assert.Contains("3\tnot-an-image\thttps://images.example.test/3.png", missing);
+        var manifest = Encoding.UTF8.GetString(EntryBytes(zip, "images_manifest.csv"));
+        Assert.Contains("2,,,,http-404,", manifest);
+    }
+
+    [Fact]
+    public async Task OnlyOneImageArchiveRunsAtATime()
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        var service = new ImageArchiveService(db.Context, db.Export, new HttpClient(new ImageServer(_ => Jpeg(1))));
+        var first = await service.PrepareAsync(new ExportOptions { IncludeImages = true });
+        await Assert.ThrowsAsync<ExportBusyException>(() => service.PrepareAsync(new ExportOptions { IncludeImages = true }));
+        await first.DisposeAsync();
+        await using var next = await service.PrepareAsync(new ExportOptions { IncludeImages = true });
+    }
+
+    [Fact]
+    public async Task InterruptedImageArchiveNeverLooksComplete()
+    {
+        await using var db = await AdminDatabase.CreateAsync();
+        using var cancel = new CancellationTokenSource();
+        var server = new ImageServer(request =>
+        {
+            if (IdOf(request) == 2) cancel.Cancel();
+            return Jpeg(1);
+        });
+        var service = new ImageArchiveService(db.Context, db.Export, new HttpClient(server));
+        await using var archive = await service.PrepareAsync(new ExportOptions { IncludeImages = true });
+        using var output = new MemoryStream();
+        var stream = new ForwardOnlyStream(output);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => archive.WriteToAsync(stream, cancel.Token));
+
+        Assert.ThrowsAny<InvalidDataException>(() => new ZipArchive(new MemoryStream(output.ToArray()), ZipArchiveMode.Read));
+    }
+
+    private static async Task<byte[]> WriteImageArchiveAsync(AdminDatabase db, ImageServer server, ExportOptions options)
+    {
+        var service = new ImageArchiveService(db.Context, db.Export, new HttpClient(server));
+        await using var archive = await service.PrepareAsync(options);
+        using var output = new MemoryStream();
+        await archive.WriteToAsync(new ForwardOnlyStream(output));
+        return output.ToArray();
+    }
+
+    private static int IdOf(HttpRequestMessage request) => int.Parse(Path.GetFileNameWithoutExtension(request.RequestUri!.AbsolutePath));
+
+    private static byte[] Jpeg(byte seed) => [0xFF, 0xD8, 0xFF, 0xE0, seed, .. Enumerable.Repeat(seed, 2000)];
+
+    private static byte[] Png(byte seed) => [0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, seed];
+
+    private static byte[] EntryBytes(ZipArchive zip, string name)
+    {
+        using var source = zip.GetEntry(name)!.Open();
+        using var memory = new MemoryStream();
+        source.CopyTo(memory);
+        return memory.ToArray();
+    }
+
+    private sealed class ImageServer(Func<HttpRequestMessage, object> respond) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(respond(request) switch
+            {
+                HttpStatusCode status => new HttpResponseMessage(status),
+                byte[] body => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) },
+                var other => throw new InvalidOperationException(other.ToString())
+            });
+    }
+
+    /// <summary>Like the real response body, it can only be written forwards.</summary>
+    private sealed class ForwardOnlyStream(MemoryStream inner) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => inner.WriteAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => inner.WriteAsync(buffer, cancellationToken);
     }
 
     [Fact]

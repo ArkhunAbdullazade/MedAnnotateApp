@@ -208,6 +208,16 @@ public sealed class ResultsExportService
             IdentityMode.None => "none (no annotator columns)",
             _ => "pseudonymous codes (SPEC-001, STU-001, in signup order)"
         };
+        if (options.IncludeImages)
+            writer.Write("""
+                images/           every study image, including removed ones, as <ImageId>.<extension>. These are the exact
+                                  files annotators saw, so saved coordinates apply to them directly.
+                images_manifest   one row per image: its file, size, SHA-256, status (ok or the reason it is missing) and links.
+                MISSING_IMAGES.txt
+                                  only present if an image could not be fetched; lists each one and why.
+
+
+                """);
         writer.Write($$"""
             MedAnnotate results export, {{exportedAt}} UTC
             Specialist answers: {{answers}}
